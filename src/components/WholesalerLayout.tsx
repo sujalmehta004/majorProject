@@ -6,7 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, Package, Truck, Receipt, LogOut,
   ShieldAlert, ChevronRight, Search, Settings, X,
-  PanelLeftClose, PanelLeftOpen, Menu
+  PanelLeftClose, PanelLeftOpen, Menu, Users
 } from 'lucide-react';
 
 interface WholesalerLayoutProps {
@@ -47,7 +47,7 @@ export default function WholesalerLayout({ children, user, profile }: Wholesaler
 
   const allowedList = user.allowedFeatures
     ? user.allowedFeatures.split(',')
-    : ['Dashboard', 'Medicines', 'Orders', 'Billing', 'POS', 'Profile', 'Logs'];
+    : ['Dashboard', 'Medicines', 'Orders', 'Billing', 'POS', 'Profile', 'Logs', 'Customers'];
 
   const navItems = [
     {
@@ -73,6 +73,14 @@ export default function WholesalerLayout({ children, user, profile }: Wholesaler
       desc: 'Create and dispatch B2B orders',
       feature: 'Orders',
       tags: 'sell, dispatch, buy, sales, retailer, pending',
+    },
+    {
+      name: 'Customers',
+      href: '/wholesaler/customers',
+      icon: Users,
+      desc: 'Retailer accounts and transaction histories',
+      feature: 'Customers',
+      tags: 'retailer, customer, history, transactions, accounts',
     },
     {
       name: 'POS B2C',
@@ -103,6 +111,7 @@ export default function WholesalerLayout({ children, user, profile }: Wholesaler
   if (pathname === '/wholesaler/dashboard') currentFeature = 'Dashboard';
   else if (pathname === '/wholesaler/inventory') currentFeature = 'Medicines';
   else if (pathname === '/wholesaler/orders') currentFeature = 'Orders';
+  else if (pathname === '/wholesaler/customers') currentFeature = 'Customers';
   else if (pathname === '/wholesaler/billing') currentFeature = 'Billing';
   else if (pathname === '/wholesaler/pos') currentFeature = 'POS';
 
@@ -111,12 +120,47 @@ export default function WholesalerLayout({ children, user, profile }: Wholesaler
     currentFeature &&
     !allowedList.includes(currentFeature);
 
+  const [searchResults, setSearchResults] = useState<{
+    pages: Array<any>;
+    medicines: Array<any>;
+    transactions: Array<any>;
+    customers: Array<any>;
+  }>({ pages: [], medicines: [], transactions: [], customers: [] });
+
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [loadingSearch, setLoadingSearch] = useState(false);
+
+  // Flattened results helper for keyboard navigation
+  const flatResults: Array<{
+    type: 'page' | 'medicine' | 'transaction' | 'customer';
+    title: string;
+    subtitle: string;
+    url: string;
+    icon: any;
+  }> = [];
+
+  searchResults.pages.forEach(p => {
+    flatResults.push({ type: 'page', title: p.name, subtitle: p.desc, url: p.href, icon: p.icon });
+  });
+  searchResults.medicines.forEach(m => {
+    flatResults.push({ type: 'medicine', title: m.name, subtitle: `SKU: ${m.sku}`, url: `/wholesaler/inventory`, icon: Package });
+  });
+  searchResults.transactions.forEach(t => {
+    flatResults.push({ type: 'transaction', title: `Invoice: ${t.id.substring(0, 8).toUpperCase()}`, subtitle: `Amt: Rs. ${t.netAmount.toLocaleString()} | Retailer: ${t.retailer?.pharmacyName || 'Walk-in'}`, url: `/wholesaler/billing`, icon: Receipt });
+  });
+  searchResults.customers.forEach(c => {
+    flatResults.push({ type: 'customer', title: c.pharmacyName, subtitle: `Phone: ${c.phone || 'N/A'} | Email: ${c.user?.email || 'N/A'}`, url: `/wholesaler/customers?id=${c.id}`, icon: Users });
+  });
+
   useEffect(() => {
     setMounted(true);
     const savedCollapsed = localStorage.getItem('sidebar_collapsed');
     if (savedCollapsed === 'true') setCollapsed(true);
     logActivity('VIEW_PAGE', `Opened page: ${pathname}`);
+  }, [pathname]);
 
+  // Handle global keyboard shortcut listener
+  useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
         e.preventDefault();
@@ -126,10 +170,73 @@ export default function WholesalerLayout({ children, user, profile }: Wholesaler
         setShowSearch(false);
         setSearchQuery('');
       }
+
+      if (showSearch && flatResults.length > 0) {
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          setActiveIndex((prev) => (prev + 1) % flatResults.length);
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          setActiveIndex((prev) => (prev - 1 + flatResults.length) % flatResults.length);
+        } else if (e.key === 'Enter') {
+          e.preventDefault();
+          const target = flatResults[activeIndex];
+          if (target) {
+            setShowSearch(false);
+            setSearchQuery('');
+            logActivity('COMMAND_PALETTE', `Jumped to ${target.title}`);
+            router.push(target.url);
+          }
+        }
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [pathname]);
+  }, [showSearch, flatResults, activeIndex, router]);
+
+  // Load live DB results dynamically on query change
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSearchResults({ pages: [], medicines: [], transactions: [], customers: [] });
+      setActiveIndex(0);
+      return;
+    }
+
+    const delayDebounce = setTimeout(async () => {
+      setLoadingSearch(true);
+      try {
+        const q = searchQuery.toLowerCase();
+        const matchedPages = navItems.filter((item) => {
+          if (user.role === 'WHOLESALER_STAFF') {
+            if (item.name === 'Settings' && !(allowedList.includes('Profile') || allowedList.includes('Logs'))) return false;
+            if (item.feature && !allowedList.includes(item.feature)) return false;
+          }
+          return (
+            item.name.toLowerCase().includes(q) ||
+            item.desc.toLowerCase().includes(q) ||
+            item.tags.toLowerCase().includes(q)
+          );
+        });
+
+        const res = await fetch(`/api/wholesaler/search?q=${encodeURIComponent(searchQuery)}&wholesalerId=${profile.id}`);
+        const data = await res.json();
+        
+        setSearchResults({
+          pages: matchedPages,
+          medicines: data.medicines || [],
+          transactions: data.transactions || [],
+          customers: data.customers || [],
+        });
+        setActiveIndex(0);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoadingSearch(false);
+      }
+    }, 250);
+
+    return () => clearTimeout(delayDebounce);
+  }, [searchQuery]);
 
   useEffect(() => {
     if (!mounted) return;
@@ -180,24 +287,7 @@ export default function WholesalerLayout({ children, user, profile }: Wholesaler
     return true;
   });
 
-  const searchResults = searchQuery
-    ? navItems.filter((item) => {
-        if (user.role === 'WHOLESALER_STAFF') {
-          if (
-            item.name === 'Settings' &&
-            !(allowedList.includes('Profile') || allowedList.includes('Logs'))
-          )
-            return false;
-          if (item.feature && !allowedList.includes(item.feature)) return false;
-        }
-        const q = searchQuery.toLowerCase();
-        return (
-          item.name.toLowerCase().includes(q) ||
-          item.desc.toLowerCase().includes(q) ||
-          item.tags.toLowerCase().includes(q)
-        );
-      })
-    : [];
+  // Real-time search state is managed above dynamically via SWR and API routes.
 
   if (!mounted) {
     return (
@@ -449,7 +539,7 @@ export default function WholesalerLayout({ children, user, profile }: Wholesaler
             className="animate-scaleIn"
             style={{
               width: '100%',
-              maxWidth: 520,
+              maxWidth: 540,
               background: 'rgba(255,255,255,0.96)',
               backdropFilter: 'blur(24px)',
               borderRadius: 16,
@@ -470,8 +560,11 @@ export default function WholesalerLayout({ children, user, profile }: Wholesaler
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search features (e.g. pos, billing, staff)…"
+                placeholder="Search medicines, orders, customers, pages..."
               />
+              {loadingSearch && (
+                <div style={{ width: 14, height: 14, border: '2px solid #0EA5E9', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.6s linear infinite', marginRight: 8 }} />
+              )}
               <button
                 onClick={() => { setShowSearch(false); setSearchQuery(''); }}
                 style={{
@@ -492,14 +585,14 @@ export default function WholesalerLayout({ children, user, profile }: Wholesaler
             </div>
 
             {/* Results */}
-            <div style={{ maxHeight: 300, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <div style={{ maxHeight: 350, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
               {searchQuery === '' ? (
                 <div style={{ padding: '16px 0', textAlign: 'center' }}>
                   <div style={{ fontSize: 10, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
                     Quick Jump
                   </div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
-                    {['pos', 'medicines', 'settings', 'billing', 'orders'].map((tag) => (
+                    {['pos', 'medicines', 'customers', 'settings', 'billing', 'orders'].map((tag) => (
                       <button
                         key={tag}
                         onClick={() => setSearchQuery(tag)}
@@ -520,68 +613,80 @@ export default function WholesalerLayout({ children, user, profile }: Wholesaler
                     ))}
                   </div>
                 </div>
-              ) : searchResults.length === 0 ? (
+              ) : flatResults.length === 0 ? (
                 <div style={{ padding: '32px 0', textAlign: 'center', fontSize: 13, color: '#94A3B8' }}>
                   No results for &ldquo;{searchQuery}&rdquo;
                 </div>
               ) : (
-                searchResults.map((item) => {
-                  const Icon = item.icon;
-                  return (
-                    <button
-                      key={item.href}
-                      onClick={() => {
-                        setShowSearch(false);
-                        setSearchQuery('');
-                        logActivity('COMMAND_PALETTE', `Jumped to ${item.name}`);
-                        router.push(item.href);
-                      }}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 12,
-                        padding: '10px 12px',
-                        borderRadius: 10,
-                        border: '1.5px solid transparent',
-                        background: 'transparent',
-                        cursor: 'pointer',
-                        textAlign: 'left',
-                        width: '100%',
-                        transition: 'all 0.15s',
-                        fontFamily: 'inherit',
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.background = 'rgba(186,230,253,0.25)';
-                        e.currentTarget.style.borderColor = '#BAE6FD';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.background = 'transparent';
-                        e.currentTarget.style.borderColor = 'transparent';
-                      }}
-                    >
-                      <div
-                        style={{
-                          width: 34,
-                          height: 34,
-                          borderRadius: 8,
-                          background: '#F0F9FF',
-                          border: '1px solid #BAE6FD',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          flexShrink: 0,
-                        }}
-                      >
-                        <Icon style={{ width: 16, height: 16, color: '#0EA5E9' }} />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {/* Categorized Visual Results */}
+                  {['page', 'medicine', 'transaction', 'customer'].map((groupType) => {
+                    const groupItems = flatResults.filter(item => item.type === groupType);
+                    if (groupItems.length === 0) return null;
+
+                    return (
+                      <div key={groupType} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <div style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', color: '#94A3B8', letterSpacing: '0.07em', paddingLeft: 6, marginBottom: 2 }}>
+                          {groupType === 'page' ? 'Navigation Pages' : groupType === 'medicine' ? 'Inventory Products' : groupType === 'transaction' ? 'Ledger Invoices' : 'Retailer Customers'}
+                        </div>
+                        {groupItems.map((item) => {
+                          const originalFlatIndex = flatResults.findIndex(f => f.url === item.url && f.title === item.title);
+                          const isHighlighted = activeIndex === originalFlatIndex;
+                          const Icon = item.icon;
+
+                          return (
+                            <button
+                              key={item.url + item.title}
+                              onClick={() => {
+                                setShowSearch(false);
+                                setSearchQuery('');
+                                logActivity('COMMAND_PALETTE', `Jumped to ${item.title}`);
+                                router.push(item.url);
+                              }}
+                              onMouseEnter={() => setActiveIndex(originalFlatIndex)}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 12,
+                                padding: '8px 10px',
+                                borderRadius: 10,
+                                border: '1.5px solid transparent',
+                                background: isHighlighted ? 'rgba(14,165,233,0.08)' : 'transparent',
+                                borderColor: isHighlighted ? '#BAE6FD' : 'transparent',
+                                cursor: 'pointer',
+                                textAlign: 'left',
+                                width: '100%',
+                                transition: 'all 0.15s',
+                                fontFamily: 'inherit',
+                              }}
+                            >
+                              <div
+                                style={{
+                                  width: 32,
+                                  height: 32,
+                                  borderRadius: 8,
+                                  background: isHighlighted ? '#E0F2FE' : '#F8FAFC',
+                                  border: '1px solid #E2E8F0',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  flexShrink: 0,
+                                }}
+                              >
+                                <Icon style={{ width: 15, height: 15, color: '#0EA5E9' }} />
+                              </div>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontSize: 12, fontWeight: 700, color: '#1E293B' }}>{item.title}</div>
+                                <div style={{ fontSize: 10, color: '#94A3B8', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.subtitle}</div>
+                              </div>
+                              <ChevronRight style={{ width: 14, height: 14, color: isHighlighted ? '#0EA5E9' : '#E2E8F0', flexShrink: 0 }} />
+                            </button>
+                          );
+                        })}
                       </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: '#1E293B' }}>{item.name}</div>
-                        <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 1 }}>{item.desc}</div>
-                      </div>
-                      <ChevronRight style={{ width: 14, height: 14, color: '#BAE6FD', flexShrink: 0 }} />
-                    </button>
-                  );
-                })
+                    );
+                  })}
+                </div>
               )}
             </div>
           </div>

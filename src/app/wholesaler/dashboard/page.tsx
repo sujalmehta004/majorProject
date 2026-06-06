@@ -148,6 +148,7 @@ export default async function WholesalerDashboard() {
       }}
     >
       <DashboardClient
+        profileId={profile.id}
         metrics={{
           productCount,
           activeBatches,

@@ -29,7 +29,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { items, customerName, customerPhone } = body; // items: [{ productId, qtyBoxes }]
+    const { items, customerName, customerPhone, retailerId } = body; // items: [{ productId, qtyBoxes }]
 
     if (!items || !items.length) {
       return NextResponse.json({ error: 'No items in checkout basket' }, { status: 400 });
@@ -68,7 +68,17 @@ export async function POST(request: Request) {
       });
     }
 
-    const retailerProfile = walkinUser.retailerProfile;
+    let retailerProfile = walkinUser.retailerProfile;
+    if (retailerId) {
+      const selectedProfile = await db.retailerProfile.findUnique({
+        where: { id: retailerId },
+        include: { user: true }
+      });
+      if (selectedProfile) {
+        retailerProfile = selectedProfile;
+      }
+    }
+
     if (!retailerProfile) {
       return NextResponse.json({ error: 'Walk-in customer profile could not be initialized' }, { status: 500 });
     }

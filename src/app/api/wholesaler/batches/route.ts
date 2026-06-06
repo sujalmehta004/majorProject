@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getSessionUser } from '@/lib/auth';
+import { broadcastToWholesaler } from '@/app/api/events/route';
 
 export async function POST(request: Request) {
   try {
@@ -86,6 +87,9 @@ export async function POST(request: Request) {
       },
     });
 
+    // Notify connected clients
+    broadcastToWholesaler(wholesalerId, 'INVENTORY_UPDATED', { type: 'BATCH_INGEST', batchId: batch.id });
+
     return NextResponse.json({ success: true, batch });
   } catch (error: any) {
     console.error('Error ingesting batch:', error);
@@ -136,6 +140,42 @@ export async function GET(request: Request) {
     return NextResponse.json({ success: true, batches });
   } catch (error: any) {
     console.error('Error fetching batches:', error);
+    return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
+  }
+}
+
+export async function PUT(request: Request) {
+  try {
+    const user = await getSessionUser();
+    if (!user || (user.role !== 'WHOLESALER' && user.role !== 'WHOLESALER_STAFF')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const { id, batchNumber, expiryDate, totalBaseUnits, availableBaseUnits, manufacturingCost, purchasePricePerBox, sellingPricePerBox, supplierName, manufacturerName } = body;
+
+    if (!id) {
+      return NextResponse.json({ error: 'Missing batch ID' }, { status: 400 });
+    }
+
+    const updatedBatch = await db.inventoryBatch.update({
+      where: { id },
+      data: {
+        batchNumber,
+        expiryDate: expiryDate ? new Date(expiryDate) : undefined,
+        totalBaseUnits: totalBaseUnits !== undefined ? parseInt(totalBaseUnits, 10) : undefined,
+        availableBaseUnits: availableBaseUnits !== undefined ? parseInt(availableBaseUnits, 10) : undefined,
+        manufacturingCost: manufacturingCost !== undefined ? parseFloat(manufacturingCost) : undefined,
+        purchasePricePerBox: purchasePricePerBox !== undefined ? parseFloat(purchasePricePerBox) : undefined,
+        sellingPricePerBox: sellingPricePerBox !== undefined ? parseFloat(sellingPricePerBox) : undefined,
+        supplierName,
+        manufacturerName,
+      },
+    });
+
+    return NextResponse.json({ success: true, batch: updatedBatch });
+  } catch (error: any) {
+    console.error('Error updating batch:', error);
     return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
   }
 }

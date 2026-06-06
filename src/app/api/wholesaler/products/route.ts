@@ -115,3 +115,46 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
   }
 }
+
+export async function PUT(request: Request) {
+  try {
+    const user = await getSessionUser();
+    if (!user || (user.role !== 'WHOLESALER' && user.role !== 'WHOLESALER_STAFF')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const { id, name, sku, tabletsPerStrip, stripsPerBox, tierPricing } = body;
+
+    if (!id) {
+      return NextResponse.json({ error: 'Missing product ID' }, { status: 400 });
+    }
+
+    const pricingJson = tierPricing ? JSON.stringify(tierPricing) : undefined;
+
+    const product = await db.product.update({
+      where: { id },
+      data: {
+        name,
+        sku,
+        tabletsPerStrip: tabletsPerStrip !== undefined ? parseInt(tabletsPerStrip, 10) : undefined,
+        stripsPerBox: stripsPerBox !== undefined ? parseInt(stripsPerBox, 10) : undefined,
+        tierPricingJson: pricingJson,
+      },
+    });
+
+    // Log the product update
+    await db.systemAuditLog.create({
+      data: {
+        action: 'UPDATE_PRODUCT',
+        userId: user.userId,
+        details: `Updated product catalog node: ${name || product.name} (SKU: ${sku || product.sku})`,
+      },
+    });
+
+    return NextResponse.json({ success: true, product });
+  } catch (error: any) {
+    console.error('Error updating product:', error);
+    return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
+  }
+}

@@ -4,8 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { 
   User, Building, FileText, Phone, MapPin, Calendar, 
   CheckCircle, AlertCircle, RefreshCw, Key, ShieldAlert, Navigation, Plus, Trash,
-  Users, UserPlus, Trash2, Eye, Clock, ShieldCheck, Edit, X, ToggleLeft, ToggleRight,
-  Filter, XCircle, ChevronRight, Lock
+  Users, UserPlus, Trash2, Eye, EyeOff, Clock, ShieldCheck, Edit, X, ToggleLeft, ToggleRight,
+  Filter, XCircle, ChevronRight, Lock, Bell, AlertTriangle
 } from 'lucide-react';
 import { logActivity } from '@/components/WholesalerLayout';
 
@@ -65,21 +65,6 @@ const AVAILABLE_FEATURES = [
   { key: 'Logs', label: 'Activity Logs' }
 ];
 
-const KATHMANDU_GRID = [
-  { name: 'Maharajgunj', lat: 27.7340, lng: 85.3300 },
-  { name: 'Bansbari', lat: 27.7420, lng: 85.3350 },
-  { name: 'Balaju', lat: 27.7280, lng: 85.3050 },
-  { name: 'Thamel', lat: 27.7150, lng: 85.3120 },
-  { name: 'Lazimpat', lat: 27.7220, lng: 85.3180 },
-  { name: 'Kantipath', lat: 27.7120, lng: 85.3210 },
-  { name: 'Putalisadak', lat: 27.7040, lng: 85.3240 },
-  { name: 'Baneshwor', lat: 27.6910, lng: 85.3420 },
-  { name: 'Koteshwor', lat: 27.6780, lng: 85.3490 },
-  { name: 'Lalitpur City', lat: 27.6710, lng: 85.3220 },
-  { name: 'Javalakhel', lat: 27.6740, lng: 85.3115 },
-  { name: 'Swayambhu', lat: 27.7160, lng: 85.2900 }
-];
-
 export default function SettingsClient({ 
   userRole, 
   allowedFeaturesList,
@@ -102,9 +87,10 @@ export default function SettingsClient({
     return 'security';
   };
   
-  const [activeTab, setActiveTab] = useState<'profile' | 'staff' | 'logs' | 'security'>(getInitialTab());
+  const [activeTab, setActiveTab] = useState<'profile' | 'staff' | 'logs' | 'security' | 'alerts'>(getInitialTab());
   
   const [loading, setLoading] = useState(false);
+  const [isFetchingLocation, setIsFetchingLocation] = useState(false);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
@@ -138,6 +124,7 @@ export default function SettingsClient({
   const [staff, setStaff] = useState<StaffUser[]>(initialStaff);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showRegisterPassword, setShowRegisterPassword] = useState(false);
   const [fullName, setFullName] = useState('');
   const [allowedFeatures, setAllowedFeatures] = useState<string[]>(
     AVAILABLE_FEATURES.map(f => f.key)
@@ -146,6 +133,7 @@ export default function SettingsClient({
   const [editingStaff, setEditingStaff] = useState<StaffUser | null>(null);
   const [editEmail, setEditEmail] = useState('');
   const [editPassword, setEditPassword] = useState('');
+  const [showEditPassword, setShowEditPassword] = useState(false);
   const [editFullName, setEditFullName] = useState('');
   const [editAllowedFeatures, setEditAllowedFeatures] = useState<string[]>([]);
   const [editIsActive, setEditIsActive] = useState(true);
@@ -165,12 +153,22 @@ export default function SettingsClient({
   // SECURITY TIMEOUT TAB STATE
   // ----------------------------------------------------
   const [inactivityTimeout, setInactivityTimeout] = useState('60');
+  const [lowStockThreshold, setLowStockThreshold] = useState<number>(10);
+  const [expiryAlertDays, setExpiryAlertDays] = useState<number>(30);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const storedTimeout = localStorage.getItem('wholesaler_inactivity_timeout');
       if (storedTimeout) {
         setInactivityTimeout(storedTimeout);
+      }
+      const storedLowStock = localStorage.getItem('medhub_low_stock_threshold');
+      if (storedLowStock) {
+        setLowStockThreshold(parseInt(storedLowStock, 10));
+      }
+      const storedExpiry = localStorage.getItem('medhub_expiry_alert_days');
+      if (storedExpiry) {
+        setExpiryAlertDays(parseInt(storedExpiry, 10));
       }
     }
   }, []);
@@ -184,6 +182,17 @@ export default function SettingsClient({
     }
   };
 
+  const handleSaveAlerts = (lowStock: number, expiryDays: number) => {
+    setLowStockThreshold(lowStock);
+    setExpiryAlertDays(expiryDays);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('medhub_low_stock_threshold', lowStock.toString());
+      localStorage.setItem('medhub_expiry_alert_days', expiryDays.toString());
+      setSuccessMsg(`Alert thresholds updated. Low stock threshold: ${lowStock} boxes, Expiry warnings: ${expiryDays} days.`);
+      logActivity('UPDATE_ALERT_THRESHOLDS', `Changed low stock threshold to ${lowStock} boxes and expiry warning to ${expiryDays} days`);
+    }
+  };
+
   // ----------------------------------------------------
   // PROFILE HANDLERS
   // ----------------------------------------------------
@@ -191,6 +200,7 @@ export default function SettingsClient({
     if (!isOwner) return;
     setError('');
     setSuccessMsg('');
+    setIsFetchingLocation(true);
 
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -198,16 +208,19 @@ export default function SettingsClient({
           setLatitude(position.coords.latitude.toString());
           setLongitude(position.coords.longitude.toString());
           setSuccessMsg('GPS coordinates captured from browser geolocation API!');
+          setIsFetchingLocation(false);
           logActivity('FETCH_GPS_LOCATION', `Retrieved browser coordinates: [${position.coords.latitude}, ${position.coords.longitude}]`);
         },
         (err) => {
           console.error(err);
           setError('Browser Geolocation request rejected. Please verify browser location permissions.');
+          setIsFetchingLocation(false);
         },
         { enableHighAccuracy: true, timeout: 5000 }
       );
     } else {
       setError('Geolocation services not supported in this browser version.');
+      setIsFetchingLocation(false);
     }
   };
 
@@ -537,6 +550,18 @@ export default function SettingsClient({
           >
             Security Prefs
           </button>
+          <button
+            onClick={() => { setActiveTab('alerts'); setError(''); setSuccessMsg(''); }}
+            style={{
+              padding: '8px 18px', borderRadius: 10, fontSize: 12, fontWeight: 700, textTransform: 'uppercase',
+              letterSpacing: '0.04em', border: 'none', cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.2s',
+              background: activeTab === 'alerts' ? 'linear-gradient(135deg, #F97316, #F59E0B)' : 'transparent',
+              color: activeTab === 'alerts' ? 'white' : '#64748B',
+              boxShadow: activeTab === 'alerts' ? '0 2px 8px rgba(249,115,22,0.3)' : 'none',
+            }}
+          >
+            Alert Thresholds
+          </button>
         </div>
       </div>
 
@@ -784,42 +809,44 @@ export default function SettingsClient({
               </form>
             </div>
 
-            {/* Grid Selector */}
+            {/* Map Locator */}
             <div className="lg:col-span-5 space-y-6">
               <div className="card bg-white/80 border border-white/60 p-6 space-y-4 shadow-sm">
                 <h3 className="text-xs font-black uppercase text-zinc-800 tracking-wider flex items-center gap-2 border-b border-slate-100 pb-3">
                   <MapPin className="w-4 h-4 text-orange-500" />
-                  Kathmandu Grid Selector
+                  Map Geolocation View
                 </h3>
-                <p className="text-[10px] text-zinc-500 leading-relaxed font-semibold">
-                  Select your warehouse sector on the Kathmandu map grid to update latitude/longitude coordinates instantly.
+                <p style={{ fontSize: 11, color: '#64748B' }}>
+                  Your registered warehouse location coordinates. Once captured, verify them on Google Maps.
                 </p>
 
-                <div className="grid grid-cols-3 gap-2 bg-slate-50 border border-slate-150 p-3 rounded-2xl">
-                  {KATHMANDU_GRID.map((loc) => {
-                    const isSelected = 
-                      Math.abs(parseFloat(latitude) - loc.lat) < 0.001 && 
-                      Math.abs(parseFloat(longitude) - loc.lng) < 0.001;
+                <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 16, padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#475569', textTransform: 'uppercase', marginBottom: 4 }}>Manual Coordinates Override</label>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                      <input 
+                        type="number" step="0.0001" placeholder="Lat" value={latitude} 
+                        onChange={e => setLatitude(e.target.value)} 
+                        className="input-crisp" style={{ fontSize: 11, padding: 6, width: '100%', fontFamily: 'monospace' }} 
+                      />
+                      <input 
+                        type="number" step="0.0001" placeholder="Lng" value={longitude} 
+                        onChange={e => setLongitude(e.target.value)} 
+                        className="input-crisp" style={{ fontSize: 11, padding: 6, width: '100%', fontFamily: 'monospace' }} 
+                      />
+                    </div>
+                  </div>
 
-                    return (
-                      <button
-                        key={loc.name}
-                        type="button"
-                        disabled={!isOwner}
-                        onClick={() => handleGridSelect(loc)}
-                        className={`p-2.5 border rounded-xl text-center transition-all cursor-pointer ${
-                          isSelected
-                            ? 'border-orange-500 bg-orange-50 text-orange-700 font-bold shadow-sm'
-                            : 'border-slate-200 bg-white hover:border-slate-350 hover:bg-slate-50 text-zinc-650'
-                        }`}
-                      >
-                        <div className="text-[9px] uppercase font-bold tracking-tight truncate">{loc.name}</div>
-                        <div className="text-[7px] text-zinc-400 font-mono font-bold mt-1">
-                          [{loc.lat.toFixed(3)}, {loc.lng.toFixed(3)}]
-                        </div>
-                      </button>
-                    );
-                  })}
+                  {latitude && longitude && (
+                    <a 
+                      href={`https://www.google.com/maps?q=${latitude},${longitude}`}
+                      target="_blank" rel="noopener noreferrer"
+                      className="btn-ghost"
+                      style={{ padding: '8px 14px', fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, background: 'white' }}
+                    >
+                      <MapPin style={{ width: 14, height: 14, color: '#F97316' }} /> View Location on Google Maps
+                    </a>
+                  )}
                 </div>
               </div>
             </div>
@@ -1179,6 +1206,82 @@ export default function SettingsClient({
                       <div style={{ fontSize: 12, fontWeight: 700, color: 'white', marginTop: 3 }}>{row.value}</div>
                     </div>
                   ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* PANEL: ALERT THRESHOLDS */}
+        {activeTab === 'alerts' && (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 16, alignItems: 'start' }}>
+            {/* Main Card */}
+            <div className="card" style={{ background: 'rgba(255,255,255,0.85)', padding: 24 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, borderBottom: '1px solid #F1F5F9', paddingBottom: 12, marginBottom: 20 }}>
+                <Bell style={{ width: 14, height: 14, color: '#F97316' }} />
+                <h3 style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#1E293B' }}>
+                  Alert & Notifications Threshold Configuration
+                </h3>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
+                    Low Stock Threshold (Boxes)
+                  </label>
+                  <p style={{ fontSize: 12, color: '#94A3B8', marginBottom: 10, lineHeight: 1.6 }}>
+                    Define the inventory count (in boxes, where 1 box = 20 base units) below which a medicine is considered low stock and flagged on the dashboard.
+                  </p>
+                  <input
+                    type="number"
+                    min="1"
+                    value={lowStockThreshold}
+                    onChange={(e) => handleSaveAlerts(parseInt(e.target.value, 10) || 1, expiryAlertDays)}
+                    className="input-crisp"
+                    style={{ maxWidth: 200, fontWeight: 700, fontFamily: 'monospace' }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
+                    Stock Expiry Alert Range (Days)
+                  </label>
+                  <p style={{ fontSize: 12, color: '#94A3B8', marginBottom: 10, lineHeight: 1.6 }}>
+                    The number of days prior to a batch's expiration date when warning alerts should display on your dashboard.
+                  </p>
+                  <input
+                    type="number"
+                    min="1"
+                    value={expiryAlertDays}
+                    onChange={(e) => handleSaveAlerts(lowStockThreshold, parseInt(e.target.value, 10) || 1)}
+                    className="input-crisp"
+                    style={{ maxWidth: 200, fontWeight: 700, fontFamily: 'monospace' }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Info Sidebar Box */}
+            <div className="card" style={{ background: '#FAFCFF', border: '1.5px solid #E0F2FE', padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, borderBottom: '1px solid #E0F2FE', paddingBottom: 10 }}>
+                <AlertTriangle style={{ width: 16, height: 16, color: '#F97316' }} />
+                <h4 style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#1E293B' }}>
+                  Current Threshold Summary
+                </h4>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div>
+                  <div style={{ fontSize: 9, fontWeight: 800, color: '#94A3B8', textTransform: 'uppercase' }}>Low Stock Flag</div>
+                  <div style={{ fontSize: 16, fontWeight: 900, color: '#1E293B', fontFamily: 'monospace', marginTop: 2 }}>
+                    &lt; {lowStockThreshold} Boxes
+                  </div>
+                  <p style={{ fontSize: 10, color: '#64748B', marginTop: 2 }}>({lowStockThreshold * 20} base units)</p>
+                </div>
+                <div>
+                  <div style={{ fontSize: 9, fontWeight: 800, color: '#94A3B8', textTransform: 'uppercase' }}>Expiry Window Flag</div>
+                  <div style={{ fontSize: 16, fontWeight: 900, color: '#1E293B', fontFamily: 'monospace', marginTop: 2 }}>
+                    &lt; {expiryAlertDays} Days
+                  </div>
+                  <p style={{ fontSize: 10, color: '#64748B', marginTop: 2 }}>Warnings display dynamically</p>
                 </div>
               </div>
             </div>

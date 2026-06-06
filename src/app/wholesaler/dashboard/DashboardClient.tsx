@@ -5,8 +5,12 @@ import Link from 'next/link';
 import { 
   Package, Database, ShieldAlert, ArrowRight, Activity, Receipt, 
   Settings, CheckSquare, Square, AlertTriangle, Users, MapPin, Truck,
-  LayoutDashboard, TrendingUp, Zap
+  LayoutDashboard, TrendingUp, Zap, Clock, Bell
 } from 'lucide-react';
+import { useRealtimeData } from '@/hooks/useRealtimeData';
+import { 
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer 
+} from 'recharts';
 
 interface AuditLog {
   id: string;
@@ -20,6 +24,7 @@ interface AuditLog {
 }
 
 interface DashboardClientProps {
+  profileId: string;
   metrics: {
     productCount: number;
     activeBatches: number;
@@ -36,7 +41,23 @@ interface DashboardClientProps {
   auditLogs: AuditLog[];
 }
 
-export default function DashboardClient({ metrics, auditLogs }: DashboardClientProps) {
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div style={{ background: 'rgba(255, 255, 255, 0.95)', border: '1.5px solid #E0F2FE', padding: '12px 16px', borderRadius: 12, boxShadow: '0 10px 25px rgba(14,165,233,0.1)' }}>
+        <p style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: '#64748B', marginBottom: 6 }}>{label}</p>
+        {payload.map((p: any) => (
+          <p key={p.name} style={{ fontSize: 12, fontWeight: 700, color: p.color }}>
+            {p.name}: Rs. {p.value.toLocaleString()}
+          </p>
+        ))}
+      </div>
+    );
+  }
+  return null;
+};
+
+export default function DashboardClient({ profileId, metrics, auditLogs }: DashboardClientProps) {
   const [widgets, setWidgets] = useState({
     medicinesRegistered: true,
     activeBatches: true,
@@ -50,17 +71,66 @@ export default function DashboardClient({ metrics, auditLogs }: DashboardClientP
   });
 
   const [showConfig, setShowConfig] = useState(false);
+  const [period, setPeriod] = useState<'daily' | 'weekly' | 'monthly' | 'yearly'>('monthly');
+
+  // Load user threshold settings
+  const [threshold, setThreshold] = useState(10);
+  const [expiryDays, setExpiryDays] = useState(30);
 
   useEffect(() => {
-    const saved = localStorage.getItem('medhub_dashboard_widgets');
-    if (saved) {
-      try {
-        setWidgets(JSON.parse(saved));
-      } catch (e) {
-        console.error('Failed to parse dashboard widgets config', e);
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('medhub_dashboard_widgets');
+      if (saved) {
+        try {
+          setWidgets(JSON.parse(saved));
+        } catch (e) {
+          console.error('Failed to parse dashboard widgets config', e);
+        }
       }
+
+      const storedLowStock = localStorage.getItem('medhub_low_stock_threshold');
+      if (storedLowStock) setThreshold(parseInt(storedLowStock, 10));
+
+      const storedExpiry = localStorage.getItem('medhub_expiry_alert_days');
+      if (storedExpiry) setExpiryDays(parseInt(storedExpiry, 10));
     }
   }, []);
+
+  // Real-time telemetry via SWR + SSE
+  const { data: analyticsData } = useRealtimeData<{
+    chartData: Array<{ label: string; revenue: number; profit: number; orders: number }>;
+    period: string;
+    totalOrders: number;
+    allProductStocks: Array<{ name: string; sku: string; units: number }>;
+  }>(`/api/wholesaler/analytics?period=${period}&wholesalerId=${profileId}`, profileId);
+
+  const { data: batchesResponse } = useRealtimeData<{
+    success: boolean;
+    batches: Array<{
+      id: string;
+      batchNumber: string;
+      availableBaseUnits: number;
+      expiryDate: string;
+      product: { name: string; sku: string };
+    }>;
+  }>(`/api/wholesaler/batches`, profileId);
+
+  // Compute Alerts dynamically based on custom thresholds
+  const lowStockItems = analyticsData?.allProductStocks?.filter(
+    (item) => item.units < threshold * 20
+  ) || [];
+
+  const expiringBatches = batchesResponse?.batches?.filter((batch) => {
+    if (batch.availableBaseUnits <= 0) return false;
+    const expiry = new Date(batch.expiryDate);
+    const diffTime = expiry.getTime() - new Date().getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays > 0 && diffDays <= expiryDays;
+  }) || [];
+
+  const totalPeriodRevenue = analyticsData?.chartData?.reduce((acc, curr) => acc + curr.revenue, 0) || 0;
+  const totalPeriodProfit = analyticsData?.chartData?.reduce((acc, curr) => acc + curr.profit, 0) || 0;
+  const totalPeriodOrders = analyticsData?.chartData?.reduce((acc, curr) => acc + curr.orders, 0) || 0;
 
   const toggleWidget = (key: keyof typeof widgets) => {
     const updated = { ...widgets, [key]: !widgets[key] };
@@ -241,32 +311,65 @@ export default function DashboardClient({ metrics, auditLogs }: DashboardClientP
         </div>
       </div>
 
-      {/* Near-Expiry Alert Banner */}
-      {widgets.nearExpiryAlerts && metrics.nearExpiryCount > 0 && (
-        <div className="alert alert-warning animate-scaleIn" style={{ justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div
-              style={{
-                padding: 8,
-                background: 'rgba(251,191,36,0.15)',
-                borderRadius: 10,
-                flexShrink: 0,
-              }}
-            >
-              <AlertTriangle style={{ width: 18, height: 18, color: '#92400E' }} />
-            </div>
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                Stock Expiry Warning
+      {/* Near-Expiry & Low-Stock Alerts Section */}
+      {widgets.nearExpiryAlerts && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {/* Low Stock Alerts */}
+          {lowStockItems.length > 0 && (
+            <div className="alert alert-error animate-scaleIn" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ padding: 8, background: 'rgba(220,38,38,0.15)', borderRadius: 10, flexShrink: 0 }}>
+                  <AlertTriangle style={{ width: 18, height: 18, color: '#DC2626' }} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#991B1B' }}>
+                    Low Stock Alert
+                  </div>
+                  <p style={{ fontSize: 12, marginTop: 2, color: '#7F1D1D' }}>
+                    The following items are below your threshold of <strong style={{ fontFamily: 'monospace' }}>{threshold}</strong> boxes ({threshold * 20} units):{' '}
+                    {lowStockItems.map((item, idx) => (
+                      <span key={item.sku}>
+                        {idx > 0 && ', '}
+                        <strong>{item.name}</strong> ({item.units} units left)
+                      </span>
+                    ))}
+                  </p>
+                </div>
               </div>
-              <p style={{ fontSize: 12, marginTop: 2 }}>
-                <strong style={{ fontFamily: 'monospace' }}>{metrics.nearExpiryCount}</strong> batches expiring within 30 days. Review and clear before B2B allocation.
-              </p>
+              <Link href="/wholesaler/inventory" className="btn-ghost" style={{ whiteSpace: 'nowrap', fontSize: 11, padding: '6px 14px', color: '#DC2626', background: 'rgba(220,38,38,0.08)' }}>
+                Restock Now
+              </Link>
             </div>
-          </div>
-          <Link href="/wholesaler/inventory" className="btn-ghost" style={{ whiteSpace: 'nowrap', fontSize: 11, padding: '6px 14px' }}>
-            Review Stock
-          </Link>
+          )}
+
+          {/* Expiry Alerts */}
+          {expiringBatches.length > 0 && (
+            <div className="alert alert-warning animate-scaleIn" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ padding: 8, background: 'rgba(245,158,11,0.15)', borderRadius: 10, flexShrink: 0 }}>
+                  <Clock style={{ width: 18, height: 18, color: '#D97706' }} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#92400E' }}>
+                    Batch Expiration Warnings
+                  </div>
+                  <p style={{ fontSize: 12, marginTop: 2, color: '#78350F' }}>
+                    <strong style={{ fontFamily: 'monospace' }}>{expiringBatches.length}</strong> batches expiring within your alert range of <strong>{expiryDays}</strong> days:{' '}
+                    {expiringBatches.slice(0, 3).map((b, idx) => (
+                      <span key={b.id}>
+                        {idx > 0 && ', '}
+                        <strong>{b.product.name}</strong> (Batch: {b.batchNumber}, Expiry: {new Date(b.expiryDate).toLocaleDateString()})
+                      </span>
+                    ))}
+                    {expiringBatches.length > 3 && ` and ${expiringBatches.length - 3} more.`}
+                  </p>
+                </div>
+              </div>
+              <Link href="/wholesaler/inventory" className="btn-ghost" style={{ whiteSpace: 'nowrap', fontSize: 11, padding: '6px 14px', color: '#D97706', background: 'rgba(245,158,11,0.08)' }}>
+                View Batches
+              </Link>
+            </div>
+          )}
         </div>
       )}
 
@@ -304,86 +407,93 @@ export default function DashboardClient({ metrics, auditLogs }: DashboardClientP
         })}
       </div>
 
-      {/* Financial Ledger Card */}
+      {/* Financial Ledger Card & Recharts Bar Graph */}
       {widgets.financialLedger && (
-        <div className="finance-card">
-          <div
-            style={{
-              position: 'relative',
-              zIndex: 1,
-              display: 'flex',
-              flexWrap: 'wrap',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              gap: 24,
-            }}
-          >
-            <div style={{ flex: 1 }}>
-              <h3
-                style={{
-                  fontSize: 10,
-                  fontWeight: 800,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.1em',
-                  color: 'rgba(255,255,255,0.7)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  marginBottom: 20,
-                }}
-              >
-                <TrendingUp style={{ width: 14, height: 14, color: '#FB923C' }} />
-                Financial Ledger Analysis
-              </h3>
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
-                  gap: 24,
-                }}
-              >
-                <div>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Total Revenue</div>
-                  <div style={{ fontSize: 24, fontWeight: 900, color: 'white', fontFamily: 'monospace', marginTop: 4 }}>
-                    Rs. {metrics.totalRevenue.toLocaleString()}
-                  </div>
-                  <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', marginTop: 4 }}>Cumulative sales</p>
-                </div>
-                <div>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Est. Profit</div>
-                  <div style={{ fontSize: 24, fontWeight: 900, color: '#FB923C', fontFamily: 'monospace', marginTop: 4 }}>
-                    Rs. {metrics.estimatedProfit.toLocaleString()}
-                  </div>
-                  <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', marginTop: 4 }}>Net on delivered</p>
-                </div>
-                <div>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Staff Accounts</div>
-                  <div style={{ fontSize: 24, fontWeight: 900, color: '#FCD34D', fontFamily: 'monospace', marginTop: 4 }}>
-                    {metrics.staffCount}
-                    <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', fontWeight: 400, marginLeft: 6 }}>active</span>
-                  </div>
-                  <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', marginTop: 4 }}>Employee roster</p>
-                </div>
-              </div>
-            </div>
+        <div className="card" style={{ background: 'rgba(255,255,255,0.85)', padding: 24 }}>
+          {/* Header with selector */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, borderBottom: '1px solid #F1F5F9', paddingBottom: 16, marginBottom: 20 }}>
             <div>
-              <span
-                style={{
-                  padding: '6px 14px',
-                  background: 'rgba(255,255,255,0.08)',
-                  border: '1px solid rgba(255,255,255,0.15)',
-                  borderRadius: 10,
-                  color: '#FCA5A5',
-                  fontFamily: 'monospace',
-                  fontSize: 10,
-                  fontWeight: 700,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.06em',
-                }}
-              >
-                Verifier Active
-              </span>
+              <h3 style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#1E293B', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <TrendingUp style={{ width: 14, height: 14, color: '#F97316' }} />
+                Revenue & Profit Analysis
+              </h3>
+              <p style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>Interactive sales & margin ledger</p>
             </div>
+            
+            <div style={{ display: 'flex', gap: 6, background: '#F1F5F9', padding: 3, borderRadius: 10 }}>
+              {(['daily', 'weekly', 'monthly', 'yearly'] as const).map((p) => (
+                <button
+                  key={p}
+                  onClick={() => setPeriod(p)}
+                  style={{
+                    padding: '6px 14px',
+                    borderRadius: 8,
+                    fontSize: 11,
+                    fontWeight: 700,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.04em',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontFamily: 'inherit',
+                    transition: 'all 0.2s',
+                    background: period === p ? 'white' : 'transparent',
+                    color: period === p ? '#F97316' : '#64748B',
+                    boxShadow: period === p ? '0 1px 4px rgba(0,0,0,0.05)' : 'none',
+                  }}
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Stats grids */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 24, marginBottom: 24 }}>
+            <div style={{ background: 'linear-gradient(135deg, #FFF7ED, #FFEDD5)', border: '1px solid #FED7AA', borderRadius: 16, padding: '16px 20px' }}>
+              <div style={{ fontSize: 10, fontWeight: 800, color: '#C2410C', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Period Revenue</div>
+              <div style={{ fontSize: 24, fontWeight: 900, color: '#EA580C', fontFamily: 'monospace', marginTop: 4 }}>
+                Rs. {totalPeriodRevenue.toLocaleString()}
+              </div>
+              <p style={{ fontSize: 10, color: '#9A3412', marginTop: 4 }}>Sales in selected range</p>
+            </div>
+
+            <div style={{ background: 'linear-gradient(135deg, #F0F9FF, #E0F2FE)', border: '1px solid #BAE6FD', borderRadius: 16, padding: '16px 20px' }}>
+              <div style={{ fontSize: 10, fontWeight: 800, color: '#0369A1', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Period Profit</div>
+              <div style={{ fontSize: 24, fontWeight: 900, color: '#0284C7', fontFamily: 'monospace', marginTop: 4 }}>
+                Rs. {totalPeriodProfit.toLocaleString()}
+              </div>
+              <p style={{ fontSize: 10, color: '#075985', marginTop: 4 }}>Estimated margin</p>
+            </div>
+
+            <div style={{ background: 'linear-gradient(135deg, #ECFDF5, #D1FAE5)', border: '1px solid #A7F3D0', borderRadius: 16, padding: '16px 20px' }}>
+              <div style={{ fontSize: 10, fontWeight: 800, color: '#047857', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Transactions</div>
+              <div style={{ fontSize: 24, fontWeight: 900, color: '#059669', fontFamily: 'monospace', marginTop: 4 }}>
+                {totalPeriodOrders}
+                <span style={{ fontSize: 11, color: '#065F46', fontWeight: 600, marginLeft: 6 }}>orders</span>
+              </div>
+              <p style={{ fontSize: 10, color: '#065F46', marginTop: 4 }}>Order count</p>
+            </div>
+          </div>
+
+          {/* Chart visualization */}
+          <div style={{ height: 280, width: '100%' }}>
+            {analyticsData?.chartData ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={analyticsData.chartData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+                  <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: '#64748B', fontWeight: 600 }} />
+                  <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: '#64748B', fontWeight: 600 }} />
+                  <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(14,165,233,0.04)' }} />
+                  <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11, fontWeight: 700, paddingTop: 10 }} />
+                  <Bar name="Revenue" dataKey="revenue" fill="#F97316" radius={[4, 4, 0, 0]} />
+                  <Bar name="Profit" dataKey="profit" fill="#38BDF8" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#94A3B8', fontSize: 12, fontStyle: 'italic' }}>
+                Loading ledger analytics...
+              </div>
+            )}
           </div>
         </div>
       )}

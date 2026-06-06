@@ -86,72 +86,64 @@ export default function LogsClient({ initialLogs }: LogsClientProps) {
       </div>
 
       {/* Filter Panel */}
-      <div className="card" style={{ background: 'rgba(255,255,255,0.85)', padding: 20 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, borderBottom: '1px solid #F1F5F9', paddingBottom: 12, marginBottom: 16 }}>
-          <Filter style={{ width: 14, height: 14, color: '#F97316' }} />
-          <h3 style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#1E293B' }}>
-            Filter Action Ledger
-          </h3>
+      <div className="filter-bar" style={{ marginBottom: 16 }}>
+        {/* Text search */}
+        <div className="filter-field">
+          <label className="filter-label">
+            <Search style={{ width: 10, height: 10 }} />
+            Search Description
+          </label>
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="e.g. pos checkout..."
+            className="filter-input"
+          />
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
-          {/* Text search */}
-          <div>
-            <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Search Description</label>
-            <div className="search-bar">
-              <Search style={{ width: 13, height: 13, color: '#94A3B8', flexShrink: 0 }} />
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="e.g. pos checkout, coordinates..."
-                style={{ background: 'transparent', border: 'none', outline: 'none', fontSize: 12, fontWeight: 500, color: '#1E293B', width: '100%' }}
-              />
+
+        {/* Action type */}
+        <div className="filter-field">
+          <label className="filter-label">Action Type</label>
+          <select
+            value={actionFilter}
+            onChange={(e) => setActionFilter(e.target.value)}
+            className="filter-select"
+          >
+            <option value="">All Actions</option>
+            {uniqueActions.map(action => (
+              <option key={action} value={action}>{action.replace(/_/g, ' ')}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Operator dropdown */}
+        <div className="filter-field">
+          <label className="filter-label">Operator Email</label>
+          <select
+            value={userFilter}
+            onChange={(e) => setUserFilter(e.target.value)}
+            className="filter-select"
+          >
+            <option value="">All Operators</option>
+            {uniqueUsers.map(email => (
+              <option key={email} value={email}>{email}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Clear */}
+        <div style={{ flexShrink: 0, minWidth: 120 }}>
+          {hasFilters ? (
+            <button onClick={clearFilters} className="btn-danger" style={{ width: '100%', height: 32, padding: '0 12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 11 }}>
+              <XCircle style={{ width: 13, height: 13 }} />
+              Clear Filters
+            </button>
+          ) : (
+            <div style={{ height: 32, padding: '0 12px', background: 'rgba(241,245,249,0.5)', border: '1px solid rgba(226,232,240,0.5)', borderRadius: 8, fontSize: 10, color: '#94A3B8', fontFamily: 'monospace', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, textTransform: 'uppercase' }}>
+              No Filters
             </div>
-          </div>
-
-          {/* Action type */}
-          <div>
-            <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Action Type</label>
-            <select
-              value={actionFilter}
-              onChange={(e) => setActionFilter(e.target.value)}
-              className="select-crisp"
-            >
-              <option value="">All Actions</option>
-              {uniqueActions.map(action => (
-                <option key={action} value={action}>{action.replace(/_/g, ' ')}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Operator dropdown */}
-          <div>
-            <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Operator Email</label>
-            <select
-              value={userFilter}
-              onChange={(e) => setUserFilter(e.target.value)}
-              className="select-crisp"
-            >
-              <option value="">All Operators</option>
-              {uniqueUsers.map(email => (
-                <option key={email} value={email}>{email}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Clear */}
-          <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-            {hasFilters ? (
-              <button onClick={clearFilters} className="btn-danger" style={{ width: '100%', justifyContent: 'center' }}>
-                <XCircle style={{ width: 13, height: 13 }} />
-                Clear Filters
-              </button>
-            ) : (
-              <div style={{ width: '100%', padding: '9px 13px', background: '#F8FAFC', border: '1.5px solid #E2E8F0', borderRadius: 10, fontSize: 10, color: '#94A3B8', fontFamily: 'monospace', textAlign: 'center', fontWeight: 700, textTransform: 'uppercase' }}>
-                No Active Filters
-              </div>
-            )}
-          </div>
+          )}
         </div>
       </div>
 
