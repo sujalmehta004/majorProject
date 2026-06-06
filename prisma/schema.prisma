@@ -1,0 +1,237 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  SUPERADMIN
+  WHOLESALER
+  WHOLESALER_STAFF
+  RETAILER
+  CLINIC
+  CONSUMER
+}
+
+enum OrderStatus {
+  PENDING
+  PICKING
+  DISPATCHED
+  DELIVERED
+}
+
+enum ClientTier {
+  BRONZE
+  SILVER
+  GOLD
+}
+
+model User {
+  id                String             @id @default(uuid())
+  email             String             @unique
+  passwordHash      String
+  role              Role
+  subscriptionStart DateTime           @default(now())
+  subscriptionEnd   DateTime
+  isActive          Boolean            @default(true)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  // Profile Relations
+  wholesalerProfile WholesalerProfile?
+  retailerProfile   RetailerProfile?
+  clinicProfile     ClinicProfile?
+  auditLogs         SystemAuditLog[]
+
+  // Staff association
+  wholesalerId      String?
+  wholesaler        WholesalerProfile? @relation("WholesalerStaff", fields: [wholesalerId], references: [id], onDelete: Cascade)
+  fullName          String?
+  plainPassword     String?
+  allowedFeatures   String             @default("Dashboard,Medicines,Orders,Billing,POS,Profile,Logs")
+  otpCode             String?
+  otpExpiry           DateTime?
+  forceResetPassword  Boolean            @default(false)
+  packageName         String             @default("Free Plan")
+  packagePrice        Float              @default(0)
+}
+
+model WholesalerProfile {
+  id                 String   @id @default(uuid())
+  userId             String   @unique
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyName        String
+  taxId              String   // e.g., VAT/PAN
+  address            String
+  phone              String
+  registrationNumber String?
+  contactPerson      String?
+  latitude           Float?
+  longitude          Float?
+  customFieldsJson   String?            @default("[]")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  products           Product[]
+  orders             Order[]
+  staff              User[]   @relation("WholesalerStaff")
+}
+
+model RetailerProfile {
+  id                 String              @id @default(uuid())
+  userId             String              @unique
+  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pharmacyName       String
+  registrationNumber String
+  address            String
+  phone              String
+  latitude           Float
+  longitude          Float
+  creditLimit        Float               @default(200000) // Rs. 200,000 credit limit by default
+  lifetimeSpend      Float               @default(0)      // for client tier loyalty tracking
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  orders             Order[]
+  inventories        RetailerInventory[]
+}
+
+model ClinicProfile {
+  id            String   @id @default(uuid())
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clinicName    String
+  licenseNumber String
+  address       String
+  phone         String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Product {
+  id             String            @id @default(uuid())
+  wholesalerId   String
+  wholesaler     WholesalerProfile @relation(fields: [wholesalerId], references: [id], onDelete: Cascade)
+  name           String
+  sku            String            @unique
+  tabletsPerStrip Int              @default(10)
+  stripsPerBox   Int               @default(10)
+  
+  // Pricing tiers (stored as JSON, e.g., [{minQty: 1, maxQty: 49, pricePerBox: 10}, {minQty: 50, maxQty: 9999, pricePerBox: 9}])
+  tierPricingJson String           @default("[]") 
+  
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  batches        InventoryBatch[]
+  orderItems     OrderItem[]
+  retailStock    RetailerInventory[]
+  inTransitLogs  InTransitLog[]
+}
+
+model InventoryBatch {
+  id                  String            @id @default(uuid())
+  productId           String
+  product             Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
+  batchNumber         String
+  expiryDate          DateTime
+  totalBaseUnits      Int               // total tablets/items ingested
+  availableBaseUnits  Int               // remaining tablets/items
+  manufacturingCost   Float             // manufacturing cost per base unit
+  invoiceData         String            // Base64 file string or URL
+  barcodeUrl          String?           // Generated barcode image path or base64
+  purchasePricePerBox Float             @default(0)
+  sellingPricePerBox  Float             @default(100)
+  supplierName        String?
+  manufacturerName    String?
+  purchaseDate        DateTime          @default(now())
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  allocations        OrderBatchAllocation[]
+  inTransitLogs      InTransitLog[]
+
+  @@unique([productId, batchNumber])
+}
+
+model Order {
+  id                    String            @id @default(uuid())
+  wholesalerId          String
+  wholesaler            WholesalerProfile @relation(fields: [wholesalerId], references: [id])
+  retailerId            String
+  retailer              RetailerProfile   @relation(fields: [retailerId], references: [id])
+  status                OrderStatus       @default(PENDING)
+  totalAmount           Float             // Sum of list prices
+  discountAmount        Float             // Loyalty discounts applied
+  netAmount             Float             // Final payable amount
+  overrideJustification String?           // Log justification if credit guard is bypassed
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+
+  items                 OrderItem[]
+  inTransitLogs         InTransitLog[]
+}
+
+model OrderItem {
+  id           String    @id @default(uuid())
+  orderId      String
+  order        Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId    String
+  product      Product   @relation(fields: [productId], references: [id])
+  quantity     Int       // requested quantity in raw base units
+  pricePerUnit Float     // unit price applied at order time (after tiered calculations)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  allocations  OrderBatchAllocation[]
+}
+
+model OrderBatchAllocation {
+  id          String         @id @default(uuid())
+  orderItemId String
+  orderItem   OrderItem      @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  batchId     String
+  batch       InventoryBatch @relation(fields: [batchId], references: [id])
+  quantity    Int            // base units allocated from this batch
+  createdAt   DateTime       @default(now())
+}
+
+model InTransitLog {
+  id           String         @id @default(uuid())
+  orderId      String
+  order        Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId    String
+  product      Product        @relation(fields: [productId], references: [id])
+  batchId      String
+  batch        InventoryBatch @relation(fields: [batchId], references: [id])
+  quantity     Int            // quantity in base units in transit
+  dispatchedAt DateTime       @default(now())
+  createdAt    DateTime       @default(now())
+}
+
+model RetailerInventory {
+  id           String          @id @default(uuid())
+  retailerId   String
+  retailer     RetailerProfile @relation(fields: [retailerId], references: [id], onDelete: Cascade)
+  productId    String
+  product      Product         @relation(fields: [productId], references: [id])
+  batchNumber  String
+  quantity     Int             // quantity in base units
+  expiryDate   DateTime
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  @@unique([retailerId, productId, batchNumber])
+}
+
+model SystemAuditLog {
+  id        String   @id @default(uuid())
+  action    String
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  details   String
+  timestamp DateTime @default(now())
+}
