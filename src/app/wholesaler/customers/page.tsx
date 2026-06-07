@@ -1,16 +1,19 @@
-import React from 'react';
-import { db } from '@/lib/db';
-import { getSessionUser } from '@/lib/auth';
-import { redirect } from 'next/navigation';
-import WholesalerLayout from '@/components/WholesalerLayout';
-import CustomerClient from './CustomerClient';
+import React from "react";
+import { db } from "@/lib/db";
+import { getSessionUser } from "@/lib/auth";
+import { redirect } from "next/navigation";
+import WholesalerLayout from "@/components/WholesalerLayout";
+import CustomerClient from "./CustomerClient";
 
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
 export default async function WholesalerCustomers() {
   const user = await getSessionUser();
-  if (!user || (user.role !== 'WHOLESALER' && user.role !== 'WHOLESALER_STAFF')) {
-    redirect('/');
+  if (
+    !user ||
+    (user.role !== "WHOLESALER" && user.role !== "WHOLESALER_STAFF")
+  ) {
+    redirect("/");
   }
 
   let profile = null;
@@ -18,18 +21,18 @@ export default async function WholesalerCustomers() {
     where: { id: user.userId },
   });
 
-  if (user.role === 'WHOLESALER') {
+  if (user.role === "WHOLESALER") {
     profile = await db.wholesalerProfile.findUnique({
       where: { userId: user.userId },
     });
-  } else if (user.role === 'WHOLESALER_STAFF' && dbUser?.wholesalerId) {
+  } else if (user.role === "WHOLESALER_STAFF" && dbUser?.wholesalerId) {
     profile = await db.wholesalerProfile.findUnique({
       where: { id: dbUser.wholesalerId },
     });
   }
 
   if (!profile) {
-    redirect('/subscription-expired');
+    redirect("/subscription-expired");
   }
 
   // Load all registered customer pharmacies
@@ -45,7 +48,7 @@ export default async function WholesalerCustomers() {
             },
           },
         },
-        orderBy: { createdAt: 'desc' },
+        orderBy: { createdAt: "desc" },
       },
     },
   });
@@ -67,7 +70,10 @@ export default async function WholesalerCustomers() {
         taxId: profile.taxId,
       }}
     >
-      <CustomerClient customers={serializedRetailers} wholesalerId={profile.id} />
+      <CustomerClient
+        customers={serializedRetailers}
+        wholesalerId={profile.id}
+      />
     </WholesalerLayout>
   );
 }
