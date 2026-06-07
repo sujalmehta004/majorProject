@@ -3,8 +3,10 @@ import { db } from '@/lib/db';
 import { getSessionUser } from '@/lib/auth';
 import { broadcastToWholesaler } from '@/app/api/events/route';
 
-export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params;
+    const orderId = id;
     const user = await getSessionUser();
     if (!user || (user.role !== 'WHOLESALER' && user.role !== 'WHOLESALER_STAFF')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -21,14 +23,9 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       wholesalerId = dbUser.wholesalerId;
     }
 
-    const orderId = params.id;
     const body = await request.json();
     // items: [{ orderItemId: string, quantity: number, reason: string }]
     const { items, reason } = body;
-
-    if (!items || !Array.isArray(items) || items.length === 0) {
-      return NextResponse.json({ error: 'Return items are required' }, { status: 400 });
-    }
 
     // Verify the order belongs to this wholesaler
     const order = await db.order.findUnique({
@@ -43,9 +40,13 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       return NextResponse.json({ error: 'Order not found or unauthorized' }, { status: 404 });
     }
 
+    const finalItems = (items && Array.isArray(items) && items.length > 0)
+      ? items
+      : order.items.map(i => ({ orderItemId: i.id, quantity: i.quantity }));
+
     // Process each return item
     await db.$transaction(async (tx) => {
-      for (const returnItem of items) {
+      for (const returnItem of finalItems) {
         const { orderItemId, quantity } = returnItem;
 
         // Find the order item with its allocations

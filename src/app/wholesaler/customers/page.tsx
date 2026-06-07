@@ -38,6 +38,13 @@ export default async function WholesalerCustomers() {
       user: true,
       orders: {
         where: { wholesalerId: profile.id },
+        include: {
+          items: {
+            include: {
+              product: true,
+            },
+          },
+        },
         orderBy: { createdAt: 'desc' },
       },
     },

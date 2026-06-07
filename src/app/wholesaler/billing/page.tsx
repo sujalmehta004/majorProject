@@ -52,6 +52,7 @@ export default async function WholesalerBillingPage() {
   });
 
   const serializedOrders = JSON.parse(JSON.stringify(orders));
+  const serializedProfile = JSON.parse(JSON.stringify(profile));
 
   return (
     <WholesalerLayout
@@ -68,7 +69,7 @@ export default async function WholesalerBillingPage() {
         taxId: profile.taxId,
       }}
     >
-      <BillingClient profileId={profile.id} initialOrders={serializedOrders} />
+      <BillingClient profileId={profile.id} initialOrders={serializedOrders} profile={serializedProfile} />
     </WholesalerLayout>
   );
 }

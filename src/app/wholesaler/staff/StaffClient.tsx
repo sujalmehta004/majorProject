@@ -259,64 +259,59 @@ export default function StaffClient({ initialStaff, initialLogs }: StaffClientPr
               No staff accounts registered yet.
             </div>
           ) : (
-            <div className="table-wrapper">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Employee</th>
-                    <th>Passcode</th>
-                    <th>Status</th>
-                    <th>Features Enabled</th>
-                    <th style={{ textAlign: 'center' }}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {staff.map((emp) => (
-                    <tr key={emp.id}>
-                      <td>
-                        <div style={{ fontWeight: 800, fontSize: 13, color: '#1E293B' }}>{emp.fullName || '—'}</div>
-                        <div style={{ fontSize: 10, color: '#94A3B8', fontFamily: 'monospace', marginTop: 2 }}>{emp.email}</div>
-                      </td>
-                      <td>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#F8FAFC', border: '1px solid #E0F2FE', borderRadius: 8, padding: '5px 10px', fontFamily: 'monospace', fontSize: 11, fontWeight: 700, color: '#1E293B' }}>
-                          <Key style={{ width: 12, height: 12, color: '#0EA5E9', flexShrink: 0 }} />
-                          {emp.plainPassword || 'N/A'}
-                        </div>
-                      </td>
-                      <td>
-                        <span className={`status-pill ${emp.isActive ? 'status-pill-active' : 'status-pill-inactive'}`}>
-                          {emp.isActive ? 'ACTIVE' : 'DISABLED'}
-                        </span>
-                      </td>
-                      <td>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                          {emp.allowedFeatures ? (
-                            emp.allowedFeatures.split(',').map((f) => (
-                              <span key={f} style={{ fontSize: 9, fontWeight: 700, background: '#F0F9FF', border: '1px solid #BAE6FD', color: '#0EA5E9', padding: '2px 7px', borderRadius: 6, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                                {f}
-                              </span>
-                            ))
-                          ) : (
-                            <span style={{ fontSize: 11, color: '#94A3B8', fontStyle: 'italic' }}>None</span>
-                          )}
-                        </div>
-                      </td>
-                      <td>
-                        <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
-                          <button onClick={() => handleOpenEdit(emp)} className="btn-ghost" style={{ padding: '5px 10px', fontSize: 11, gap: 4 }}>
-                            <Edit style={{ width: 13, height: 13, color: '#0EA5E9' }} />
-                            Edit
-                          </button>
-                          <button onClick={() => handleDeleteStaff(emp.id, emp.fullName || emp.email)} className="btn-danger" style={{ padding: '5px 10px', fontSize: 11, gap: 4 }}>
-                            <Trash2 style={{ width: 13, height: 13 }} />
-                            Delete
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
+              {staff.map((emp) => (
+                <div key={emp.id} style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: 18, background: '#FAFCFF', border: '1.5px solid #E0F2FE', borderRadius: 16, transition: 'transform 0.2s, box-shadow 0.2s' }} className="hover:scale-[1.01] hover:shadow-md">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div>
+                      <div style={{ fontWeight: 800, fontSize: 14, color: '#1E293B' }}>{emp.fullName || '—'}</div>
+                      <div style={{ fontSize: 10, color: '#64748B', fontFamily: 'monospace', marginTop: 2 }}>{emp.email}</div>
+                    </div>
+                    <span style={{ 
+                      fontSize: 9, 
+                      fontWeight: 800, 
+                      padding: '3px 8px', 
+                      borderRadius: 12, 
+                      background: emp.isActive ? '#D1FAE5' : '#F1F5F9', 
+                      color: emp.isActive ? '#065F46' : '#475569',
+                      letterSpacing: '0.05em'
+                    }}>
+                      {emp.isActive ? '• ACTIVE' : 'DISABLED'}
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'white', border: '1px solid #E2E8F0', borderRadius: 10, padding: '6px 12px', fontFamily: 'monospace', fontSize: 11, fontWeight: 700, color: '#1E293B' }}>
+                    <Key style={{ width: 12, height: 12, color: '#F97316', flexShrink: 0 }} />
+                    <span style={{ color: '#64748B', marginRight: 4 }}>Passcode:</span> {emp.plainPassword || 'N/A'}
+                  </div>
+
+                  <div>
+                    <div style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', color: '#94A3B8', letterSpacing: '0.06em', marginBottom: 6 }}>Allowed Access</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                      {emp.allowedFeatures ? (
+                        emp.allowedFeatures.split(',').map((f) => (
+                          <span key={f} style={{ fontSize: 9, fontWeight: 700, background: '#F0F9FF', border: '1px solid #BAE6FD', color: '#0EA5E9', padding: '2px 7px', borderRadius: 6, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                            {f}
+                          </span>
+                        ))
+                      ) : (
+                        <span style={{ fontSize: 10, color: '#94A3B8', fontStyle: 'italic' }}>None</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: 6, borderTop: '1px solid #F1F5F9', paddingTop: 12, marginTop: 4 }}>
+                    <button onClick={() => handleOpenEdit(emp)} className="btn-ghost" style={{ flex: 1, padding: '6px', fontSize: 11, gap: 4 }}>
+                      <Edit style={{ width: 12, height: 12, color: '#0EA5E9' }} />
+                      Edit
+                    </button>
+                    <button onClick={() => handleDeleteStaff(emp.id, emp.fullName || emp.email)} className="btn-danger" style={{ flex: 1, padding: '6px', fontSize: 11, gap: 4 }}>
+                      <Trash2 style={{ width: 12, height: 12 }} />
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
@@ -324,11 +319,11 @@ export default function StaffClient({ initialStaff, initialLogs }: StaffClientPr
 
       {/* EDIT MODAL */}
       {editingStaff && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(15,23,42,0.45)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }} className="no-print">
+        <div className="modal-overlay no-print" onClick={() => setEditingStaff(null)}>
           <div
             onClick={e => e.stopPropagation()}
-            className="animate-scaleIn"
-            style={{ background: 'rgba(255,255,255,0.97)', border: '1.5px solid rgba(186,230,253,0.6)', borderRadius: 24, padding: 28, width: '100%', maxWidth: 480, boxShadow: '0 24px 64px rgba(14,165,233,0.18)' }}
+            className="modal-card animate-scaleIn"
+            style={{ '--modal-max-width': '500px', border: '1.5px solid rgba(186,230,253,0.6)', boxShadow: '0 24px 64px rgba(14,165,233,0.18)', padding: 28 } as React.CSSProperties}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #F1F5F9', paddingBottom: 14, marginBottom: 20 }}>
               <h3 style={{ fontSize: 14, fontWeight: 800, color: '#1E293B', display: 'flex', alignItems: 'center', gap: 8 }}>

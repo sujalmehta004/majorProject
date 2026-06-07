@@ -5,7 +5,7 @@ import {
   User, Building, FileText, Phone, MapPin, Calendar, 
   CheckCircle, AlertCircle, RefreshCw, Key, ShieldAlert, Navigation, Plus, Trash,
   Users, UserPlus, Trash2, Eye, EyeOff, Clock, ShieldCheck, Edit, X, ToggleLeft, ToggleRight,
-  Filter, XCircle, ChevronRight, Lock, Bell, AlertTriangle
+  Filter, XCircle, ChevronRight, Lock, Bell, AlertTriangle, Search
 } from 'lucide-react';
 import { logActivity } from '@/components/WholesalerLayout';
 
@@ -122,6 +122,8 @@ export default function SettingsClient({
   // STAFF TAB STATE
   // ----------------------------------------------------
   const [staff, setStaff] = useState<StaffUser[]>(initialStaff);
+  const [staffSearch, setStaffSearch] = useState('');
+  const [staffStatusFilter, setStaffStatusFilter] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showRegisterPassword, setShowRegisterPassword] = useState(false);
@@ -586,12 +588,17 @@ export default function SettingsClient({
         {activeTab === 'profile' && hasProfileAccess && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
             {/* Distributor Form */}
-            <div className="lg:col-span-7 card bg-white/80 backdrop-blur-xl border border-white/60 p-6 space-y-6 shadow-sm">
+            <div className="lg:col-span-7 card bg-white/85 backdrop-blur-xl p-6 space-y-6" style={{ border: '1.5px solid rgba(251,146,60,0.12)', boxShadow: '0 4px 24px rgba(249,115,22,0.06)' }}>
               <div>
-                <h3 className="text-sm font-black uppercase text-zinc-800 tracking-wider flex items-center gap-2 border-b border-slate-100 pb-3">
-                  <Building className="w-4 h-4 text-orange-500" />
-                  Distributor Registry Form
-                </h3>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+                  <div style={{ width: 32, height: 32, borderRadius: 10, background: 'linear-gradient(135deg,#F97316,#F59E0B)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 4px 12px rgba(249,115,22,0.25)' }}>
+                    <Building style={{ width: 15, height: 15, color: 'white' }} />
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: 13, fontWeight: 800, color: '#1E293B', letterSpacing: '-0.01em' }}>Distributor Registry Form</h3>
+                    <p style={{ fontSize: 10, color: '#94A3B8', marginTop: 1 }}>Company identity &amp; contact information</p>
+                  </div>
+                </div>
               </div>
 
               {!isOwner && (
@@ -601,8 +608,8 @@ export default function SettingsClient({
                 </div>
               )}
 
-              <form onSubmit={handleUpdateProfile} className="space-y-5">
-                <div className="space-y-4">
+              <form onSubmit={handleUpdateProfile} className="space-y-6">
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                   <div>
                     <label className="block text-zinc-500 uppercase text-[10px] font-black tracking-wider mb-1.5">Company Name</label>
                     <input
@@ -672,17 +679,29 @@ export default function SettingsClient({
                 </div>
 
                 {/* GPS Coordinates Section */}
-                <div className="border-t border-slate-100 pt-5 space-y-4">
-                  <div className="flex justify-between items-center">
+                <div style={{ borderTop: '1px solid rgba(249,115,22,0.1)', paddingTop: 20 }} className="space-y-4">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span className="block text-zinc-700 uppercase font-black text-[10px] tracking-wider">GPS Coordinates</span>
                     {isOwner && (
                       <button
                         type="button"
                         onClick={handleGetLocation}
-                        className="py-1.5 px-3 rounded-lg border border-orange-200 hover:border-orange-350 bg-orange-50 text-orange-655 font-bold text-[10px] uppercase tracking-wider flex items-center gap-1.5 shadow-sm transition-all cursor-pointer animate-pulse"
+                        disabled={isFetchingLocation}
+                        className="btn-primary"
+                        style={{
+                          background: 'linear-gradient(135deg, #F97316, #EA580C)',
+                          fontSize: 10,
+                          padding: '6px 12px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          borderRadius: 8,
+                          boxShadow: '0 4px 10px rgba(249,115,22,0.2)',
+                          opacity: isFetchingLocation ? 0.7 : 1
+                        }}
                       >
-                        <Navigation className="w-3.5 h-3.5" />
-                        Capture GPS
+                        <Navigation style={{ width: 12, height: 12, transform: 'rotate(45deg)' }} />
+                        {isFetchingLocation ? 'Fetching...' : 'Capture GPS Coordinates'}
                       </button>
                     )}
                   </div>
@@ -709,7 +728,7 @@ export default function SettingsClient({
                 </div>
 
                 {/* Dynamic custom fields */}
-                <div className="border-t border-slate-100 pt-5 space-y-4">
+                <div style={{ borderTop: '1px solid rgba(249,115,22,0.1)', paddingTop: 20 }} className="space-y-4">
                   <div className="flex justify-between items-center">
                     <span className="block text-zinc-700 uppercase font-black text-[10px] tracking-wider">Additional Parameters</span>
                     {isOwner && (
@@ -722,47 +741,57 @@ export default function SettingsClient({
                         Add Field
                       </button>
                     )}
-                  </div>
-
-                  {showAddFieldForm && (
-                    <div className="bg-slate-50 border border-slate-200 p-4 rounded-2xl space-y-3">
-                      <div className="grid grid-cols-2 gap-3 text-xs font-semibold">
-                        <div>
-                          <label className="block text-zinc-500 mb-1">Label</label>
-                          <input
-                            type="text"
-                            placeholder="e.g. Website"
-                            value={newFieldLabel}
-                            onChange={(e) => setNewFieldLabel(e.target.value)}
-                            className="input-crisp bg-white"
-                          />
+                  </div>                  {showAddFieldForm && (
+                    <div className="modal-overlay" onClick={() => setShowAddFieldForm(false)}>
+                      <div className="modal-card animate-scaleIn" style={{ '--modal-max-width': '400px', padding: 24 } as React.CSSProperties} onClick={e => e.stopPropagation()}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #F1F5F9', paddingBottom: 10, marginBottom: 14 }}>
+                          <h3 style={{ fontSize: 13, fontWeight: 900, color: '#1E293B', textTransform: 'uppercase' }}>Add Custom Parameter Field</h3>
+                          <button onClick={() => setShowAddFieldForm(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8' }}>
+                            <X style={{ width: 18, height: 18 }} />
+                          </button>
                         </div>
-                        <div>
-                          <label className="block text-zinc-500 mb-1">Value</label>
-                          <input
-                            type="text"
-                            placeholder="e.g. medhub.com"
-                            value={newFieldValue}
-                            onChange={(e) => setNewFieldValue(e.target.value)}
-                            className="input-crisp bg-white"
-                          />
+                        <div className="space-y-4">
+                          <div>
+                            <label className="block text-zinc-500 text-xs font-semibold mb-1">Parameter Label / Name *</label>
+                            <input
+                              type="text"
+                              placeholder="e.g. Website, Reg Date"
+                              value={newFieldLabel}
+                              onChange={(e) => setNewFieldLabel(e.target.value)}
+                              className="input-crisp bg-white"
+                              style={{ fontSize: 12 }}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-zinc-500 text-xs font-semibold mb-1">Value *</label>
+                            <input
+                              type="text"
+                              placeholder="e.g. www.distributor.com"
+                              value={newFieldValue}
+                              onChange={(e) => setNewFieldValue(e.target.value)}
+                              className="input-crisp bg-white"
+                              style={{ fontSize: 12 }}
+                            />
+                          </div>
+                          <div className="flex gap-2 justify-end pt-3 border-top border-slate-100" style={{ borderTop: '1px solid #F1F5F9' }}>
+                            <button
+                              type="button"
+                              onClick={handleAddCustomField}
+                              className="btn-primary"
+                              style={{ padding: '8px 16px', fontSize: 11, background: 'linear-gradient(135deg, #F97316, #F59E0B)' }}
+                            >
+                              Confirm
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setShowAddFieldForm(false)}
+                              className="btn-ghost"
+                              style={{ padding: '8px 16px', fontSize: 11 }}
+                            >
+                              Cancel
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                      <div className="flex gap-2 justify-end">
-                        <button
-                          type="button"
-                          onClick={handleAddCustomField}
-                          className="py-1.5 px-3 bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-lg transition-all text-[10px] uppercase cursor-pointer"
-                        >
-                          Confirm
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setShowAddFieldForm(false)}
-                          className="py-1.5 px-3 border border-slate-250 bg-white text-zinc-650 rounded-lg hover:bg-slate-50 transition-all text-[10px] uppercase cursor-pointer"
-                        >
-                          Cancel
-                        </button>
                       </div>
                     </div>
                   )}
@@ -770,7 +799,7 @@ export default function SettingsClient({
                   {customFields.length > 0 && (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       {customFields.map((field) => (
-                        <div key={field.label} className="bg-slate-50/50 border border-slate-150 p-3 rounded-2xl relative group space-y-1.5">
+                        <div key={field.label} style={{ background: 'rgba(249,115,22,0.03)', border: '1.5px solid rgba(249,115,22,0.1)', padding: 12, borderRadius: 16 }} className="relative group space-y-1.5">
                           <div className="flex justify-between items-center">
                             <label className="block text-zinc-500 uppercase text-[9px] font-black truncate max-w-[80%]">{field.label}</label>
                             {isOwner && (
@@ -811,16 +840,21 @@ export default function SettingsClient({
 
             {/* Map Locator */}
             <div className="lg:col-span-5 space-y-6">
-              <div className="card bg-white/80 border border-white/60 p-6 space-y-4 shadow-sm">
-                <h3 className="text-xs font-black uppercase text-zinc-800 tracking-wider flex items-center gap-2 border-b border-slate-100 pb-3">
-                  <MapPin className="w-4 h-4 text-orange-500" />
-                  Map Geolocation View
-                </h3>
+              <div className="card bg-white/85 p-6 space-y-4" style={{ border: '1.5px solid rgba(14,165,233,0.12)', boxShadow: '0 4px 24px rgba(14,165,233,0.06)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+                  <div style={{ width: 32, height: 32, borderRadius: 10, background: 'linear-gradient(135deg,#0EA5E9,#38BDF8)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 4px 12px rgba(14,165,233,0.25)' }}>
+                    <MapPin style={{ width: 15, height: 15, color: 'white' }} />
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: 13, fontWeight: 800, color: '#1E293B', letterSpacing: '-0.01em' }}>Map Geolocation View</h3>
+                    <p style={{ fontSize: 10, color: '#94A3B8', marginTop: 1 }}>Capture warehouse coordinates</p>
+                  </div>
+                </div>
                 <p style={{ fontSize: 11, color: '#64748B' }}>
                   Your registered warehouse location coordinates. Once captured, verify them on Google Maps.
                 </p>
 
-                <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 16, padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div style={{ background: 'rgba(14,165,233,0.04)', border: '1.5px solid rgba(14,165,233,0.1)', borderRadius: 16, padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
                   <div>
                     <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#475569', textTransform: 'uppercase', marginBottom: 4 }}>Manual Coordinates Override</label>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
@@ -856,98 +890,161 @@ export default function SettingsClient({
         {/* PANEL: STAFF ROSTER */}
         {activeTab === 'staff' && isOwner && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-            <div className="lg:col-span-4 card bg-white/80 border p-6 space-y-4 shadow-sm">
-              <h3 className="text-xs font-black uppercase text-zinc-800 tracking-wider flex items-center gap-2 border-b border-slate-100 pb-3">
-                <UserPlus className="w-4.5 h-4.5 text-orange-500" />
-                Register Staff
-              </h3>
-
-              <form onSubmit={handleCreateStaff} className="space-y-4">
-                <div>
-                  <label className="block text-zinc-500 uppercase text-[9px] font-black mb-1">Full Name</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Ram Bahadur"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    className="input-crisp text-xs py-2.5"
-                  />
+            <div className="lg:col-span-12 card bg-white/85 p-6 space-y-4" style={{ border: '1.5px solid rgba(249,115,22,0.12)', boxShadow: '0 4px 24px rgba(249,115,22,0.06)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingBottom: 16, borderBottom: '1px solid rgba(249,115,22,0.1)' }}>
+                <div style={{ width: 32, height: 32, borderRadius: 10, background: 'linear-gradient(135deg,#F97316,#F59E0B)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 4px 12px rgba(249,115,22,0.25)' }}>
+                  <UserPlus style={{ width: 15, height: 15, color: 'white' }} />
                 </div>
-
                 <div>
-                  <label className="block text-zinc-500 uppercase text-[9px] font-black mb-1">Email / Username</label>
-                  <input
-                    type="email"
-                    required
-                    placeholder="e.g. ram@distributor.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="input-crisp text-xs py-2.5"
-                  />
+                  <h3 style={{ fontSize: 13, fontWeight: 800, color: '#1E293B', letterSpacing: '-0.01em' }}>Register Staff Member</h3>
+                  <p style={{ fontSize: 10, color: '#94A3B8', marginTop: 1 }}>Create employee login credentials and feature access</p>
                 </div>
+              </div>
 
-                <div>
-                  <label className="block text-zinc-500 uppercase text-[9px] font-black mb-1">Password</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Create staff password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="input-crisp text-xs py-2.5 font-mono"
-                  />
-                </div>
+              <form onSubmit={handleCreateStaff} className="space-y-6">
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '24px' }}>
+                  {/* Left Column: Text Inputs */}
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-zinc-500 uppercase text-[9px] font-black mb-1">Full Name</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="e.g. Ram Bahadur"
+                        value={fullName}
+                        onChange={(e) => setFullName(e.target.value)}
+                        className="input-crisp text-xs py-2.5"
+                      />
+                    </div>
 
-                <div className="border-t border-slate-100 pt-4 space-y-2">
-                  <label className="block text-zinc-500 uppercase text-[9px] font-black tracking-wider">Features Enabled:</label>
-                  <div className="grid grid-cols-1 gap-1.5 bg-slate-50 p-2.5 rounded-xl border border-slate-150">
-                    {AVAILABLE_FEATURES.map((f) => {
-                      const isChecked = allowedFeatures.includes(f.key);
-                      return (
-                        <button
-                          key={f.key}
-                          type="button"
-                          onClick={() => handleToggleFeature(f.key)}
-                          className="flex items-center gap-2 p-1 text-left text-zinc-700 font-semibold cursor-pointer"
-                        >
-                          <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 text-[10px] ${isChecked ? 'bg-orange-500 border-orange-500 text-white' : 'border-slate-350 bg-white'}`}>
-                            {isChecked && '✓'}
-                          </span>
-                          <span className="text-[10px]">{f.label}</span>
-                        </button>
-                      );
-                    })}
+                    <div>
+                      <label className="block text-zinc-500 uppercase text-[9px] font-black mb-1">Email / Username</label>
+                      <input
+                        type="email"
+                        required
+                        placeholder="e.g. ram@distributor.com"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className="input-crisp text-xs py-2.5"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-zinc-500 uppercase text-[9px] font-black mb-1">Password</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="Create staff password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="input-crisp text-xs py-2.5 font-mono"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Right Column: Features Enabled Checklist */}
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <label className="block text-zinc-500 uppercase text-[9px] font-black tracking-wider mb-2">Features Enabled Checklist</label>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, background: 'rgba(249,115,22,0.03)', border: '1.5px solid rgba(249,115,22,0.1)', padding: 12, borderRadius: 14, flex: 1 }}>
+                      {AVAILABLE_FEATURES.map((f) => {
+                        const isChecked = allowedFeatures.includes(f.key);
+                        return (
+                          <button
+                            key={f.key}
+                            type="button"
+                            onClick={() => handleToggleFeature(f.key)}
+                            style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', borderRadius: 10, border: 'none', background: isChecked ? 'rgba(249,115,22,0.08)' : 'rgba(255,255,255,0.8)', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', transition: 'all 0.15s', boxShadow: isChecked ? '0 2px 8px rgba(249,115,22,0.15)' : '0 1px 3px rgba(0,0,0,0.04)' }}
+                          >
+                            <span style={{ width: 14, height: 14, borderRadius: 4, background: isChecked ? 'linear-gradient(135deg,#F97316,#F59E0B)' : 'white', border: `1.5px solid ${isChecked ? 'transparent' : 'rgba(0,0,0,0.12)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s', boxShadow: isChecked ? '0 2px 6px rgba(249,115,22,0.3)' : 'none' }}>
+                              {isChecked && <span style={{ color: 'white', fontSize: 9, fontWeight: 900 }}>✓</span>}
+                            </span>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: isChecked ? '#1E293B' : '#64748B' }}>{f.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
 
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full btn-primary bg-gradient-to-r from-orange-500 to-amber-500 text-white py-3.5 font-bold uppercase text-[10px]"
-                >
-                  {loading ? <RefreshCw className="w-4 h-4 animate-spin shrink-0" /> : null}
-                  Register Employee
-                </button>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid rgba(249,115,22,0.1)', paddingTop: 16 }}>
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="btn-primary"
+                    style={{ background: 'linear-gradient(135deg, #F97316, #F59E0B)', padding: '12px 32px', fontSize: 11, fontWeight: 800, textTransform: 'uppercase' }}
+                  >
+                    {loading ? <RefreshCw className="w-4 h-4 animate-spin shrink-0" /> : null}
+                    Register Employee Account
+                  </button>
+                </div>
               </form>
             </div>
 
-            <div className="lg:col-span-8 card bg-white/80 border p-6 space-y-4 shadow-sm">
-              <h3 className="text-xs font-black uppercase text-zinc-800 tracking-wider flex items-center gap-2 border-b border-slate-100 pb-3">
-                <Users className="w-4.5 h-4.5 text-orange-500" />
-                Staff Directory Roster
-              </h3>
+            <div className="lg:col-span-12 card bg-white/85 p-6 space-y-4" style={{ border: '1.5px solid rgba(14,165,233,0.12)', boxShadow: '0 4px 24px rgba(14,165,233,0.06)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingBottom: 16, borderBottom: '1px solid rgba(14,165,233,0.1)' }}>
+                <div style={{ width: 32, height: 32, borderRadius: 10, background: 'linear-gradient(135deg,#0EA5E9,#38BDF8)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 4px 12px rgba(14,165,233,0.25)' }}>
+                  <Users style={{ width: 15, height: 15, color: 'white' }} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: 13, fontWeight: 800, color: '#1E293B', letterSpacing: '-0.01em' }}>Staff Directory Roster</h3>
+                  <p style={{ fontSize: 10, color: '#94A3B8', marginTop: 1 }}>{staff.length} employee account{staff.length !== 1 ? 's' : ''} registered</p>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, background: 'rgba(14,165,233,0.03)', border: '1.5px solid rgba(14,165,233,0.1)', padding: 16, borderRadius: 16 }}>
+                <div>
+                  <label className="block text-zinc-500 uppercase text-[9px] font-black tracking-wider mb-1.5" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <Search style={{ width: 11, height: 11, color: '#F97316' }} /> Search Staff Roster
+                  </label>
+                  <input
+                    type="text"
+                    value={staffSearch}
+                    onChange={(e) => setStaffSearch(e.target.value)}
+                    placeholder="Type name, email..."
+                    className="input-crisp bg-white text-xs py-2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-zinc-500 uppercase text-[9px] font-black tracking-wider mb-1.5" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <Filter style={{ width: 11, height: 11, color: '#F97316' }} /> Employment Status
+                  </label>
+                  <select
+                    value={staffStatusFilter}
+                    onChange={(e) => setStaffStatusFilter(e.target.value)}
+                    className="select-crisp bg-white text-xs py-2"
+                  >
+                    <option value="">All Statuses (Active & Inactive)</option>
+                    <option value="active">Active Accounts Only</option>
+                    <option value="inactive">Suspended / Inactive</option>
+                  </select>
+                </div>
+              </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {staff.length === 0 ? (
-                  <div className="col-span-2 text-center text-zinc-400 py-10 italic text-xs font-mono">
-                    NO REGISTERED STAFF MEMBERS.
-                  </div>
-                ) : (
-                  staff.map((emp) => (
+                {(() => {
+                  const filteredStaff = staff.filter(emp => {
+                    const matchesSearch = 
+                      (emp.fullName || '').toLowerCase().includes(staffSearch.toLowerCase()) ||
+                      emp.email.toLowerCase().includes(staffSearch.toLowerCase());
+                    const matchesStatus = staffStatusFilter === 'active' ? emp.isActive :
+                                         staffStatusFilter === 'inactive' ? !emp.isActive : true;
+                    return matchesSearch && matchesStatus;
+                  });
+
+                  if (filteredStaff.length === 0) {
+                    return (
+                      <div className="col-span-2 text-center text-zinc-400 py-10 italic text-xs font-mono">
+                        NO STAFF MEMBERS MATCH THE CURRENT FILTERS.
+                      </div>
+                    );
+                  }
+
+                  return filteredStaff.map((emp) => (
                     <div 
-                      key={emp.id} 
-                      className="p-4 border border-slate-150 rounded-2xl bg-white flex flex-col justify-between gap-4 hover:border-orange-350 transition-all shadow-sm"
+                      key={emp.id}
+                      style={{ padding: 20, borderRadius: 20, background: 'linear-gradient(145deg, rgba(255,255,255,0.95), rgba(249,250,251,0.9))', border: '1.5px solid rgba(14,165,233,0.1)', boxShadow: '0 4px 16px rgba(0,0,0,0.04)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 16, transition: 'all 0.2s' }}
+                      onMouseOver={e => (e.currentTarget.style.boxShadow = '0 8px 28px rgba(249,115,22,0.12)', e.currentTarget.style.borderColor = 'rgba(249,115,22,0.2)')}
+                      onMouseOut={e => (e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.04)', e.currentTarget.style.borderColor = 'rgba(14,165,233,0.1)')}
                     >
                       <div>
                         <div className="flex justify-between items-start">
@@ -962,10 +1059,10 @@ export default function SettingsClient({
                           </span>
                         </div>
 
-                        <div className="bg-slate-50 border border-slate-150 p-2 rounded-xl mt-3 flex items-center gap-2 text-[10px] font-mono font-bold text-zinc-650">
-                          <Key className="w-3.5 h-3.5 text-orange-500 shrink-0" />
-                          <span>PASSCODE:</span>
-                          <span className="text-zinc-900 select-all font-mono font-extrabold">{emp.plainPassword || 'N/A'}</span>
+                        <div style={{ background: 'rgba(249,115,22,0.05)', border: '1.5px solid rgba(249,115,22,0.12)', padding: '8px 12px', borderRadius: 12, marginTop: 12, display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, fontFamily: 'monospace', fontWeight: 700, color: '#475569' }}>
+                          <Key style={{ width: 13, height: 13, color: '#F97316', flexShrink: 0 }} />
+                          <span style={{ color: '#94A3B8' }}>PASSCODE:</span>
+                          <span style={{ color: '#1E293B', fontWeight: 900, letterSpacing: '0.05em', userSelect: 'all' }}>{emp.plainPassword || 'N/A'}</span>
                         </div>
 
                         <div className="mt-3.5 space-y-1">
@@ -975,7 +1072,7 @@ export default function SettingsClient({
                               emp.allowedFeatures.split(',').map((f) => (
                                 <span 
                                   key={f} 
-                                  className="px-1.5 py-0.5 bg-orange-50 border border-orange-100 text-orange-655 rounded text-[9px] font-bold"
+                                  style={{ padding: '2px 8px', background: 'rgba(249,115,22,0.08)', color: '#C2410C', borderRadius: 6, fontSize: 9, fontWeight: 800, letterSpacing: '0.04em' }}
                                 >
                                   {f}
                                 </span>
@@ -987,27 +1084,27 @@ export default function SettingsClient({
                         </div>
                       </div>
 
-                      <div className="flex gap-2 border-t border-slate-100 pt-3 justify-end">
+                      <div style={{ display: 'flex', gap: 8, borderTop: '1px solid rgba(14,165,233,0.08)', paddingTop: 12, justifyContent: 'flex-end' }}>
                         <button
                           type="button"
                           onClick={() => handleOpenEdit(emp)}
-                          className="py-1.5 px-3 rounded-lg border border-slate-200 hover:border-orange-300 bg-white text-zinc-700 hover:text-zinc-950 shadow-sm flex items-center gap-1 text-[10px] font-bold cursor-pointer"
+                          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 10, border: 'none', background: 'rgba(249,115,22,0.08)', color: '#C2410C', fontSize: 10, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s' }}
                         >
-                          <Edit className="w-3.5 h-3.5 text-orange-500" />
+                          <Edit style={{ width: 13, height: 13 }} />
                           Edit
                         </button>
                         <button
                           type="button"
                           onClick={() => handleDeleteStaff(emp.id, emp.fullName || emp.email)}
-                          className="py-1.5 px-3 rounded-lg border border-slate-200 hover:border-red-200 bg-white hover:bg-red-50 text-zinc-700 hover:text-red-650 shadow-sm flex items-center gap-1 text-[10px] font-bold cursor-pointer"
+                          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 10, border: 'none', background: 'rgba(239,68,68,0.08)', color: '#DC2626', fontSize: 10, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s' }}
                         >
-                          <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                          <Trash2 style={{ width: 13, height: 13 }} />
                           Delete
                         </button>
                       </div>
                     </div>
                   ))
-                )}
+                })()}
               </div>
             </div>
           </div>
@@ -1015,39 +1112,48 @@ export default function SettingsClient({
 
         {/* PANEL: ACTIVITY LOGS */}
         {activeTab === 'logs' && hasLogsAccess && (
-          <div className="card bg-white/80 border p-6 space-y-6 shadow-sm">
-            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-              <h3 className="text-xs font-black uppercase text-zinc-800 tracking-wider flex items-center gap-2">
-                <FileText className="w-4.5 h-4.5 text-orange-500" />
-                Operational Activity Logs
-              </h3>
+          <div className="card bg-white/85 p-6 space-y-6" style={{ border: '1.5px solid rgba(16,185,129,0.12)', boxShadow: '0 4px 24px rgba(16,185,129,0.06)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 16, borderBottom: '1px solid rgba(16,185,129,0.1)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ width: 32, height: 32, borderRadius: 10, background: 'linear-gradient(135deg,#10B981,#34D399)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 4px 12px rgba(16,185,129,0.25)' }}>
+                  <FileText style={{ width: 15, height: 15, color: 'white' }} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: 13, fontWeight: 800, color: '#1E293B', letterSpacing: '-0.01em' }}>Operational Activity Logs</h3>
+                  <p style={{ fontSize: 10, color: '#94A3B8', marginTop: 1 }}>Audit trail of all system events</p>
+                </div>
+              </div>
               <button
                 onClick={() => window.location.reload()}
-                className="py-1.5 px-3 rounded-xl border border-slate-200 hover:border-slate-350 bg-white text-zinc-650 hover:text-zinc-850 font-bold text-[10px] uppercase flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 10, border: 'none', background: 'rgba(16,185,129,0.08)', color: '#059669', fontSize: 10, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s' }}
               >
-                <RefreshCw className="w-3.5 h-3.5" />
+                <RefreshCw style={{ width: 13, height: 13 }} />
                 Refresh
               </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs font-semibold bg-slate-50 p-4 border border-slate-150 rounded-2xl">
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16, background: 'rgba(16,185,129,0.03)', border: '1.5px solid rgba(16,185,129,0.1)', padding: 16, borderRadius: 16 }}>
               <div>
-                <label className="block text-zinc-500 mb-1.5">Search Logs</label>
+                <label className="block text-zinc-500 uppercase text-[9px] font-black tracking-wider mb-1.5" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <Search style={{ width: 11, height: 11, color: '#F97316' }} /> Search Logs
+                </label>
                 <input
                   type="text"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Search details..."
-                  className="input-crisp bg-white"
+                  placeholder="Filter by keyword..."
+                  className="input-crisp bg-white text-xs py-2"
                 />
               </div>
 
               <div>
-                <label className="block text-zinc-500 mb-1.5">Action Type</label>
+                <label className="block text-zinc-500 uppercase text-[9px] font-black tracking-wider mb-1.5" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <Filter style={{ width: 11, height: 11, color: '#F97316' }} /> Action Type
+                </label>
                 <select
                   value={actionFilter}
                   onChange={(e) => setActionFilter(e.target.value)}
-                  className="select-crisp bg-white"
+                  className="select-crisp bg-white text-xs py-2"
                 >
                   <option value="">All Actions</option>
                   {uniqueActions.map(action => (
@@ -1057,11 +1163,13 @@ export default function SettingsClient({
               </div>
 
               <div>
-                <label className="block text-zinc-500 mb-1.5">Operator</label>
+                <label className="block text-zinc-500 uppercase text-[9px] font-black tracking-wider mb-1.5" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <User style={{ width: 11, height: 11, color: '#F97316' }} /> Operator
+                </label>
                 <select
                   value={userFilter}
                   onChange={(e) => setUserFilter(e.target.value)}
-                  className="select-crisp bg-white"
+                  className="select-crisp bg-white text-xs py-2"
                 >
                   <option value="">All Operators</option>
                   {uniqueUsers.map(email => (
@@ -1074,9 +1182,9 @@ export default function SettingsClient({
                 {(searchTerm || actionFilter || userFilter) && (
                   <button
                     onClick={clearFilters}
-                    className="w-full py-2 bg-red-50 hover:bg-red-100 text-red-650 border border-red-200 rounded-xl font-bold uppercase transition-colors text-[10px] cursor-pointer"
+                    style={{ width: '100%', padding: '9px 0', background: 'rgba(239,68,68,0.08)', color: '#DC2626', border: 'none', borderRadius: 10, fontWeight: 800, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.05em', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontFamily: 'inherit' }}
                   >
-                    Clear Filters
+                    <XCircle style={{ width: 12, height: 12 }} /> Clear Filters
                   </button>
                 )}
               </div>
@@ -1110,7 +1218,7 @@ export default function SettingsClient({
                         <tr key={log.id}>
                           <td className="font-mono text-[10px] text-zinc-500 whitespace-nowrap">{timestampStr}</td>
                           <td>
-                            <span className="text-orange-700 font-bold uppercase text-[9px] border border-orange-100 bg-orange-50 px-2 py-0.5 rounded-lg font-mono">
+                            <span className="text-orange-700 font-bold uppercase text-[9px] bg-orange-50 px-2 py-1 rounded-lg font-mono">
                               {log.action}
                             </span>
                           </td>
@@ -1124,8 +1232,8 @@ export default function SettingsClient({
                             {log.details}
                           </td>
                           <td>
-                            <span className={`px-2 py-0.5 rounded-full text-[8.5px] font-bold border uppercase tracking-wider font-mono ${
-                              isStaff ? 'bg-pink-50 border-pink-150 text-pink-655' : 'bg-orange-50 border-orange-200 text-orange-655'
+                            <span className={`px-2 py-1 rounded-full text-[8.5px] font-bold uppercase tracking-wider font-mono ${
+                              isStaff ? 'bg-pink-50 text-pink-650' : 'bg-orange-50 text-orange-650'
                             }`}>
                               {isStaff ? 'STAFF' : 'OWNER'}
                             </span>
@@ -1283,22 +1391,21 @@ export default function SettingsClient({
                   </div>
                   <p style={{ fontSize: 10, color: '#64748B', marginTop: 2 }}>Warnings display dynamically</p>
                 </div>
-              </div>
             </div>
           </div>
-        )}
-
+        </div>
+      )}
       </div>
 
       {/* EDIT STAFF ACCESS MODAL */}
       {editingStaff && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(15,23,42,0.45)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }} className="no-print">
+        <div className="modal-overlay no-print" onClick={() => setEditingStaff(null)}>
           <div
+            className="modal-card animate-scaleIn"
+            style={{ '--modal-max-width': '480px' } as React.CSSProperties}
             onClick={(e) => e.stopPropagation()}
-            className="animate-scaleIn"
-            style={{ background: 'rgba(255,255,255,0.97)', border: '1.5px solid rgba(186,230,253,0.6)', borderRadius: 24, padding: 28, width: '100%', maxWidth: 480, boxShadow: '0 24px 64px rgba(14,165,233,0.18)' }}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #F1F5F9', paddingBottom: 14, marginBottom: 20 }}>
+            <div className="modal-header">
               <h3 style={{ fontSize: 14, fontWeight: 800, color: '#1E293B', display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Edit style={{ width: 16, height: 16, color: '#F97316' }} />
                 Modify Staff Permissions
@@ -1308,64 +1415,66 @@ export default function SettingsClient({
               </button>
             </div>
 
-            <form onSubmit={handleUpdateStaff} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <div>
-                <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Full Name</label>
-                <input type="text" required value={editFullName} onChange={(e) => setEditFullName(e.target.value)} className="input-crisp" />
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Email / Username</label>
-                <input type="email" required value={editEmail} onChange={(e) => setEditEmail(e.target.value)} className="input-crisp" />
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>New Password (leave blank to keep current)</label>
-                <input type="text" value={editPassword} onChange={(e) => setEditPassword(e.target.value)} placeholder="Enter new plain passcode" className="input-crisp" style={{ fontFamily: 'monospace' }} />
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#F8FAFC', border: '1.5px solid #E0F2FE', borderRadius: 10, padding: '10px 14px' }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Account Status:</span>
-                <button type="button" onClick={() => setEditIsActive(!editIsActive)} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
-                  {editIsActive ? (
-                    <>
-                      <ToggleRight style={{ width: 32, height: 32, color: '#0EA5E9' }} />
-                      <span style={{ fontSize: 11, fontWeight: 800, color: '#0EA5E9' }}>ENABLED</span>
-                    </>
-                  ) : (
-                    <>
-                      <ToggleLeft style={{ width: 32, height: 32, color: '#94A3B8' }} />
-                      <span style={{ fontSize: 11, fontWeight: 800, color: '#94A3B8' }}>DISABLED</span>
-                    </>
-                  )}
-                </button>
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Features Checklist</label>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, background: '#F8FAFC', border: '1.5px solid #E0F2FE', borderRadius: 10, padding: '8px 10px' }}>
-                  {AVAILABLE_FEATURES.map((f) => {
-                    const isChecked = editAllowedFeatures.includes(f.key);
-                    return (
-                      <button key={f.key} type="button" onClick={() => handleToggleFeature(f.key, true)}
-                        style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 8, border: 'none', background: isChecked ? 'rgba(14,165,233,0.08)' : 'transparent', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', transition: 'all 0.15s' }}>
-                        <span style={{ width: 14, height: 14, borderRadius: 4, border: `2px solid ${isChecked ? '#0EA5E9' : '#CBD5E1'}`, background: isChecked ? '#0EA5E9' : 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s' }}>
-                          {isChecked && <span style={{ color: 'white', fontSize: 9, fontWeight: 900 }}>✓</span>}
-                        </span>
-                        <span style={{ fontSize: 11, fontWeight: 600, color: isChecked ? '#1E293B' : '#64748B' }}>{f.key}</span>
-                      </button>
-                    );
-                  })}
+            <div className="modal-body">
+              <form onSubmit={handleUpdateStaff} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Full Name</label>
+                  <input type="text" required value={editFullName} onChange={(e) => setEditFullName(e.target.value)} className="input-crisp" />
                 </div>
-              </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Email / Username</label>
+                  <input type="email" required value={editEmail} onChange={(e) => setEditEmail(e.target.value)} className="input-crisp" />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>New Password (leave blank to keep current)</label>
+                  <input type="text" value={editPassword} onChange={(e) => setEditPassword(e.target.value)} placeholder="Enter new plain passcode" className="input-crisp" style={{ fontFamily: 'monospace' }} />
+                </div>
 
-              <div style={{ display: 'flex', gap: 10, paddingTop: 8, borderTop: '1px solid #F1F5F9' }}>
-                <button type="submit" className="btn-primary" style={{ flex: 1, justifyContent: 'center', padding: '12px', background: 'linear-gradient(135deg, #F97316, #F59E0B)' }}>
-                  Save Changes
-                </button>
-                <button type="button" onClick={() => setEditingStaff(null)} className="btn-ghost" style={{ padding: '12px 20px' }}>
-                  Cancel
-                </button>
-              </div>
-            </form>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#F8FAFC', border: '1.5px solid #E0F2FE', borderRadius: 10, padding: '10px 14px' }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Account Status:</span>
+                  <button type="button" onClick={() => setEditIsActive(!editIsActive)} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
+                    {editIsActive ? (
+                      <>
+                        <ToggleRight style={{ width: 32, height: 32, color: '#0EA5E9' }} />
+                        <span style={{ fontSize: 11, fontWeight: 800, color: '#0EA5E9' }}>ENABLED</span>
+                      </>
+                    ) : (
+                      <>
+                        <ToggleLeft style={{ width: 32, height: 32, color: '#94A3B8' }} />
+                        <span style={{ fontSize: 11, fontWeight: 800, color: '#94A3B8' }}>DISABLED</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Features Checklist</label>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, background: 'rgba(249,115,22,0.03)', border: '1.5px solid rgba(249,115,22,0.1)', borderRadius: 12, padding: '10px 12px' }}>
+                    {AVAILABLE_FEATURES.map((f) => {
+                      const isChecked = editAllowedFeatures.includes(f.key);
+                      return (
+                        <button key={f.key} type="button" onClick={() => handleToggleFeature(f.key, true)}
+                          style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', borderRadius: 10, border: 'none', background: isChecked ? 'rgba(249,115,22,0.08)' : 'rgba(255,255,255,0.8)', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', transition: 'all 0.15s', boxShadow: isChecked ? '0 2px 8px rgba(249,115,22,0.15)' : '0 1px 3px rgba(0,0,0,0.04)' }}>
+                          <span style={{ width: 14, height: 14, borderRadius: 4, background: isChecked ? 'linear-gradient(135deg,#F97316,#F59E0B)' : 'white', border: `1.5px solid ${isChecked ? 'transparent' : 'rgba(0,0,0,0.12)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s', boxShadow: isChecked ? '0 2px 6px rgba(249,115,22,0.3)' : 'none' }}>
+                            {isChecked && <span style={{ color: 'white', fontSize: 9, fontWeight: 900 }}>✓</span>}
+                          </span>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: isChecked ? '#1E293B' : '#64748B' }}>{f.key}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="modal-footer" style={{ display: 'flex', gap: 10, padding: '14px 0 0', borderTop: '1px solid #F1F5F9', background: 'transparent' }}>
+                  <button type="submit" className="btn-primary" style={{ flex: 1, justifyContent: 'center', padding: '12px', background: 'linear-gradient(135deg, #F97316, #F59E0B)' }}>
+                    Save Changes
+                  </button>
+                  <button type="button" onClick={() => setEditingStaff(null)} className="btn-ghost" style={{ padding: '12px 20px' }}>
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         </div>
       )}

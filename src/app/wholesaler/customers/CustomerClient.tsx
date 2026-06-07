@@ -69,6 +69,7 @@ export default function CustomerClient({ customers: initialCustomers, wholesaler
 
   // Settle amounts local dictionary
   const [settlements, setSettlements] = useState<Record<string, number>>({});
+  const [settleLogs, setSettleLogs] = useState<Record<string, any[]>>({});
   const [settleAmount, setSettleAmount] = useState('');
   const [settlingOrderId, setSettlingOrderId] = useState<string | null>(null);
 
@@ -93,6 +94,11 @@ export default function CustomerClient({ customers: initialCustomers, wholesaler
     const storedPayments = localStorage.getItem('medhub_order_payments');
     if (storedPayments) {
       setSettlements(JSON.parse(storedPayments));
+    }
+
+    const storedLogs = localStorage.getItem('medhub_settle_logs');
+    if (storedLogs) {
+      setSettleLogs(JSON.parse(storedLogs));
     }
   }, [initialCustomers]);
 
@@ -125,11 +131,20 @@ export default function CustomerClient({ customers: initialCustomers, wholesaler
   const handleSettleSubmit = (orderId: string, totalAmount: number) => {
     const currentPaid = settlements[orderId] || 0;
     const inputPaid = parseFloat(settleAmount) || 0;
+    if (inputPaid <= 0) return;
     const finalPaid = Math.min(currentPaid + inputPaid, totalAmount);
     
     const updated = { ...settlements, [orderId]: finalPaid };
     setSettlements(updated);
     localStorage.setItem('medhub_order_payments', JSON.stringify(updated));
+
+    // Log this payment entry with date
+    const newEntry = { amount: inputPaid, date: new Date().toISOString() };
+    const existingLog = settleLogs[orderId] || [];
+    const updatedLogs = { ...settleLogs, [orderId]: [...existingLog, newEntry] };
+    setSettleLogs(updatedLogs);
+    localStorage.setItem('medhub_settle_logs', JSON.stringify(updatedLogs));
+
     setSettleAmount('');
     setSettlingOrderId(null);
   };
@@ -254,173 +269,156 @@ export default function CustomerClient({ customers: initialCustomers, wholesaler
             )}
           </div>
         </div>
-
-        {/* Right Side: Customer Details & Statement */}
-        <div>
-          {selectedCustomer ? (
-            <div className="space-y-6">
-              {/* Profile Overview Card */}
-              <div className="card" style={{ background: 'rgba(255,255,255,0.85)', padding: 24 }}>
-                <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, borderBottom: '1px solid #F1F5F9', paddingBottom: 18, marginBottom: 20 }}>
-                  <div>
-                    <h2 style={{ fontSize: 16, fontWeight: 900, color: '#1E293B' }}>{selectedCustomer.pharmacyName}</h2>
-                    <p style={{ fontSize: 12, color: '#64748B', marginTop: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <Mail style={{ width: 12, height: 12 }} /> {selectedCustomer.user.email}
-                      <span style={{ color: '#CBD5E1' }}>|</span>
-                      <Phone style={{ width: 12, height: 12 }} /> {selectedCustomer.phone}
-                    </p>
-                  </div>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <div style={{ background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 12, padding: '8px 14px', textAlign: 'right' }}>
-                      <div style={{ fontSize: 9, fontWeight: 800, color: '#C2410C', textTransform: 'uppercase', letterSpacing: '0.05em' }}>B2B Statement</div>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: '#C2410C', marginTop: 2 }}>
-                        Paid: Rs. {totalPaid.toLocaleString()} | Due: Rs. {totalPending.toLocaleString()}
-                      </div>
-                    </div>
-                    <div style={{ background: '#F0F9FF', border: '1px solid #BAE6FD', borderRadius: 12, padding: '8px 14px', textAlign: 'right' }}>
-                      <div style={{ fontSize: 9, fontWeight: 800, color: '#0369A1', textTransform: 'uppercase', letterSpacing: '0.05em' }}>B2B Loyalty Tier</div>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: '#0369A1', marginTop: 2 }}>
-                        Rs. {selectedCustomer.lifetimeSpend.toLocaleString()}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Info Fields Grid */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
-                  <div style={{ background: '#F8FAFC', borderRadius: 12, padding: 12, border: '1px solid #E2E8F0' }}>
-                    <div style={{ fontSize: 9, fontWeight: 800, color: '#94A3B8', textTransform: 'uppercase' }}>Registration Number</div>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: '#334155', marginTop: 4, fontFamily: 'monospace' }}>{selectedCustomer.registrationNumber}</div>
-                  </div>
-
-                  <div style={{ background: '#F8FAFC', borderRadius: 12, padding: 12, border: '1px solid #E2E8F0' }}>
-                    <div style={{ fontSize: 9, fontWeight: 800, color: '#94A3B8', textTransform: 'uppercase' }}>Contact Person</div>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: '#334155', marginTop: 4 }}>{selectedCustomer.user.fullName || 'N/A'}</div>
-                  </div>
-
-                  <div style={{ background: '#F8FAFC', borderRadius: 12, padding: 12, border: '1px solid #E2E8F0', gridColumn: 'span 2' }}>
-                    <div style={{ fontSize: 9, fontWeight: 800, color: '#94A3B8', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <MapPin style={{ width: 10, height: 10 }} /> Dispatch Address
-                    </div>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: '#334155', marginTop: 4 }}>{selectedCustomer.address}</div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Transactions Statement Ledger */}
-              <div className="card" style={{ background: 'rgba(255,255,255,0.85)', padding: 24 }}>
-                <div style={{ borderBottom: '1px solid #F1F5F9', paddingBottom: 14, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Receipt style={{ width: 14, height: 14, color: '#F97316' }} />
-                  <h3 style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#1E293B' }}>
-                    Statement of Transactions
-                  </h3>
-                </div>
-
-                <div className="table-wrapper">
-                  <table className="data-table">
-                    <thead>
-                      <tr>
-                        <th>Order Date</th>
-                        <th>Order ID / Invoice</th>
-                        <th>Gross Amt</th>
-                        <th>Paid Amt</th>
-                        <th>Remaining</th>
-                        <th>Status</th>
-                        <th style={{ textAlign: 'right' }}>Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {selectedCustomer.orders.length === 0 ? (
-                        <tr>
-                          <td colSpan={7} style={{ padding: 32, textAlign: 'center', color: '#94A3B8', fontStyle: 'italic', fontSize: 12 }}>
-                            No transactions on record for this customer.
-                          </td>
-                        </tr>
-                      ) : (
-                        selectedCustomer.orders.map(o => {
-                          const orderPaid = settlements[o.id] || 0;
-                          const orderRemaining = Math.max(o.netAmount - orderPaid, 0);
-                          return (
-                            <tr key={o.id}>
-                              <td style={{ fontSize: 11, color: '#64748B', whiteSpace: 'nowrap' }}>
-                                {new Date(o.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
-                              </td>
-                              <td>
-                                <button 
-                                  onClick={() => setActiveInvoice(o)}
-                                  style={{ background: 'none', border: 'none', color: '#0EA5E9', fontFamily: 'monospace', fontSize: 11, fontWeight: 700, cursor: 'pointer', outline: 'none' }}
-                                >
-                                  {o.id.toUpperCase().substring(0, 12)}
-                                </button>
-                              </td>
-                              <td style={{ fontFamily: 'monospace', fontSize: 11 }}>
-                                Rs. {o.netAmount.toLocaleString()}
-                              </td>
-                              <td style={{ fontFamily: 'monospace', fontSize: 11, color: '#059669' }}>
-                                Rs. {orderPaid.toLocaleString()}
-                              </td>
-                              <td style={{ fontFamily: 'monospace', fontSize: 11, color: orderRemaining > 0 ? '#DC2626' : '#64748B' }}>
-                                Rs. {orderRemaining.toLocaleString()}
-                              </td>
-                              <td>
-                                <span className={`status-pill status-pill-${o.status.toLowerCase()}`}>
-                                  {o.status}
-                                </span>
-                              </td>
-                              <td style={{ textAlign: 'right' }}>
-                                {orderRemaining > 0 ? (
-                                  <div>
-                                    {settlingOrderId === o.id ? (
-                                      <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
-                                        <input 
-                                          type="number" placeholder="Amt" value={settleAmount} 
-                                          onChange={e => setSettleAmount(e.target.value)} 
-                                          style={{ width: 60, fontSize: 10, padding: 4, border: '1px solid #E2E8F0', borderRadius: 4 }} 
-                                        />
-                                        <button 
-                                          onClick={() => handleSettleSubmit(o.id, o.netAmount)}
-                                          style={{ padding: '4px 8px', fontSize: 9, background: '#10B981', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer' }}
-                                        >
-                                          Pay
-                                        </button>
-                                      </div>
-                                    ) : (
-                                      <button 
-                                        onClick={() => setSettlingOrderId(o.id)}
-                                        style={{ background: 'none', border: 'none', color: '#0EA5E9', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
-                                      >
-                                        Settle
-                                      </button>
-                                    )}
-                                  </div>
-                                ) : (
-                                  <span style={{ fontSize: 11, color: '#059669', fontWeight: 600 }}>✓ Settled</span>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        })
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="card" style={{ background: 'rgba(255,255,255,0.85)', padding: 48, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
-              <Users style={{ width: 32, height: 32, color: '#94A3B8' }} />
-              <div style={{ fontSize: 14, fontWeight: 700, color: '#64748B' }}>No customer selected</div>
-              <p style={{ fontSize: 12, color: '#94A3B8', maxWidth: 280 }}>Select a retailer from the directory list on the left to inspect their transaction ledger.</p>
-            </div>
-          )}
-        </div>
       </div>
+
+
+        {/* Right Side: Customer Detail Modal */}
+        {selectedCustomer && selectedCustomerId && (
+          <div className="modal-overlay" onClick={() => setSelectedCustomerId(null)}>
+            <div className="modal-card animate-scaleIn" style={{ '--modal-max-width': '780px' } as React.CSSProperties} onClick={e => e.stopPropagation()}>
+              <div className="modal-header">
+                <div>
+                  <h3 style={{ fontSize: 15, fontWeight: 900, color: '#1E293B', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Users style={{ width: 18, height: 18, color: '#F97316' }} />
+                    Customer Account: {selectedCustomer.pharmacyName}
+                  </h3>
+                  <p style={{ fontSize: 11, color: '#64748B', marginTop: 4 }}>B2B transactions history, billing limits, and credit controls</p>
+                </div>
+                <button onClick={() => setSelectedCustomerId(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8' }}>
+                  <X style={{ width: 20, height: 20 }} />
+                </button>
+              </div>
+
+              <div className="modal-body space-y-6">
+                {/* Contact information card */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, background: '#FAFCFF', border: '1.5px solid #E0F2FE', borderRadius: 16, padding: 16 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12, color: '#475569' }}>
+                    <div><strong>Contact Person:</strong> {selectedCustomer.user?.fullName || 'N/A'}</div>
+                    <div><strong>Phone:</strong> {selectedCustomer.phone}</div>
+                    <div><strong>Email:</strong> {selectedCustomer.user?.email}</div>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12, color: '#475569' }}>
+                    <div><strong>Address:</strong> {selectedCustomer.address || 'N/A'}</div>
+                    <div><strong>Drug Registration:</strong> {selectedCustomer.registrationNumber}</div>
+                  </div>
+                </div>
+
+                {/* Financial KPI stats */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+                  <div className="card" style={{ padding: 14, background: '#ECFDF5', border: '1px solid #A7F3D0' }}>
+                    <div style={{ fontSize: 9, fontWeight: 800, color: '#065F46', textTransform: 'uppercase' }}>Lifetime Spend</div>
+                    <div style={{ fontSize: 16, fontWeight: 900, color: '#047857', fontFamily: 'monospace', marginTop: 4 }}>Rs. {selectedCustomer.lifetimeSpend.toLocaleString()}</div>
+                  </div>
+                  <div className="card" style={{ padding: 14, background: '#FFF7ED', border: '1px solid #FED7AA' }}>
+                    <div style={{ fontSize: 9, fontWeight: 800, color: '#854D0E', textTransform: 'uppercase' }}>Total Outstanding Due</div>
+                    <div style={{ fontSize: 16, fontWeight: 900, color: '#C2410C', fontFamily: 'monospace', marginTop: 4 }}>Rs. {totalPending.toLocaleString()}</div>
+                  </div>
+                  <div className="card" style={{ padding: 14, background: '#F0F9FF', border: '1px solid #BAE6FD' }}>
+                    <div style={{ fontSize: 9, fontWeight: 800, color: '#075985', textTransform: 'uppercase' }}>B2B Credit Limit</div>
+                    <div style={{ fontSize: 16, fontWeight: 900, color: '#0369A1', fontFamily: 'monospace', marginTop: 4 }}>Rs. {selectedCustomer.creditLimit.toLocaleString()}</div>
+                  </div>
+                </div>
+
+                {/* Order ledger statement */}
+                <div>
+                  <h4 style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: '#475569', letterSpacing: '0.05em', marginBottom: 10 }}>Transaction Ledger Statement</h4>
+                  <div className="table-wrapper">
+                    <table className="data-table">
+                      <thead>
+                        <tr>
+                          <th>Date</th>
+                          <th>Invoice Ref</th>
+                          <th>Invoice status</th>
+                          <th style={{ textAlign: 'right' }}>Net Amount</th>
+                          <th style={{ textAlign: 'right' }}>Paid Amt</th>
+                          <th style={{ textAlign: 'right' }}>Settlement</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selectedCustomer.orders.length === 0 ? (
+                          <tr>
+                            <td colSpan={6} style={{ padding: 24, textAlign: 'center', color: '#94A3B8', fontStyle: 'italic' }}>No billing orders registered for this customer.</td>
+                          </tr>
+                        ) : (
+                          selectedCustomer.orders.map(o => {
+                            const oPaid = settlements[o.id] || 0;
+                            const oRemaining = Math.max(o.netAmount - oPaid, 0);
+                            const isFullyPaid = oPaid >= o.netAmount;
+                            return (
+                              <tr key={o.id}>
+                                <td style={{ fontSize: 11, color: '#64748B' }}>{new Date(o.createdAt).toLocaleDateString()}</td>
+                                <td>
+                                  <button onClick={() => setActiveInvoice(o)} style={{ background: 'none', border: 'none', color: '#0EA5E9', fontWeight: 800, cursor: 'pointer', fontFamily: 'monospace', textDecoration: 'underline' }}>
+                                    ORD-{o.id.substring(0, 8).toUpperCase()}
+                                  </button>
+                                </td>
+                                <td>
+                                  <span className={`status-pill status-pill-${o.status.toLowerCase()}`}>{o.status}</span>
+                                </td>
+                                <td style={{ textAlign: 'right', fontFamily: 'monospace', fontWeight: 700 }}>Rs. {o.netAmount.toLocaleString()}</td>
+                                <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#059669', fontWeight: 700 }}>Rs. {oPaid.toLocaleString()}</td>
+                                <td style={{ textAlign: 'right' }}>
+                                  {!isFullyPaid ? (
+                                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 4 }} onClick={e => e.stopPropagation()}>
+                                      {settlingOrderId === o.id ? (
+                                        <div style={{ display: 'flex', gap: 4 }}>
+                                          <input 
+                                            type="number" 
+                                            placeholder="Amt" 
+                                            value={settleAmount} 
+                                            onChange={e => setSettleAmount(e.target.value)} 
+                                            className="input-crisp" 
+                                            style={{ width: 64, fontSize: 10, padding: 4 }} 
+                                          />
+                                          <button 
+                                            onClick={() => handleSettleSubmit(o.id, o.netAmount)}
+                                            style={{ padding: '4px 8px', fontSize: 9, background: '#10B981', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 700 }}
+                                          >
+                                            OK
+                                          </button>
+                                          <button 
+                                            onClick={() => setSettlingOrderId(null)}
+                                            style={{ padding: '4px 6px', fontSize: 9, background: '#64748B', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer' }}
+                                          >
+                                            ✕
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <button 
+                                          onClick={() => setSettlingOrderId(o.id)}
+                                          className="btn-ghost"
+                                          style={{ padding: '4px 8px', fontSize: 10, borderColor: '#BAE6FD', color: '#0EA5E9' }}
+                                        >
+                                          Settle
+                                        </button>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <span style={{ fontSize: 11, color: '#059669', fontWeight: 700 }}>✓ Settled</span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+
+              <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                <button onClick={() => setSelectedCustomerId(null)} className="btn-primary" style={{ background: '#475569' }}>Close Details</button>
+              </div>
+            </div>
+          </div>
+        )}
 
       {/* Add Customer Modal */}
       {showAddModal && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(15,23,42,0.4)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-          <div className="animate-scaleIn" style={{ background: 'rgba(255,255,255,0.97)', border: '1.5px solid rgba(186,230,253,0.6)', borderRadius: 24, padding: 28, width: '100%', maxWidth: 500, boxShadow: '0 24px 64px rgba(14,165,233,0.18)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #F1F5F9', paddingBottom: 14, marginBottom: 20 }}>
+        <div className="modal-overlay" onClick={() => { setShowAddModal(false); setAddError(''); setAddSuccess(''); }}>
+          <div className="modal-card animate-scaleIn" style={{ '--modal-max-width': '500px' } as React.CSSProperties} onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
               <div>
                 <h3 style={{ fontSize: 15, fontWeight: 900, color: '#1E293B', display: 'flex', alignItems: 'center', gap: 8 }}>
                   <UserPlus style={{ width: 18, height: 18, color: '#0EA5E9' }} />
@@ -432,122 +430,249 @@ export default function CustomerClient({ customers: initialCustomers, wholesaler
                 <X style={{ width: 18, height: 18 }} />
               </button>
             </div>
-            {addError && <div style={{ background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: 10, padding: '10px 14px', marginBottom: 14, fontSize: 12, color: '#DC2626', display: 'flex', alignItems: 'center', gap: 8 }}><AlertCircle style={{ width: 13, height: 13 }} />{addError}</div>}
-            {addSuccess && <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 10, padding: '10px 14px', marginBottom: 14, fontSize: 12, color: '#059669', display: 'flex', alignItems: 'center', gap: 8 }}><CheckCircle style={{ width: 13, height: 13 }} />{addSuccess}</div>}
-            <form onSubmit={handleAddCustomer} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Pharmacy Name *</label>
-                  <input required value={addPharmacy} onChange={e => setAddPharmacy(e.target.value)} placeholder="e.g. Sunrise Pharmacy" className="input-crisp" style={{ width: '100%', fontSize: 12 }} />
+            <div className="modal-body">
+              {addError && <div style={{ background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: 10, padding: '10px 14px', marginBottom: 14, fontSize: 12, color: '#DC2626', display: 'flex', alignItems: 'center', gap: 8 }}><AlertCircle style={{ width: 13, height: 13 }} />{addError}</div>}
+              {addSuccess && <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 10, padding: '10px 14px', marginBottom: 14, fontSize: 12, color: '#059669', display: 'flex', alignItems: 'center', gap: 8 }}><CheckCircle style={{ width: 13, height: 13 }} />{addSuccess}</div>}
+              <form onSubmit={handleAddCustomer} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Pharmacy Name *</label>
+                    <input required value={addPharmacy} onChange={e => setAddPharmacy(e.target.value)} placeholder="e.g. Sunrise Pharmacy" className="input-crisp" style={{ width: '100%', fontSize: 12 }} />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Contact Person *</label>
+                    <input required value={addContact} onChange={e => setAddContact(e.target.value)} placeholder="e.g. Ram Shrestha" className="input-crisp" style={{ width: '100%', fontSize: 12 }} />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Phone Number *</label>
+                    <input required value={addPhone} onChange={e => setAddPhone(e.target.value)} placeholder="98XXXXXXXX" className="input-crisp" style={{ width: '100%', fontSize: 12 }} />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Email Address *</label>
+                    <input required type="email" value={addEmail} onChange={e => setAddEmail(e.target.value)} placeholder="pharmacy@email.com" className="input-crisp" style={{ width: '100%', fontSize: 12 }} />
+                  </div>
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Contact Person *</label>
-                  <input required value={addContact} onChange={e => setAddContact(e.target.value)} placeholder="e.g. Ram Shrestha" className="input-crisp" style={{ width: '100%', fontSize: 12 }} />
+                  <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Dispatch Address</label>
+                  <input value={addAddress} onChange={e => setAddAddress(e.target.value)} placeholder="Street, City, District" className="input-crisp" style={{ width: '100%', fontSize: 12 }} />
                 </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Phone Number *</label>
-                  <input required value={addPhone} onChange={e => setAddPhone(e.target.value)} placeholder="98XXXXXXXX" className="input-crisp" style={{ width: '100%', fontSize: 12 }} />
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Email Address *</label>
-                  <input required type="email" value={addEmail} onChange={e => setAddEmail(e.target.value)} placeholder="pharmacy@email.com" className="input-crisp" style={{ width: '100%', fontSize: 12 }} />
-                </div>
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Dispatch Address</label>
-                <input value={addAddress} onChange={e => setAddAddress(e.target.value)} placeholder="Street, City, District" className="input-crisp" style={{ width: '100%', fontSize: 12 }} />
-              </div>
-              <button type="submit" disabled={addLoading} className="btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '13px', background: 'linear-gradient(135deg, #0EA5E9, #38BDF8)', fontSize: 12, opacity: addLoading ? 0.7 : 1 }}>
-                {addLoading ? 'Registering...' : 'Register Customer Account'}
-              </button>
-            </form>
+                <button type="submit" disabled={addLoading} className="btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '13px', background: 'linear-gradient(135deg, #0EA5E9, #38BDF8)', fontSize: 12, opacity: addLoading ? 0.7 : 1 }}>
+                  {addLoading ? 'Registering...' : 'Register Customer Account'}
+                </button>
+              </form>
+            </div>
           </div>
         </div>
       )}
 
       {/* Bill ID detailed popup modal */}
-      {activeInvoice && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(15,23,42,0.4)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifySelf: 'center', justifyContent: 'center', padding: 24 }}>
-          <div className="animate-scaleIn" style={{ background: 'white', border: '1.5px solid #BAE6FD', borderRadius: 24, padding: 28, width: '100%', maxWidth: 540, boxShadow: '0 24px 64px rgba(14,165,233,0.18)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #F1F5F9', paddingBottom: 14, marginBottom: 20 }}>
-              <div>
-                <h3 style={{ fontSize: 14, fontWeight: 900, color: '#1E293B', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <FileText style={{ width: 18, height: 18, color: '#0EA5E9' }} /> Sales Invoice Details
-                </h3>
-                <p style={{ fontSize: 11, color: '#64748B', marginTop: 4 }}>Full transaction logs and itemized ledger updates</p>
-              </div>
-              <button onClick={() => setActiveInvoice(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8' }}>
-                <X style={{ width: 20, height: 20 }} />
-              </button>
-            </div>
+      {activeInvoice && (() => {
+        const orderPaid = settlements[activeInvoice.id] || 0;
+        const orderRemaining = Math.max(activeInvoice.netAmount - orderPaid, 0);
+        const percentPaid = Math.round((orderPaid / activeInvoice.netAmount) * 100);
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, background: '#F8FAFC', padding: 12, borderRadius: 12 }}>
+        return (
+          <div className="modal-overlay" onClick={() => setActiveInvoice(null)}>
+            <div className="modal-card animate-scaleIn" style={{ '--modal-max-width': '640px' } as React.CSSProperties} onClick={e => e.stopPropagation()}>
+              <div className="modal-header">
                 <div>
-                  <div style={{ fontSize: 9, fontWeight: 800, color: '#94A3B8', textTransform: 'uppercase' }}>Invoice ID</div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: '#1E293B', fontFamily: 'monospace' }}>ORD-{activeInvoice.id.toUpperCase()}</div>
+                  <h3 style={{ fontSize: 14, fontWeight: 900, color: '#1E293B', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <FileText style={{ width: 18, height: 18, color: '#0EA5E9' }} /> Sales Invoice Details
+                  </h3>
+                  <p style={{ fontSize: 11, color: '#64748B', marginTop: 4 }}>Full transaction logs, itemized lines, and payment records</p>
                 </div>
-                <div>
-                  <div style={{ fontSize: 9, fontWeight: 800, color: '#94A3B8', textTransform: 'uppercase' }}>Status</div>
-                  <span className={`status-pill status-pill-${activeInvoice.status.toLowerCase()}`} style={{ marginTop: 2, display: 'inline-block' }}>
-                    {activeInvoice.status}
-                  </span>
-                </div>
-                <div>
-                  <div style={{ fontSize: 9, fontWeight: 800, color: '#94A3B8', textTransform: 'uppercase' }}>Date</div>
-                  <div style={{ fontSize: 11, color: '#475569' }}>{new Date(activeInvoice.createdAt).toLocaleString()}</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 9, fontWeight: 800, color: '#94A3B8', textTransform: 'uppercase' }}>Final Net Amount</div>
-                  <div style={{ fontSize: 12, fontWeight: 800, color: '#0EA5E9', fontFamily: 'monospace' }}>Rs. {activeInvoice.netAmount.toLocaleString()}</div>
-                </div>
+                <button onClick={() => setActiveInvoice(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8' }}>
+                  <X style={{ width: 20, height: 20 }} />
+                </button>
               </div>
 
-              <div>
-                <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: '#475569', marginBottom: 8 }}>Itemized Sales Lines</div>
-                <div style={{ border: '1px solid #E2E8F0', borderRadius: 12, overflow: 'hidden' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
-                    <thead style={{ background: '#F8FAFC' }}>
-                      <tr>
-                        <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 700, color: '#475569' }}>Item</th>
-                        <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 700, color: '#475569' }}>Qty</th>
-                        <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, color: '#475569' }}>Rate</th>
-                        <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, color: '#475569' }}>Subtotal</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {activeInvoice.items && activeInvoice.items.length > 0 ? (
-                        activeInvoice.items.map(item => (
-                          <tr key={item.id} style={{ borderTop: '1px solid #E2E8F0' }}>
-                            <td style={{ padding: '8px 12px', color: '#1E293B' }}>{item.product.name}</td>
-                            <td style={{ padding: '8px 12px', textAlign: 'center', fontFamily: 'monospace' }}>{item.quantity}</td>
-                            <td style={{ padding: '8px 12px', textAlign: 'right', fontFamily: 'monospace' }}>Rs. {item.pricePerUnit}</td>
-                            <td style={{ padding: '8px 12px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 700 }}>Rs. {(item.quantity * item.pricePerUnit).toLocaleString()}</td>
-                          </tr>
-                        ))
-                      ) : (
+              <div className="modal-body space-y-6">
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, background: '#F8FAFC', padding: 16, borderRadius: 16, border: '1px solid #E2E8F0' }}>
+                  <div>
+                    <div style={{ fontSize: 9, fontWeight: 800, color: '#94A3B8', textTransform: 'uppercase' }}>Invoice ID</div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#1E293B', fontFamily: 'monospace' }}>ORD-{activeInvoice.id.toUpperCase()}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 9, fontWeight: 800, color: '#94A3B8', textTransform: 'uppercase' }}>Status</div>
+                    <span className={`status-pill status-pill-${activeInvoice.status.toLowerCase()}`} style={{ marginTop: 2, display: 'inline-block' }}>
+                      {activeInvoice.status}
+                    </span>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 9, fontWeight: 800, color: '#94A3B8', textTransform: 'uppercase' }}>Date</div>
+                    <div style={{ fontSize: 11, color: '#475569' }}>{new Date(activeInvoice.createdAt).toLocaleString()}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 9, fontWeight: 800, color: '#94A3B8', textTransform: 'uppercase' }}>Final Net Amount</div>
+                    <div style={{ fontSize: 13, fontWeight: 800, color: '#0EA5E9', fontFamily: 'monospace' }}>Rs. {activeInvoice.netAmount.toLocaleString()}</div>
+                  </div>
+                </div>
+
+                {/* Progress Bar */}
+                <div style={{ background: '#F1F5F9', borderRadius: 12, padding: 12, border: '1px solid #E2E8F0' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontWeight: 700, color: '#475569', marginBottom: 6 }}>
+                    <span>Payment Progress</span>
+                    <span>{percentPaid}% ({orderPaid.toLocaleString()} / {activeInvoice.netAmount.toLocaleString()})</span>
+                  </div>
+                  <div style={{ width: '100%', height: 8, background: '#E2E8F0', borderRadius: 99, overflow: 'hidden' }}>
+                    <div style={{ width: `${percentPaid}%`, height: '100%', background: 'linear-gradient(90deg, #10B981, #34D399)', borderRadius: 99 }} />
+                  </div>
+                </div>
+
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: '#475569', marginBottom: 8 }}>Itemized Sales Lines</div>
+                  <div style={{ border: '1px solid #E2E8F0', borderRadius: 12, overflow: 'hidden' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+                      <thead style={{ background: '#F8FAFC' }}>
                         <tr>
-                          <td colSpan={4} style={{ padding: 12, textAlign: 'center', color: '#94A3B8', fontStyle: 'italic' }}>No item lines loaded.</td>
+                          <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 700, color: '#475569' }}>Item</th>
+                          <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 700, color: '#475569' }}>Qty</th>
+                          <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, color: '#475569' }}>Rate</th>
+                          <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, color: '#475569' }}>Subtotal</th>
                         </tr>
-                      )}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {activeInvoice.items && activeInvoice.items.length > 0 ? (
+                          activeInvoice.items.map(item => (
+                            <tr key={item.id} style={{ borderTop: '1px solid #E2E8F0' }}>
+                              <td style={{ padding: '8px 12px', color: '#1E293B', fontWeight: 600 }}>{item.product.name}</td>
+                              <td style={{ padding: '8px 12px', textAlign: 'center', fontFamily: 'monospace' }}>{item.quantity}</td>
+                              <td style={{ padding: '8px 12px', textAlign: 'right', fontFamily: 'monospace' }}>Rs. {item.pricePerUnit}</td>
+                              <td style={{ padding: '8px 12px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 700 }}>Rs. {(item.quantity * item.pricePerUnit).toLocaleString()}</td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr>
+                            <td colSpan={4} style={{ padding: 12, textAlign: 'center', color: '#94A3B8', fontStyle: 'italic' }}>No item lines loaded.</td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Settle Action inside detail modal */}
+                {orderRemaining > 0 && (
+                  <div style={{ background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 16, padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: 11, fontWeight: 800, color: '#C2410C', textTransform: 'uppercase' }}>Record Settlement Payment</span>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: '#EA580C' }}>Due: Rs. {orderRemaining.toLocaleString()}</span>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <input 
+                        type="number" 
+                        placeholder="Enter payment amount" 
+                        value={settleAmount} 
+                        onChange={e => setSettleAmount(e.target.value)} 
+                        className="input-crisp" 
+                        style={{ flex: 1, fontSize: 12 }} 
+                      />
+                      <button 
+                        onClick={() => handleSettleSubmit(activeInvoice.id, activeInvoice.netAmount)}
+                        className="btn-primary" 
+                        style={{ background: '#10B981', padding: '10px 20px', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 700 }}
+                      >
+                        Settle Payment
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Payment Logs List */}
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: '#475569', marginBottom: 8 }}>Payment Ledger Timeline</div>
+                  <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 12, padding: 12, maxHeight: 150, overflowY: 'auto' }}>
+                    {settleLogs[activeInvoice.id] && settleLogs[activeInvoice.id].length > 0 ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {settleLogs[activeInvoice.id].map((log: any, idx: number) => (
+                          <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, borderBottom: '1px solid #F1F5F9', paddingBottom: 6 }}>
+                            <span style={{ color: '#64748B' }}>{new Date(log.date).toLocaleString()}</span>
+                            <span style={{ fontWeight: 800, color: '#059669' }}>+ Rs. {log.amount.toLocaleString()}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div style={{ textAlign: 'center', color: '#94A3B8', fontSize: 11, padding: 12, fontStyle: 'italic' }}>
+                        No payments logged for this invoice.
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 20 }}>
-              <button 
-                onClick={() => setActiveInvoice(null)} 
-                className="btn-primary" 
-                style={{ background: '#475569', padding: '8px 16px' }}
-              >
-                Close Details
-              </button>
+              <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                <button 
+                  onClick={() => {
+                    const printWindow = window.open('', '_blank');
+                    if (printWindow) {
+                      printWindow.document.write(`
+                        <html>
+                        <head>
+                          <title>Invoice - ${activeInvoice.id}</title>
+                          <style>
+                            body { font-family: monospace; padding: 40px; }
+                            table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+                            th, td { border: 1px solid black; padding: 8px; text-align: left; }
+                            .header { text-align: center; margin-bottom: 30px; }
+                          </style>
+                        </head>
+                        <body>
+                          <div class="header">
+                            <h1>SALES INVOICE</h1>
+                            <p>Invoice ID: ORD-${activeInvoice.id.toUpperCase()}</p>
+                            <p>Date: ${new Date(activeInvoice.createdAt).toLocaleString()}</p>
+                          </div>
+                          <hr/>
+                          <h3>Items:</h3>
+                          <table>
+                            <thead>
+                              <tr>
+                                <th>Item</th>
+                                <th>Qty</th>
+                                <th>Rate</th>
+                                <th>Subtotal</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              ${(activeInvoice.items || []).map(item => `
+                                <tr>
+                                  <td>${item.product.name}</td>
+                                  <td>${item.quantity}</td>
+                                  <td>Rs. ${item.pricePerUnit}</td>
+                                  <td>Rs. ${(item.quantity * item.pricePerUnit).toLocaleString()}</td>
+                                </tr>
+                              `).join('')}
+                            </tbody>
+                          </table>
+                          <div style="text-align: right; margin-top: 20px;">
+                            <p><strong>Total Amount: Rs. ${activeInvoice.netAmount.toLocaleString()}</strong></p>
+                            <p>Paid Amount: Rs. ${orderPaid.toLocaleString()}</p>
+                            <p>Remaining: Rs. ${orderRemaining.toLocaleString()}</p>
+                          </div>
+                          <script>window.print();</script>
+                        </body>
+                        </html>
+                      `);
+                      printWindow.document.close();
+                    }
+                  }}
+                  className="btn-ghost" 
+                  style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+                >
+                  <Receipt style={{ width: 14, height: 14 }} /> Print Invoice
+                </button>
+                <button 
+                  onClick={() => setActiveInvoice(null)} 
+                  className="btn-primary" 
+                  style={{ background: '#475569' }}
+                >
+                  Close Details
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }

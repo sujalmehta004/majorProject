@@ -111,16 +111,24 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
   const [returnReason, setReturnReason] = useState('Wrong item delivered');
   const [returnLoading, setReturnLoading] = useState(false);
 
+  // Order detail modal (click order ID)
+  const [detailOrder, setDetailOrder] = useState<Order | null>(null);
+
   // Drawer / details modal for customer profile & history
   const [selectedCustomerHistory, setSelectedCustomerHistory] = useState<Retailer | null>(null);
   const [editingCreditLimit, setEditingCreditLimit] = useState('');
   const [editingLifetimeSpend, setEditingLifetimeSpend] = useState('');
   const [savingCustomerInfo, setSavingCustomerInfo] = useState(false);
 
+  // Print preview state
+  const [printPreviewOrder, setPrintPreviewOrder] = useState<Order | null>(null);
+  const [manualBarcodeText, setManualBarcodeText] = useState('');
+
   // Partial payment settlements mapping stored in local storage to survive page refresh
   const [settlements, setSettlements] = useState<Record<string, number>>({});
   const [settleAmount, setSettleAmount] = useState('');
   const [settlingOrderId, setSettlingOrderId] = useState<string | null>(null);
+  const [settleLogs, setSettleLogs] = useState<Record<string, any[]>>({});
 
   // Retailer barcode scan simulations
   const [scannedOrders, setScannedOrders] = useState<Record<string, boolean>>({});
@@ -134,6 +142,10 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
   const [addAddress, setAddAddress] = useState('');
   const [addLoading, setAddLoading] = useState(false);
 
+  // Filters
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [filterSearch, setFilterSearch] = useState('');
+
   // Filtered lists
   const filteredRetailers = retailers.filter(r =>
     r.pharmacyName.toLowerCase().includes(customerSearch.toLowerCase())
@@ -146,6 +158,15 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
 
   const selectedRetailer = retailers.find(r => r.id === selectedRetailerId);
   const selectedProduct = products.find(p => p.id === selectedProductId);
+
+  // Orders filter
+  const filteredOrders = orders.filter(o => {
+    const matchStatus = filterStatus === 'all' || o.status === filterStatus;
+    const matchSearch = !filterSearch ||
+      o.retailer.pharmacyName.toLowerCase().includes(filterSearch.toLowerCase()) ||
+      o.id.toLowerCase().includes(filterSearch.toLowerCase());
+    return matchStatus && matchSearch;
+  });
 
   const fetchOrdersAndProducts = async () => {
     setLoading(true);
@@ -183,6 +204,9 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
 
     const storedScans = localStorage.getItem('medhub_retailer_scans');
     if (storedScans) setScannedOrders(JSON.parse(storedScans));
+
+    const storedLogs = localStorage.getItem('medhub_settle_logs');
+    if (storedLogs) setSettleLogs(JSON.parse(storedLogs));
   }, []);
 
   // SSE real-time auto-refresh
@@ -363,11 +387,20 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
   const handleSettleSubmit = (orderId: string, totalAmount: number) => {
     const currentPaid = settlements[orderId] || 0;
     const inputPaid = parseFloat(settleAmount) || 0;
+    if (inputPaid <= 0) return;
     const finalPaid = Math.min(currentPaid + inputPaid, totalAmount);
     
     const updated = { ...settlements, [orderId]: finalPaid };
     setSettlements(updated);
     localStorage.setItem('medhub_order_payments', JSON.stringify(updated));
+
+    // Log this payment entry with date
+    const newEntry = { amount: inputPaid, date: new Date().toISOString() };
+    const existingLog = settleLogs[orderId] || [];
+    const updatedLogs = { ...settleLogs, [orderId]: [...existingLog, newEntry] };
+    setSettleLogs(updatedLogs);
+    localStorage.setItem('medhub_settle_logs', JSON.stringify(updatedLogs));
+
     setSettleAmount('');
     setSettlingOrderId(null);
     setSuccessMsg(`Payment recorded. Rs. ${inputPaid.toLocaleString()} paid for Order ${orderId.substring(0, 8)}.`);
@@ -377,47 +410,9 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
 
   // Print dispatch shipping label
   const printDispatchLabel = (order: Order) => {
-    const w = window.open('', '_blank', 'width=600,height=500');
-    if (!w) return;
-    const itemsHtml = order.items.map(i => `<div style="padding:4px 0;border-bottom:1px dashed #ccc;font-size:11px;">${i.product.name} (${i.product.sku}) — ${i.quantity} units</div>`).join('');
-    
-    w.document.write(`<html><head><title>Dispatch Label</title>
-      <style>
-        @page{size:100mm 150mm;margin:0}
-        body{margin:0;padding:6mm;font-family:'Courier New',monospace;font-size:12px;color:#000;background:#fff;height:100vh;box-sizing:border-box;display:flex;flex-direction:column;justify-content:space-between;}
-        .header{font-size:16px;font-weight:900;text-transform:uppercase;border-bottom:3px solid #000;padding-bottom:6px;margin-bottom:10px}
-        .field{margin-bottom:6px;font-size:11px}
-        .label{font-size:9px;font-weight:700;text-transform:uppercase;color:#555}
-        .barcode-section{display:flex;flex-direction:column;align-items:center;margin:10px 0;}
-        .barcode-line{font-size:26px;font-weight:900;letter-spacing:0.1em;text-align:center;border:2px solid #000;padding:8px;margin-bottom:2px;width:100%;box-sizing:border-box;}
-        .barcode-text{font-size:10px;font-weight:800;letter-spacing:0.05em;font-family:monospace;}
-        .items-section{border:1px solid #ccc;padding:8px;border-radius:4px;margin-top:8px}
-        .footer{margin-top:10px;font-size:9px;text-align:center;color:#888;border-top:1px dashed #ccc;padding-top:6px}
-        .no-print-btn{display:block;margin:12px auto 0;padding:8px 16px;background:#0EA5E9;color:#fff;border:none;border-radius:8px;font-weight:bold;cursor:pointer;}
-        @media print{.no-print-btn{display:none;}}
-      </style>
-    </head>
-    <body>
-      <div>
-        <div class="header">Dispatch Shipment Label</div>
-        <div class="field"><div class="label">Order ID</div>ORD-${order.id.substring(0, 12).toUpperCase()}</div>
-        <div class="field"><div class="label">Deliver To</div><strong>${order.retailer.pharmacyName}</strong><br>${order.retailer.address || ''}</div>
-        <div class="field"><div class="label">Dispatch Date</div>${new Date(order.createdAt).toLocaleDateString()}</div>
-        
-        <div class="barcode-section">
-          <div class="barcode-line">||| ${order.id.substring(0, 12).toUpperCase()} |||</div>
-          <div class="barcode-text">ORD-${order.id.substring(0, 12).toUpperCase()}</div>
-        </div>
-        
-        <div class="items-section"><div class="label">Items Included</div>${itemsHtml}</div>
-      </div>
-      <div>
-        <div class="footer">Scan this label on delivery — MedHub Wholesaler Distribution</div>
-        <button class="no-print-btn" onclick="window.print()">Print Document</button>
-      </div>
-    </body></html>`);
-    w.document.close();
-    logActivity('PRINT_DISPATCH_LABEL', `Printed dispatch label for Order ${order.id.substring(0, 8)}`);
+    setPrintPreviewOrder(order);
+    setManualBarcodeText(`ORD-${order.id.substring(0, 12).toUpperCase()}`);
+    logActivity('PRINT_PREVIEW_OPEN', `Opened dispatch label print preview for Order ${order.id.substring(0, 8)}`);
   };
 
   // Open return modal
@@ -555,21 +550,39 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
 
         {/* LEFT — Orders Table */}
         <div style={{ background: 'rgba(255,255,255,0.9)', border: '1.5px solid #E2E8F0', borderRadius: 18, overflow: 'hidden', boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid #F1F5F9' }}>
+          {/* Table header + filters */}
+          <div style={{ padding: '14px 20px', borderBottom: '1px solid #F1F5F9', display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', justifyContent: 'space-between' }}>
             <h2 style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#1E293B', display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Clock style={{ width: 13, height: 13, color: '#0EA5E9' }} /> Recent Orders Log
+              <Clock style={{ width: 13, height: 13, color: '#0EA5E9' }} /> Orders Log
+              <span style={{ fontSize: 10, fontWeight: 700, fontFamily: 'monospace', color: '#94A3B8', textTransform: 'uppercase', marginLeft: 4 }}>({filteredOrders.length})</span>
             </h2>
-            <span style={{ fontSize: 10, fontWeight: 700, fontFamily: 'monospace', color: '#94A3B8', textTransform: 'uppercase' }}>
-              {orders.length} orders
-            </span>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+              {/* Search */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'white', border: '1.5px solid #E2E8F0', borderRadius: 8, padding: '4px 10px' }}>
+                <Search style={{ width: 12, height: 12, color: '#94A3B8' }} />
+                <input type="text" placeholder="Search order / pharmacy..." value={filterSearch} onChange={e => setFilterSearch(e.target.value)}
+                  style={{ border: 'none', outline: 'none', fontSize: 11, width: 150, color: '#1E293B' }} />
+              </div>
+              {/* Status pills */}
+              {(['all','PENDING','DISPATCHED','DELIVERED','RETURNED'] as const).map(s => (
+                <button key={s} onClick={() => setFilterStatus(s)}
+                  style={{ padding: '4px 10px', fontSize: 10, fontWeight: 700, border: '1.5px solid', borderRadius: 20, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s',
+                    background: filterStatus === s ? '#0EA5E9' : 'white',
+                    color: filterStatus === s ? 'white' : '#64748B',
+                    borderColor: filterStatus === s ? '#0EA5E9' : '#E2E8F0',
+                  }}>
+                  {s === 'all' ? 'All' : s}
+                </button>
+              ))}
+            </div>
           </div>
 
           {loading ? (
             <div style={{ padding: '48px', textAlign: 'center' }}><span style={{ fontSize: 12, color: '#64748B' }}>Loading sales log...</span></div>
-          ) : orders.length === 0 ? (
+          ) : filteredOrders.length === 0 ? (
             <div style={{ padding: '48px', textAlign: 'center' }}>
               <Package style={{ width: 28, height: 28, color: '#CBD5E1', margin: '0 auto 10px' }} />
-              <p style={{ fontSize: 12, color: '#94A3B8', fontFamily: 'monospace' }}>NO SALES ORDERS IN LOG</p>
+              <p style={{ fontSize: 12, color: '#94A3B8', fontFamily: 'monospace' }}>NO ORDERS MATCH FILTERS</p>
             </div>
           ) : (
             <div style={{ overflowX: 'auto' }}>
@@ -582,26 +595,27 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
                     <th>Items</th>
                     <th>Status</th>
                     <th>Retailer Scan</th>
-                    <th>Net Payable</th>
+                    <th>Net / Due</th>
                     <th style={{ textAlign: 'right' }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {orders.map((order) => {
+                  {filteredOrders.map((order) => {
                     const s = statusStyles[order.status] || { bg: '#F8FAFC', color: '#64748B', border: '#E2E8F0' };
                     const isScanned = scannedOrders[order.id] || order.status === 'DELIVERED';
+                    const paid = settlements[order.id] || 0;
+                    const due = Math.max(order.netAmount - paid, 0);
                     return (
                       <tr 
                         key={order.id} 
                         style={{ cursor: 'pointer' }}
-                        onClick={() => {
-                          setSelectedCustomerHistory(order.retailer);
-                          setEditingCreditLimit(order.retailer.creditLimit.toString());
-                          setEditingLifetimeSpend(order.retailer.lifetimeSpend.toString());
-                        }}
+                        onClick={() => setDetailOrder(order)}
                       >
-                        <td onClick={(e) => e.stopPropagation()}>
-                          <span style={{ fontFamily: 'monospace', fontWeight: 800, color: '#1E293B', fontSize: 11, display: 'block' }}>ORD-{order.id.substring(0, 8).toUpperCase()}</span>
+                        <td>
+                          <button onClick={(e) => { e.stopPropagation(); setDetailOrder(order); }}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'monospace', fontWeight: 800, color: '#0EA5E9', fontSize: 11, padding: 0, textDecoration: 'underline dotted' }}>
+                            ORD-{order.id.substring(0, 8).toUpperCase()}
+                          </button>
                           <span style={{ fontSize: 10, color: '#94A3B8', fontFamily: 'monospace', display: 'block', marginTop: 2 }}>{new Date(order.createdAt).toLocaleString()}</span>
                         </td>
                         <td>
@@ -622,7 +636,7 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
                         <td style={{ maxWidth: 160 }}>
                           {order.items.map((item) => (
                             <div key={item.id} style={{ fontSize: 10, color: '#64748B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {item.product.name} ({item.quantity} tabs)
+                              {item.product.name} ×{item.quantity}
                             </div>
                           ))}
                         </td>
@@ -649,8 +663,9 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
                             </span>
                           )}
                         </td>
-                        <td>
-                          <span style={{ fontWeight: 800, fontFamily: 'monospace', color: '#1E293B', display: 'block', fontSize: 12 }}>Rs. {order.netAmount.toFixed(2)}</span>
+                        <td style={{ fontFamily: 'monospace' }}>
+                          <div style={{ fontWeight: 800, color: '#1E293B', fontSize: 12 }}>Rs. {order.netAmount.toFixed(2)}</div>
+                          {due > 0 && <div style={{ fontSize: 10, color: '#DC2626', marginTop: 2 }}>Due: Rs. {due.toLocaleString()}</div>}
                           {order.overrideJustification && (
                             <span style={{ fontSize: 9, color: '#DC2626', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 3, marginTop: 2 }}>
                               <ShieldAlert style={{ width: 10, height: 10 }} /> Hold Bypassed
@@ -671,10 +686,10 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
                             )}
                             {order.status === 'DISPATCHED' && (
                               <div style={{ display: 'flex', gap: 4 }}>
-                                <button onClick={() => handleConfirmOrder(order.id)} style={{ padding: '5px 12px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', borderRadius: 8, border: '1.5px solid #A7F3D0', background: '#ECFDF5', color: '#059669', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontFamily: 'inherit' }}>
+                                <button onClick={() => handleConfirmOrder(order.id)} style={{ padding: '5px 12px', fontSize: 10, fontWeight: 700, borderRadius: 8, border: '1.5px solid #A7F3D0', background: '#ECFDF5', color: '#059669', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontFamily: 'inherit' }}>
                                   Fulfill
                                 </button>
-                                <button onClick={() => handleUnsuccessfulDispatch(order.id)} style={{ padding: '5px 8px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', borderRadius: 8, border: '1.5px solid #FCA5A5', background: '#FEF2F2', color: '#DC2626', cursor: 'pointer' }}>
+                                <button onClick={() => handleUnsuccessfulDispatch(order.id)} style={{ padding: '5px 8px', fontSize: 10, fontWeight: 700, borderRadius: 8, border: '1.5px solid #FCA5A5', background: '#FEF2F2', color: '#DC2626', cursor: 'pointer' }}>
                                   Fail
                                 </button>
                               </div>
@@ -917,11 +932,100 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
         </div>
       </div>
 
+      {/* ORDER DETAIL MODAL */}
+      {detailOrder && (
+        <div className="modal-overlay" onClick={() => setDetailOrder(null)}>
+          <div className="modal-card animate-scaleIn" style={{ '--modal-max-width': '680px' } as React.CSSProperties} onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <div>
+                <h3 style={{ fontSize: 15, fontWeight: 900, color: '#1E293B', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Package style={{ width: 18, height: 18, color: '#0EA5E9' }} />
+                  Order: ORD-{detailOrder.id.substring(0, 12).toUpperCase()}
+                </h3>
+                <p style={{ fontSize: 11, color: '#94A3B8', marginTop: 3 }}>{detailOrder.retailer.pharmacyName} · {new Date(detailOrder.createdAt).toLocaleString()}</p>
+              </div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <span style={{ ...statusStyles[detailOrder.status] && { background: statusStyles[detailOrder.status].bg, color: statusStyles[detailOrder.status].color, border: `1px solid ${statusStyles[detailOrder.status].border}` }, fontSize: 9, fontWeight: 800, padding: '3px 10px', borderRadius: 20, textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: 'monospace' }}>{detailOrder.status}</span>
+                <button onClick={() => setDetailOrder(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8', display: 'flex' }}><X style={{ width: 20, height: 20 }} /></button>
+              </div>
+            </div>
+            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+              {/* Summary */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10 }}>
+                {[
+                  { label: 'Net Payable', val: `Rs. ${detailOrder.netAmount.toFixed(2)}`, color: '#0EA5E9' },
+                  { label: 'Total Paid', val: `Rs. ${(settlements[detailOrder.id] || 0).toLocaleString()}`, color: '#059669' },
+                  { label: 'Remaining', val: `Rs. ${Math.max(detailOrder.netAmount - (settlements[detailOrder.id] || 0), 0).toLocaleString()}`, color: '#DC2626' },
+                  { label: 'Discount', val: `- Rs. ${detailOrder.discountAmount.toFixed(2)}`, color: '#EA580C' },
+                ].map(({ label, val, color }) => (
+                  <div key={label} style={{ background: '#F8FAFC', borderRadius: 10, padding: '10px 12px', border: '1px solid #E2E8F0' }}>
+                    <div style={{ fontSize: 9, fontWeight: 800, color: '#94A3B8', textTransform: 'uppercase', marginBottom: 4 }}>{label}</div>
+                    <div style={{ fontSize: 13, fontWeight: 800, color, fontFamily: 'monospace' }}>{val}</div>
+                  </div>
+                ))}
+              </div>
+              {/* Customer */}
+              <div style={{ background: '#F0F9FF', border: '1.5px solid #BAE6FD', borderRadius: 14, padding: 16 }}>
+                <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: '#0369A1', marginBottom: 10 }}>Customer Profile</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, fontSize: 12 }}>
+                  <div><strong>Pharmacy:</strong> {detailOrder.retailer.pharmacyName}</div>
+                  <div><strong>Phone:</strong> {detailOrder.retailer.phone || 'N/A'}</div>
+                  <div><strong>Credit Limit:</strong> Rs. {detailOrder.retailer.creditLimit.toLocaleString()}</div>
+                  <div><strong>Address:</strong> {detailOrder.retailer.address || 'N/A'}</div>
+                </div>
+                <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                  <button onClick={() => { setSelectedCustomerHistory(detailOrder.retailer); setEditingCreditLimit(detailOrder.retailer.creditLimit.toString()); setEditingLifetimeSpend(detailOrder.retailer.lifetimeSpend.toString()); setDetailOrder(null); }} className="btn-ghost" style={{ fontSize: 10, gap: 4 }}>
+                    <User style={{ width: 12, height: 12 }} /> Full Profile
+                  </button>
+                  <a href={`https://www.google.com/maps?q=${detailOrder.retailer.latitude || 27.7172},${detailOrder.retailer.longitude || 85.3240}`} target="_blank" rel="noopener noreferrer" className="btn-ghost" style={{ fontSize: 10, gap: 4, textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>
+                    <MapPin style={{ width: 12, height: 12 }} /> View Map
+                  </a>
+                </div>
+              </div>
+              {/* Items */}
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: '#475569', marginBottom: 8 }}>Order Items</div>
+                <div style={{ border: '1px solid #E2E8F0', borderRadius: 10, overflow: 'hidden' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+                    <thead style={{ background: '#F8FAFC' }}>
+                      <tr>{['Medicine','SKU','Qty','Price','Subtotal'].map(h => <th key={h} style={{ padding: '8px 12px', textAlign: h === 'Medicine' || h === 'SKU' ? 'left' : 'right', fontWeight: 700, color: '#475569', fontSize: 10 }}>{h}</th>)}</tr>
+                    </thead>
+                    <tbody>
+                      {detailOrder.items.map(item => {
+                        const tbx = item.product.tabletsPerStrip * item.product.stripsPerBox;
+                        const boxes = Math.floor(item.quantity / tbx);
+                        return (
+                          <tr key={item.id} style={{ borderTop: '1px solid #E2E8F0' }}>
+                            <td style={{ padding: '8px 12px', fontWeight: 700 }}>{item.product.name}</td>
+                            <td style={{ padding: '8px 12px', fontFamily: 'monospace', fontSize: 10, color: '#64748B' }}>{item.product.sku}</td>
+                            <td style={{ padding: '8px 12px', textAlign: 'right', fontFamily: 'monospace' }}>{boxes} boxes</td>
+                            <td style={{ padding: '8px 12px', textAlign: 'right', fontFamily: 'monospace' }}>Rs. {(item.pricePerUnit * tbx).toFixed(2)}</td>
+                            <td style={{ padding: '8px 12px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 800 }}>Rs. {(item.quantity * item.pricePerUnit).toFixed(2)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+            <div className="modal-footer" style={{ display: 'flex', gap: 8, justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', gap: 6 }}>
+                {detailOrder.status === 'PENDING' && <button onClick={() => { handleDispatchOrder(detailOrder.id); setDetailOrder(null); }} className="btn-primary" style={{ fontSize: 11 }}><Truck style={{ width: 13, height: 13 }} /> Ship</button>}
+                {detailOrder.status === 'DELIVERED' && <button onClick={() => { openReturnModal(detailOrder); setDetailOrder(null); }} className="btn-ghost" style={{ fontSize: 11, color: '#DC2626', borderColor: '#FECACA' }}><RotateCcw style={{ width: 13, height: 13 }} /> Return</button>}
+                <button onClick={() => printDispatchLabel(detailOrder)} className="btn-ghost" style={{ fontSize: 11 }}><Tag style={{ width: 13, height: 13 }} /> Print Label</button>
+              </div>
+              <button onClick={() => setDetailOrder(null)} className="btn-primary" style={{ background: '#475569' }}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Return Products Modal */}
       {returnOrderId && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(15,23,42,0.5)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-          <div style={{ background: 'rgba(255,255,255,0.97)', border: '1.5px solid rgba(252,165,165,0.5)', borderRadius: 24, padding: 28, width: '100%', maxWidth: 480, boxShadow: '0 24px 64px rgba(220,38,38,0.12)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #F1F5F9', paddingBottom: 14, marginBottom: 18 }}>
+        <div className="modal-overlay" onClick={() => setReturnOrderId(null)}>
+          <div className="modal-card animate-scaleIn" style={{ '--modal-max-width': '480px', border: '1.5px solid rgba(252,165,165,0.5)' } as React.CSSProperties} onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
               <div>
                 <h3 style={{ fontSize: 15, fontWeight: 900, color: '#DC2626', display: 'flex', alignItems: 'center', gap: 8 }}>
                   <RotateCcw style={{ width: 18, height: 18 }} /> Process Product Return
@@ -968,9 +1072,9 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
 
       {/* Inline Add Customer Modal */}
       {showAddCustomerModal && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(15,23,42,0.4)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-          <div className="animate-scaleIn" style={{ background: 'rgba(255,255,255,0.97)', border: '1.5px solid rgba(186,230,253,0.6)', borderRadius: 24, padding: 28, width: '100%', maxWidth: 500, boxShadow: '0 24px 64px rgba(14,165,233,0.18)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #F1F5F9', paddingBottom: 14, marginBottom: 20 }}>
+        <div className="modal-overlay" onClick={() => setShowAddCustomerModal(false)}>
+          <div className="modal-card animate-scaleIn" style={{ '--modal-max-width': '500px', border: '1.5px solid rgba(186,230,253,0.6)' } as React.CSSProperties} onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
               <div>
                 <h3 style={{ fontSize: 15, fontWeight: 900, color: '#1E293B', display: 'flex', alignItems: 'center', gap: 8 }}>
                   <User style={{ width: 18, height: 18, color: '#0EA5E9' }} />
@@ -1013,19 +1117,18 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
         </div>
       )}
 
-      {/* CUSTOMER PROFILE & HISTORY SLIDE-OUT DRAWER */}
+      {/* CUSTOMER PROFILE & HISTORY MODAL */}
       {selectedCustomerHistory && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 40, display: 'flex', justifyContent: 'flex-end', background: 'rgba(15,23,42,0.3)', backdropFilter: 'blur(4px)' }} onClick={() => setSelectedCustomerHistory(null)}>
+        <div className="modal-overlay" onClick={() => setSelectedCustomerHistory(null)}>
           <div 
+            className="modal-card animate-scaleIn"
             style={{
-              width: '100%', maxWidth: 520, background: 'white', height: '100%',
-              boxShadow: '-10px 0 40px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column',
-              animation: 'slideInRight 0.3s ease-out'
-            }}
+              '--modal-max-width': '640px'
+            } as React.CSSProperties}
             onClick={e => e.stopPropagation()}
           >
             {/* Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '24px 28px', borderBottom: '1px solid #F1F5F9', background: '#F8FAFC' }}>
+            <div className="modal-header">
               <div>
                 <h3 style={{ fontSize: 16, fontWeight: 900, color: '#1E293B', display: 'flex', alignItems: 'center', gap: 6 }}>
                   <User style={{ width: 18, height: 18, color: '#0EA5E9' }} /> Customer Profile Details
@@ -1037,8 +1140,8 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
               </button>
             </div>
 
-            {/* Scrollable Body */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+            {/* Body */}
+            <div className="modal-body space-y-6">
               {/* Profile details */}
               <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 16, padding: 18, display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <div style={{ fontSize: 15, fontWeight: 900, color: '#1E293B' }}>{selectedCustomerHistory.pharmacyName}</div>
@@ -1151,8 +1254,126 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
               </div>
             </div>
             {/* Footer */}
-            <div style={{ padding: '16px 28px', borderTop: '1px solid #F1F5F9', background: '#F8FAFC', textAlign: 'right' }}>
-              <button onClick={() => setSelectedCustomerHistory(null)} className="btn-primary" style={{ background: '#475569' }}>Close Drawer</button>
+            <div className="modal-footer" style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button onClick={() => setSelectedCustomerHistory(null)} className="btn-primary" style={{ background: '#475569' }}>Close Details</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PRINT PREVIEW MODAL */}
+      {printPreviewOrder && (
+        <div className="modal-overlay no-print" onClick={() => setPrintPreviewOrder(null)}>
+          <div
+            className="modal-card animate-scaleIn"
+            style={{
+              '--modal-max-width': '440px'
+            } as React.CSSProperties}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #F1F5F9', paddingBottom: 10 }}>
+              <h3 style={{ fontSize: 13, fontWeight: 900, color: '#1E293B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Print Dispatch Shipment Label
+              </h3>
+              <button onClick={() => setPrintPreviewOrder(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8' }}>
+                <X style={{ width: 20, height: 20 }} />
+              </button>
+            </div>
+
+            {/* Printable Area */}
+            <div 
+              id="print-area" 
+              style={{ 
+                background: 'white', 
+                border: '1.5px solid #000', 
+                padding: '20px', 
+                borderRadius: 12, 
+                color: 'black', 
+                fontFamily: 'monospace',
+                fontSize: 12,
+                boxShadow: '0 4px 12px rgba(0,0,0,0.05)'
+              }}
+            >
+              <div style={{ fontSize: 16, fontWeight: 900, textTransform: 'uppercase', borderBottom: '2.5px solid #000', paddingBottom: 6, marginBottom: 12 }}>
+                Dispatch Shipment Label
+              </div>
+              <div style={{ marginBottom: 8 }}>
+                <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', color: '#64748B' }}>Order ID</div>
+                <strong style={{ fontSize: 13 }}>ORD-{printPreviewOrder.id.substring(0, 12).toUpperCase()}</strong>
+              </div>
+              <div style={{ marginBottom: 8 }}>
+                <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', color: '#64748B' }}>Deliver To</div>
+                <strong style={{ fontSize: 13 }}>{printPreviewOrder.retailer.pharmacyName}</strong>
+                <div>{printPreviewOrder.retailer.address || 'N/A'}</div>
+              </div>
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', color: '#64748B' }}>Dispatch Date</div>
+                <div>{new Date(printPreviewOrder.createdAt).toLocaleDateString()}</div>
+              </div>
+
+              {/* Barcode section */}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '14px 0', gap: 6 }}>
+                {/* Visual Barcode rendering using pure HTML & CSS */}
+                <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'center', height: 48, background: 'white', padding: '4px 8px', border: '1px solid #000', borderRadius: 4, width: '100%' }}>
+                  {[1,0,1,1,0,1,0,0,2,0,1,0,2,0,0,1,0,2,0,1,0,0,2,0,1,0,1,0,0,1,0,2,0,0,2,0,1,0,2,0,0,1,0,1,1,0,1,0,0].map((width, idx) => {
+                    if (width === 0) return <div key={idx} style={{ width: 2, height: '100%', background: 'transparent' }} />;
+                    return <div key={idx} style={{ width: width * 2, height: '100%', background: 'black' }} />;
+                  })}
+                </div>
+                <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.05em' }}>
+                  {manualBarcodeText}
+                </div>
+              </div>
+
+              {/* Items included section */}
+              <div style={{ border: '1.5px solid #000', padding: '10px', borderRadius: 8, marginTop: 10 }}>
+                <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', color: '#64748B', marginBottom: 4 }}>Items List</div>
+                {printPreviewOrder.items.map(item => (
+                  <div key={item.id} style={{ padding: '4px 0', borderBottom: '1px dashed #ccc', fontSize: 11, display: 'flex', justifyContent: 'space-between' }}>
+                    <span>{item.product.name}</span>
+                    <strong>{item.quantity} boxes</strong>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ marginTop: 14, fontSize: 8.5, textAlign: 'center', color: '#64748B', borderTop: '1px dashed #ccc', paddingTop: 6 }}>
+                Scan this label on delivery — MedHub Wholesaler Distribution
+              </div>
+            </div>
+
+            {/* Editable Barcode Text Option */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }} className="no-print">
+              <label style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#64748B', letterSpacing: '0.05em' }}>
+                Barcode Text Override (Manual Input)
+              </label>
+              <input 
+                type="text" 
+                value={manualBarcodeText} 
+                onChange={e => setManualBarcodeText(e.target.value)} 
+                className="input-crisp" 
+                style={{ fontSize: 12, padding: '8px 12px' }} 
+              />
+            </div>
+
+            {/* Action buttons */}
+            <div style={{ display: 'flex', gap: 10, borderTop: '1px solid #F1F5F9', paddingTop: 14 }} className="no-print">
+              <button 
+                onClick={() => {
+                  window.print();
+                  logActivity('PRINT_SHIPMENT_LABEL', `Printed dispatch shipping label for Order ${printPreviewOrder.id.substring(0, 8)}`);
+                }}
+                className="btn-primary" 
+                style={{ flex: 1, padding: '12px', justifyContent: 'center' }}
+              >
+                Print Label
+              </button>
+              <button 
+                onClick={() => setPrintPreviewOrder(null)} 
+                className="btn-ghost" 
+                style={{ padding: '12px 18px' }}
+              >
+                Cancel
+              </button>
             </div>
           </div>
         </div>

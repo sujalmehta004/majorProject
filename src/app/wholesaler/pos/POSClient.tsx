@@ -77,7 +77,15 @@ export default function POSClient({ profile, products }: POSClientProps) {
   const [barcodeInput, setBarcodeInput] = useState('');
   const [selectedProductId, setSelectedProductId] = useState('');
   const [selectedBatchId, setSelectedBatchId] = useState('');
-  const [qtyBoxesInput, setQtyBoxesInput] = useState(1);
+  
+  // Advanced Ingestion Quantities & UOM
+  const [posUomType, setPosUomType] = useState<'BOXES' | 'STRIPS' | 'TABLETS'>('BOXES');
+  const [posQtyInput, setPosQtyInput] = useState(1);
+
+  // Advanced POS Settlement State
+  const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'MOBILE_BANKING' | 'CARD'>('CASH');
+  const [paymentPaidAmt, setPaymentPaidAmt] = useState('');
+  const [paymentFullyPaid, setPaymentFullyPaid] = useState(true);
 
   // Custom Discount and VAT/Tax inputs
   const [discountPercent, setDiscountPercent] = useState('0');
@@ -203,7 +211,7 @@ export default function POSClient({ profile, products }: POSClientProps) {
   };
 
   // Add to basket
-  const addToCart = (product: Product, qty: number, targetBatchId?: string) => {
+  const addToCart = (product: Product, inputQty: number, targetBatchId?: string) => {
     setError('');
     const sortedBatches = [...product.batches].sort((a, b) => new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime());
     const fallbackBatch = sortedBatches.find(b => b.availableBaseUnits > 0);
@@ -214,18 +222,27 @@ export default function POSClient({ profile, products }: POSClientProps) {
       return;
     }
 
-    const pricePerBox = getPricePerBox(product, qty);
+    const tabletsPerBox = product.tabletsPerStrip * product.stripsPerBox;
+    
+    // Convert input quantity depending on chosen UOM to fractional boxes count
+    let qtyBoxes = inputQty;
+    if (posUomType === 'STRIPS') {
+      qtyBoxes = inputQty / product.stripsPerBox;
+    } else if (posUomType === 'TABLETS') {
+      qtyBoxes = inputQty / tabletsPerBox;
+    }
+
+    const pricePerBox = getPricePerBox(product, qtyBoxes);
     const existing = cart.find(item => item.product.id === product.id && item.selectedBatchId === batchId);
-    const totalQty = existing ? existing.qtyBoxes + qty : qty;
+    const totalQty = existing ? existing.qtyBoxes + qtyBoxes : qtyBoxes;
 
     const selectedBatch = product.batches.find(b => b.id === batchId);
     if (!selectedBatch) return;
 
-    const tabletsPerBox = product.tabletsPerStrip * product.stripsPerBox;
-    const availableBoxes = Math.floor(selectedBatch.availableBaseUnits / tabletsPerBox);
+    const availableBoxes = selectedBatch.availableBaseUnits / tabletsPerBox;
 
     if (totalQty > availableBoxes) {
-      setError(`Only ${availableBoxes} boxes available in selected batch ${selectedBatch.batchNumber} for "${product.name}".`);
+      setError(`Only ${availableBoxes.toFixed(1)} boxes available in selected batch ${selectedBatch.batchNumber} for "${product.name}".`);
       return;
     }
 
@@ -236,15 +253,16 @@ export default function POSClient({ profile, products }: POSClientProps) {
           : item
       ));
     } else {
-      setCart([...cart, { product, qtyBoxes: qty, selectedBatchId: batchId, pricePerBox }]);
+      setCart([...cart, { product, qtyBoxes, selectedBatchId: batchId, pricePerBox }]);
     }
 
     // Reset inputs
     setSearchTerm('');
     setSelectedProductId('');
     setSelectedBatchId('');
-    setQtyBoxesInput(1);
-    logActivity('POS_ADD_ITEM', `Added ${qty} boxes of ${product.name} to POS cart`);
+    setPosQtyInput(1);
+    setPosUomType('BOXES');
+    logActivity('POS_ADD_ITEM', `Added ${inputQty} ${posUomType.toLowerCase()} of ${product.name} to POS cart`);
   };
 
   // Barcode quick submit
@@ -341,23 +359,37 @@ export default function POSClient({ profile, products }: POSClientProps) {
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to complete physical sale.');
+      if (!res.ok) throw new Error(data.error || 'Failed to complete sale.');
 
-      setSuccessMsg('Cash sale completed successfully. Rerouting invoice to print preview.');
+      setSuccessMsg('POS Counter transaction completed successfully.');
       setFinalizedOrder(data.order);
+
+      const actualPaid = paymentFullyPaid ? netAmount : (parseFloat(paymentPaidAmt) || 0);
       
       // Save partial settlements dictionary in local storage
       const existingSettlements = JSON.parse(localStorage.getItem('medhub_order_payments') || '{}');
-      // POS is paid immediately, so fully settle by default
-      existingSettlements[data.order.id] = netAmount;
+      existingSettlements[data.order.id] = actualPaid;
       localStorage.setItem('medhub_order_payments', JSON.stringify(existingSettlements));
+
+      // Log the settlement timeline with payment method
+      const existingLogs = JSON.parse(localStorage.getItem('medhub_settle_logs') || '{}');
+      const transactionEntries = [{
+        amount: actualPaid,
+        method: paymentMethod,
+        date: new Date().toISOString()
+      }];
+      existingLogs[data.order.id] = transactionEntries;
+      localStorage.setItem('medhub_settle_logs', JSON.stringify(existingLogs));
 
       setCart([]);
       setCustomerName('');
       setCustomerPhone('');
       setSelectedCustomerId('');
       setCustomerSearchQuery('');
-      logActivity('POS_CHECKOUT_COMPLETE', `Finalized POS Cash order INV-${data.order.id.substring(0,8).toUpperCase()}`);
+      setPaymentPaidAmt('');
+      setPaymentFullyPaid(true);
+      setPaymentMethod('CASH');
+      logActivity('POS_CHECKOUT_COMPLETE', `Finalized POS Cash order INV-${data.order.id.substring(0,8).toUpperCase()} via ${paymentMethod}. Paid Rs. ${actualPaid}`);
     } catch (err: any) {
       setError(err.message || 'An error occurred during cashier checkout.');
     } finally {
@@ -510,30 +542,43 @@ export default function POSClient({ profile, products }: POSClientProps) {
                   })}
                 </select>
               </div>
-            </div>
-
-            {selectedProductId && (
+            </div>             {selectedProductId && (
               <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid #F1F5F9', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 12 }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#475569', textTransform: 'uppercase', marginBottom: 6 }}>Quantity (Boxes)</label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={qtyBoxesInput}
-                    onChange={(e) => setQtyBoxesInput(parseInt(e.target.value) || 1)}
-                    className="input-crisp"
-                    style={{ width: 90, textAlign: 'center', fontWeight: 'bold', fontFamily: 'monospace' }}
-                  />
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#475569', textTransform: 'uppercase', marginBottom: 6 }}>Quantity</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={posQtyInput}
+                      onChange={(e) => setPosQtyInput(parseInt(e.target.value) || 1)}
+                      className="input-crisp"
+                      style={{ width: 80, textAlign: 'center', fontWeight: 'bold', fontFamily: 'monospace' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#475569', textTransform: 'uppercase', marginBottom: 6 }}>UOM Choice</label>
+                    <select
+                      value={posUomType}
+                      onChange={(e) => setPosUomType(e.target.value as any)}
+                      className="select-crisp"
+                      style={{ paddingRight: 28, fontSize: 11 }}
+                    >
+                      <option value="BOXES">Boxes</option>
+                      <option value="STRIPS">Strips</option>
+                      <option value="TABLETS">Tablets</option>
+                    </select>
+                  </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => {
-                    if (selectedProduct) addToCart(selectedProduct, qtyBoxesInput, selectedBatchId);
+                    if (selectedProduct) addToCart(selectedProduct, posQtyInput, selectedBatchId);
                   }}
                   className="btn-primary"
                   style={{ padding: '10px 20px', fontSize: 11 }}
                 >
-                  <Plus style={{ width: 14, height: 14, marginRight: 4 }} /> Add to Cart
+                  ➕ Add to Cart
                 </button>
               </div>
             )}
@@ -687,6 +732,48 @@ export default function POSClient({ profile, products }: POSClientProps) {
                   </div>
                 </div>
 
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, borderTop: '1px solid #F1F5F9', paddingTop: 10 }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 9, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', marginBottom: 4 }}>Pay Method</label>
+                    <select
+                      value={paymentMethod}
+                      onChange={e => setPaymentMethod(e.target.value as any)}
+                      className="select-crisp"
+                      style={{ fontSize: 11, padding: '4px 20px 4px 10px' }}
+                    >
+                      <option value="CASH">💵 Cash</option>
+                      <option value="MOBILE_BANKING">📱 Mobile Banking</option>
+                      <option value="CARD">💳 Card Payment</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 9, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', marginBottom: 4 }}>Full Settle?</label>
+                    <select
+                      value={paymentFullyPaid ? 'YES' : 'NO'}
+                      onChange={e => setPaymentFullyPaid(e.target.value === 'YES')}
+                      className="select-crisp"
+                      style={{ fontSize: 11, padding: '4px 20px 4px 10px' }}
+                    >
+                      <option value="YES">Fully Paid</option>
+                      <option value="NO">Partial Payment</option>
+                    </select>
+                  </div>
+                </div>
+
+                {!paymentFullyPaid && (
+                  <div>
+                    <label style={{ display: 'block', fontSize: 9, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', marginBottom: 4 }}>Amount Paid Today (Rs.)</label>
+                    <input 
+                      type="number" 
+                      placeholder="e.g. 500" 
+                      value={paymentPaidAmt} 
+                      onChange={e => setPaymentPaidAmt(e.target.value)} 
+                      className="input-crisp" 
+                      style={{ fontSize: 12, padding: '8px 10px' }} 
+                    />
+                  </div>
+                )}
+
                 <div style={{ background: '#F8FAFC', borderRadius: 12, padding: 12, fontSize: 11, fontFamily: 'monospace', display: 'flex', flexDirection: 'column', gap: 4 }}>
                   <div style={{ display: 'flex', justifySelf: 'space-between', justifyContent: 'space-between' }}>
                     <span>Gross Value:</span><span>Rs. {subtotal.toFixed(2)}</span>
@@ -698,8 +785,13 @@ export default function POSClient({ profile, products }: POSClientProps) {
                     <span>VAT / Tax Amt:</span><span>+ Rs. {taxAmount.toFixed(2)}</span>
                   </div>
                   <div style={{ display: 'flex', justifySelf: 'space-between', justifyContent: 'space-between', fontSize: 13, fontWeight: 900, color: '#1E293B', borderTop: '1px solid #E2E8F0', paddingTop: 6, marginTop: 4 }}>
-                    <span>NET DUE CASH:</span><span>Rs. {netAmount.toFixed(2)}</span>
+                    <span>NET DUE:</span><span>Rs. {netAmount.toFixed(2)}</span>
                   </div>
+                  {!paymentFullyPaid && (
+                    <div style={{ display: 'flex', justifySelf: 'space-between', justifyContent: 'space-between', fontSize: 12, fontWeight: 900, color: '#D97706', borderTop: '1px dashed #CBD5E1', paddingTop: 4, marginTop: 2 }}>
+                      <span>REMAINING:</span><span>Rs. {(netAmount - (parseFloat(paymentPaidAmt) || 0)).toFixed(2)}</span>
+                    </div>
+                  )}
                 </div>
 
                 <button
@@ -720,22 +812,30 @@ export default function POSClient({ profile, products }: POSClientProps) {
 
       {/* FINALIZED INVOICE MODAL */}
       {finalizedOrder && (
-        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-6 overflow-y-auto no-print">
-          <div className="bg-white border border-slate-200 w-full max-w-4xl rounded-3xl p-6 shadow-2xl flex flex-col lg:flex-row gap-6 max-h-[90vh]">
-            
-            <div className="lg:w-1/3 space-y-4 border-r border-slate-100 pr-0 lg:pr-6 flex flex-col justify-between shrink-0">
+        <div className="modal-overlay no-print" onClick={() => setFinalizedOrder(null)}>
+          <div 
+            className="modal-card animate-scaleIn"
+            style={{
+              '--modal-max-width': '960px',
+              padding: 24,
+              flexDirection: 'row',
+              gap: 24
+            } as React.CSSProperties}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ width: '280px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', flexShrink: 0 }} className="border-r border-slate-100 pr-6">
               <div>
                 <h3 style={{ fontSize: 13, fontWeight: 900, color: '#1E293B', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 6 }}>
                   <Receipt style={{ width: 16, height: 16, color: '#0EA5E9' }} /> Cash Sale Completed
                 </h3>
-                <p style={{ fontSize: 11, color: '#64748B', marginTop: 6 }}>
+                <p style={{ fontSize: 11, color: '#64748B', marginTop: 6, lineHeight: 1.5 }}>
                   Invoice recorded successfully. Press print receipt below.
                 </p>
-                <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 10, padding: 10, fontSize: 11, color: '#059669', marginTop: 10 }}>
+                <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 10, padding: 10, fontSize: 11, color: '#059669', marginTop: 10, fontFamily: 'monospace' }}>
                   Invoice Ref: POS-{finalizedOrder.id.substring(0, 8).toUpperCase()}
                 </div>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 20 }}>
                 <button onClick={handlePrintReceipt} className="btn-primary" style={{ width: '100%', justifyContent: 'center', padding: 12, fontSize: 12 }}>
                   <Printer style={{ width: 14, height: 14 }} /> Print A4 Invoice
                 </button>
@@ -745,9 +845,9 @@ export default function POSClient({ profile, products }: POSClientProps) {
               </div>
             </div>
 
-            <div className="flex-grow overflow-y-auto p-4 border border-slate-150 rounded-2xl bg-slate-50/40 shadow-inner flex flex-col justify-between">
+            <div style={{ flexGrow: 1, overflowY: 'auto', padding: 16, border: '1px solid #E2E8F0', borderRadius: 16, background: '#F8FAFC' }}>
               {/* Document Printable */}
-              <div id="print-area" className="p-8 text-zinc-900 font-sans text-xs bg-white space-y-6 max-w-[21cm] min-h-[29.7cm] mx-auto shadow-md border border-slate-200">
+              <div id="print-area" style={{ padding: '32px', color: '#1E293B', background: 'white', border: '1.5px solid #E2E8F0', borderRadius: 12, display: 'flex', flexDirection: 'column', gap: 20 }}>
                 <div style={{ borderBottom: '2px solid #000', paddingBottom: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                     <div style={{ fontSize: 16, fontWeight: 900, textTransform: 'uppercase' }}>{profile.companyName}</div>
@@ -810,15 +910,14 @@ export default function POSClient({ profile, products }: POSClientProps) {
                 </div>
               </div>
             </div>
-
           </div>
         </div>
       )}
 
       {/* QUICK ADD CUSTOMER MODAL */}
       {showAddCustomerModal && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(15,23,42,0.4)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-          <div className="animate-scaleIn" style={{ background: 'white', border: '1.5px solid #BAE6FD', borderRadius: 24, padding: 28, width: '100%', maxWidth: 480, boxShadow: '0 24px 64px rgba(14,165,233,0.18)' }}>
+        <div className="modal-overlay" onClick={() => setShowAddCustomerModal(false)}>
+          <div className="modal-card animate-scaleIn" style={{ '--modal-max-width': '500px', border: '1.5px solid #BAE6FD', boxShadow: '0 24px 64px rgba(14,165,233,0.18)', padding: 28 } as React.CSSProperties} onClick={(e) => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #F1F5F9', paddingBottom: 14, marginBottom: 20 }}>
               <h3 style={{ fontSize: 14, fontWeight: 900, color: '#1E293B', display: 'flex', alignItems: 'center', gap: 6 }}>
                 <User style={{ width: 18, height: 18, color: '#0EA5E9' }} /> Register Customer Pharmacy

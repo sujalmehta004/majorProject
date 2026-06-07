@@ -21,6 +21,7 @@ enum OrderStatus {
   PICKING
   DISPATCHED
   DELIVERED
+  RETURNED
 }
 
 enum ClientTier {

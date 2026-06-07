@@ -80,6 +80,12 @@ export default function InventoryClient({ profileId }: InventoryClientProps) {
 
   // Print menu state
   const [printingBatch, setPrintingBatch] = useState<Batch | null>(null);
+  const [printingBatchNumber, setPrintingBatchNumber] = useState<string | null>(null);
+  const [selectedBatchNumberToPrint, setSelectedBatchNumberToPrint] = useState('');
+  const [manualBarcodeTexts, setManualBarcodeTexts] = useState<Record<string, string>>({});
+  // Print preview modal state (single or multi-copy thermal label)
+  const [printPreviewBatch, setPrintPreviewBatch] = useState<Batch | null>(null);
+  const [printPreviewBatchCopies, setPrintPreviewBatchCopies] = useState(1);
 
   // Thresholds loaded from settings / localStorage
   const [lowStockThreshold, setLowStockThreshold] = useState(10); // boxes
@@ -703,6 +709,14 @@ export default function InventoryClient({ profileId }: InventoryClientProps) {
             <Plus style={{ width: 14, height: 14 }} />
             Add New Medicine
           </button>
+          <button
+            onClick={() => { setPrintingBatchNumber(''); setSelectedBatchNumberToPrint(''); }}
+            className="btn-ghost"
+            style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+          >
+            <Printer style={{ width: 14, height: 14, color: '#F97316' }} />
+            Print Batch Labels
+          </button>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.25)', borderRadius: 10, fontSize: 11, fontWeight: 700, color: '#059669', cursor: 'default' }}>
             <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#10B981', display: 'inline-block', animation: 'pulse 2s infinite', boxShadow: '0 0 0 2px rgba(16,185,129,0.25)' }} />
             LIVE
@@ -993,18 +1007,8 @@ export default function InventoryClient({ profileId }: InventoryClientProps) {
 
       {/* MODAL 1: Register/Edit Product */}
       {showProductModal && (
-        <div style={{
-          position: 'fixed', inset: 0, zIndex: 50,
-          background: 'rgba(15,23,42,0.4)', backdropFilter: 'blur(8px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16
-        }}>
-          <div className="animate-scaleIn" style={{
-            background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(20px)',
-            border: '1.5px solid rgba(251,146,60,0.25)', borderRadius: 24,
-            padding: 28, width: '100%', maxWidth: 540,
-            boxShadow: '0 25px 50px -12px rgba(249,115,22,0.18)',
-            display: 'flex', flexDirection: 'column', gap: 20
-          }}>
+        <div className="modal-overlay" onClick={() => { setShowProductModal(false); setEditingProduct(null); }}>
+          <div className="modal-card animate-scaleIn" style={{ '--modal-max-width': '560px', border: '1.5px solid rgba(251,146,60,0.25)', boxShadow: '0 25px 50px -12px rgba(249,115,22,0.18)', padding: 28, gap: 20 } as React.CSSProperties} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #F1F5F9', paddingBottom: 14 }}>
               <div>
                 <h3 style={{ fontSize: 15, fontWeight: 900, color: '#1E293B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
@@ -1116,19 +1120,8 @@ export default function InventoryClient({ profileId }: InventoryClientProps) {
 
       {/* MODAL 2: Ingest/Edit Stock Batch */}
       {showBatchModal && (
-        <div style={{
-          position: 'fixed', inset: 0, zIndex: 50,
-          background: 'rgba(15,23,42,0.4)', backdropFilter: 'blur(8px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16
-        }}>
-          <div className="animate-scaleIn" style={{
-            background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(20px)',
-            border: '1.5px solid rgba(251,146,60,0.25)', borderRadius: 24,
-            padding: 28, width: '100%', maxWidth: 540,
-            boxShadow: '0 25px 50px -12px rgba(249,115,22,0.18)',
-            display: 'flex', flexDirection: 'column', gap: 20,
-            maxHeight: '90vh', overflowY: 'auto'
-          }}>
+        <div className="modal-overlay" onClick={() => { setShowBatchModal(false); setEditingBatch(null); }}>
+          <div className="modal-card animate-scaleIn" style={{ '--modal-max-width': '560px', border: '1.5px solid rgba(251,146,60,0.25)', boxShadow: '0 25px 50px -12px rgba(249,115,22,0.18)', padding: 28, gap: 20 } as React.CSSProperties} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #F1F5F9', paddingBottom: 14 }}>
               <div>
                 <h3 style={{ fontSize: 15, fontWeight: 900, color: '#1E293B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
@@ -1257,49 +1250,303 @@ export default function InventoryClient({ profileId }: InventoryClientProps) {
 
       {/* PRINT BARCODE OPTIONS MENU MODAL */}
       {printingBatch && (
-        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-6 no-print">
-          <div className="bg-white border border-slate-200 w-full max-w-sm rounded-3xl p-6 shadow-2xl space-y-4">
-            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-              <h3 className="font-extrabold text-sm uppercase text-zinc-950 tracking-wider">
-                Print Barcode Options
+        <div className="modal-overlay no-print" onClick={() => setPrintingBatch(null)}>
+          <div
+            className="animate-scaleIn"
+            style={{ background: 'rgba(255,255,255,0.98)', border: '1.5px solid #FED7AA', borderRadius: 24, padding: 28, width: '100%', maxWidth: 400, boxShadow: '0 20px 50px rgba(249,115,22,0.15)', display: 'flex', flexDirection: 'column', gap: 16 }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #F1F5F9', paddingBottom: 14 }}>
+              <h3 style={{ fontSize: 14, fontWeight: 800, color: '#1E293B', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Printer style={{ width: 16, height: 16, color: '#F97316' }} />
+                Print Label Options
               </h3>
-              <button onClick={() => setPrintingBatch(null)} className="text-zinc-400 hover:text-zinc-650">
-                <X className="w-5 h-5" />
+              <button onClick={() => setPrintingBatch(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8', padding: 4 }}>
+                <X style={{ width: 20, height: 20 }} />
               </button>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <button
+                type="button"
                 onClick={() => {
-                  printThermalBarcode(printingBatch.product.name, printingBatch.product.sku, printingBatch.batchNumber, printingBatch.expiryDate, printingBatch.barcodeUrl);
+                  setPrintPreviewBatch(printingBatch);
+                  setPrintPreviewBatchCopies(1);
+                  if (printingBatch.id) {
+                    setManualBarcodeTexts(prev => ({ ...prev, [printingBatch.id]: printingBatch.batchNumber }));
+                  }
                   setPrintingBatch(null);
                 }}
-                className="btn-primary" style={{ justifyContent: 'center', width: '100%', padding: 12 }}
+                className="btn-primary" style={{ justifyContent: 'center', width: '100%', padding: 12, background: 'linear-gradient(135deg, #F97316, #F59E0B)' }}
               >
-                Print Single Thermal Label
+                Single Thermal Label
               </button>
               
               <button
+                type="button"
                 onClick={() => {
-                  const totalBoxes = Math.floor(printingBatch.availableBaseUnits / (printingBatch.product.tabletsPerStrip * printingBatch.product.stripsPerBox));
-                  printBatchWiseThermalLabels(printingBatch.product.name, printingBatch.product.sku, printingBatch.batchNumber, printingBatch.expiryDate, printingBatch.barcodeUrl, totalBoxes);
+                  const totalBoxes = Math.floor(printingBatch.availableBaseUnits / (printingBatch.product.tabletsPerStrip * printingBatch.product.stripsPerBox)) || 1;
+                  setPrintPreviewBatch(printingBatch);
+                  setPrintPreviewBatchCopies(totalBoxes);
+                  if (printingBatch.id) {
+                    setManualBarcodeTexts(prev => ({ ...prev, [printingBatch.id]: printingBatch.batchNumber }));
+                  }
                   setPrintingBatch(null);
                 }}
                 className="btn-ghost" style={{ justifyContent: 'center', width: '100%', padding: 12 }}
               >
-                Print Label for All Items of Batch ({Math.floor(printingBatch.availableBaseUnits / (printingBatch.product.tabletsPerStrip * printingBatch.product.stripsPerBox))} Copies)
+                Print All Copies ({Math.floor(printingBatch.availableBaseUnits / (printingBatch.product.tabletsPerStrip * printingBatch.product.stripsPerBox))} pcs)
               </button>
 
               <button
+                type="button"
                 onClick={() => {
                   printBatchSummarySheet(printingBatch);
                   setPrintingBatch(null);
                 }}
                 className="btn-ghost" style={{ justifyContent: 'center', width: '100%', padding: 12 }}
               >
-                Print Batch Summary Sheet (A4)
+                A4 Summary Sheet
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* PRINT PREVIEW MODAL (SINGLE BATCH OR COPIES) */}
+      {printPreviewBatch && (
+        <div className="modal-overlay no-print">
+          <div
+            className="animate-scaleIn"
+            style={{
+              background: 'rgba(255,255,255,0.98)',
+              border: '1.5px solid #FED7AA',
+              borderRadius: 24,
+              padding: 24,
+              width: '100%',
+              maxWidth: 420,
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              boxShadow: '0 20px 50px rgba(249,115,22,0.15)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 16
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #F1F5F9', paddingBottom: 10 }}>
+              <h3 style={{ fontSize: 13, fontWeight: 900, color: '#1E293B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Thermal Label Print Preview
+              </h3>
+              <button onClick={() => setPrintPreviewBatch(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8' }}>
+                <X style={{ width: 20, height: 20 }} />
+              </button>
+            </div>
+
+            {/* Printable Area */}
+            <div 
+              id="print-area" 
+              style={{ 
+                background: 'white', 
+                border: '1.5px solid #000', 
+                padding: '16px', 
+                borderRadius: 8, 
+                color: 'black', 
+                fontFamily: 'monospace',
+                fontSize: 11,
+                boxShadow: '0 4px 12px rgba(0,0,0,0.05)'
+              }}
+            >
+              {Array.from({ length: printPreviewBatchCopies }).map((_, copyIndex) => (
+                <div key={copyIndex} style={{ pageBreakAfter: copyIndex < printPreviewBatchCopies - 1 ? 'always' : 'avoid', padding: '10px 0', borderBottom: copyIndex < printPreviewBatchCopies - 1 ? '2px dashed #000' : 'none' }}>
+                  <div style={{ fontSize: 14, fontWeight: 900, textTransform: 'uppercase', borderBottom: '2px solid #000', paddingBottom: 4, marginBottom: 8 }}>
+                    MEDHUB PHARMACEUTICAL
+                  </div>
+                  <div><strong>MED:</strong> {printPreviewBatch.product.name}</div>
+                  <div><strong>SKU:</strong> {printPreviewBatch.product.sku}</div>
+                  <div><strong>BATCH:</strong> {printPreviewBatch.batchNumber}</div>
+                  <div><strong>EXP:</strong> {new Date(printPreviewBatch.expiryDate).toLocaleDateString()}</div>
+                  
+                  {/* Barcode representation */}
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '10px 0', gap: 4 }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'center', height: 40, background: 'white', padding: '4px 6px', border: '1px solid #000', borderRadius: 4, width: '100%' }}>
+                      {[1,0,1,1,0,1,0,0,2,0,1,0,2,0,0,1,0,2,0,1,0,0,2,0,1,0,1,0,0,1,0,2,0,0,2,0,1,0,2,0,0,1,0,1,1,0,1,0,0].map((width, idx) => {
+                        if (width === 0) return <div key={idx} style={{ width: 1.5, height: '100%', background: 'transparent' }} />;
+                        return <div key={idx} style={{ width: width * 1.5, height: '100%', background: 'black' }} />;
+                      })}
+                    </div>
+                    <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.05em' }}>
+                      {manualBarcodeTexts[printPreviewBatch.id] || printPreviewBatch.batchNumber}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Manual input barcode number */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }} className="no-print">
+              <label style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#64748B', letterSpacing: '0.05em' }}>
+                Barcode Text Override (Manual Input)
+              </label>
+              <input 
+                type="text" 
+                value={manualBarcodeTexts[printPreviewBatch.id] || printPreviewBatch.batchNumber} 
+                onChange={e => setManualBarcodeTexts(prev => ({ ...prev, [printPreviewBatch.id]: e.target.value }))} 
+                className="input-crisp" 
+                style={{ fontSize: 12, padding: '8px 12px' }} 
+              />
+            </div>
+
+            {/* Copies selector */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }} className="no-print">
+              <label style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#64748B', letterSpacing: '0.05em' }}>
+                Print Copies (Boxes Count)
+              </label>
+              <input 
+                type="number" 
+                min={1}
+                value={printPreviewBatchCopies} 
+                onChange={e => setPrintPreviewBatchCopies(Math.max(1, parseInt(e.target.value) || 1))} 
+                className="input-crisp" 
+                style={{ fontSize: 12, padding: '8px 12px' }} 
+              />
+            </div>
+
+            {/* Action buttons */}
+            <div style={{ display: 'flex', gap: 10, borderTop: '1px solid #F1F5F9', paddingTop: 14 }} className="no-print">
+              <button 
+                onClick={() => {
+                  window.print();
+                  logActivity('PRINT_THERMAL_BARCODE', `Printed barcode labels for batch: ${printPreviewBatch.batchNumber}`);
+                }}
+                className="btn-primary" 
+                style={{ flex: 1, padding: '12px', justifyContent: 'center', background: 'linear-gradient(135deg, #F97316, #F59E0B)' }}
+              >
+                Print Label
+              </button>
+              <button 
+                onClick={() => setPrintPreviewBatch(null)} 
+                className="btn-ghost" 
+                style={{ padding: '12px 18px' }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PRINT BATCH-WISE LABELS MODAL (MULTI-MEDICINE PRINT) */}
+      {printingBatchNumber !== null && (
+        <div className="modal-overlay no-print">
+          <div
+            className="animate-scaleIn"
+            style={{
+              background: 'rgba(255,255,255,0.98)',
+              border: '1.5px solid #FED7AA',
+              borderRadius: 24,
+              padding: 24,
+              width: '100%',
+              maxWidth: 480,
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              boxShadow: '0 20px 50px rgba(249,115,22,0.15)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 16
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #F1F5F9', paddingBottom: 10 }}>
+              <h3 style={{ fontSize: 13, fontWeight: 900, color: '#1E293B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Print Labels By Batch Number
+              </h3>
+              <button onClick={() => setPrintingBatchNumber(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8' }}>
+                <X style={{ width: 20, height: 20 }} />
+              </button>
+            </div>
+
+            {/* Select Batch */}
+            <div>
+              <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', marginBottom: 6 }}>Select Batch Number</label>
+              <select 
+                value={selectedBatchNumberToPrint} 
+                onChange={e => setSelectedBatchNumberToPrint(e.target.value)} 
+                className="select-crisp"
+                style={{ width: '100%' }}
+              >
+                <option value="">-- Choose Batch --</option>
+                {Array.from(new Set(batches.map(b => b.batchNumber))).filter(Boolean).map(num => (
+                  <option key={num} value={num}>{num}</option>
+                ))}
+              </select>
+            </div>
+
+            {selectedBatchNumberToPrint && (
+              <>
+                <div style={{ fontSize: 11, color: '#64748B' }}>
+                  Medicines found in batch <strong>{selectedBatchNumberToPrint}</strong>:
+                </div>
+                
+                {/* Print Preview Container */}
+                <div 
+                  id="print-area"
+                  style={{
+                    background: 'white',
+                    border: '1.5px solid #000',
+                    padding: '16px',
+                    borderRadius: 8,
+                    color: 'black',
+                    fontFamily: 'monospace',
+                    fontSize: 11
+                  }}
+                >
+                  {batches.filter(b => b.batchNumber === selectedBatchNumberToPrint).map((b, idx, arr) => (
+                    <div key={b.id} style={{ pageBreakAfter: idx < arr.length - 1 ? 'always' : 'avoid', padding: '10px 0', borderBottom: idx < arr.length - 1 ? '2px dashed #000' : 'none' }}>
+                      <div style={{ fontSize: 13, fontWeight: 900, textTransform: 'uppercase', borderBottom: '2px solid #000', paddingBottom: 4, marginBottom: 8 }}>
+                        MEDHUB BATCH LABEL
+                      </div>
+                      <div><strong>MEDICINE:</strong> {b.product.name}</div>
+                      <div><strong>SKU:</strong> {b.product.sku}</div>
+                      <div><strong>BATCH NO:</strong> {b.batchNumber}</div>
+                      <div><strong>EXPIRY:</strong> {new Date(b.expiryDate).toLocaleDateString()}</div>
+                      
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '10px 0', gap: 4 }}>
+                        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'center', height: 40, background: 'white', padding: '4px 6px', border: '1px solid #000', borderRadius: 4, width: '100%' }}>
+                          {[1,0,1,1,0,1,0,0,2,0,1,0,2,0,0,1,0,2,0,1,0,0,2,0,1,0,1,0,0,1,0,2,0,0,2,0,1,0,2,0,0,1,0,1,1,0,1,0,0].map((width, idx) => {
+                            if (width === 0) return <div key={idx} style={{ width: 1.5, height: '100%', background: 'transparent' }} />;
+                            return <div key={idx} style={{ width: width * 1.5, height: '100%', background: 'black' }} />;
+                          })}
+                        </div>
+                        <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.05em' }}>
+                          {manualBarcodeTexts[b.id] || b.batchNumber}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Action buttons */}
+                <div style={{ display: 'flex', gap: 10, borderTop: '1px solid #F1F5F9', paddingTop: 14 }} className="no-print">
+                  <button 
+                    onClick={() => {
+                      window.print();
+                      logActivity('PRINT_BATCH_LABEL_ALL', `Printed batch label sheets for all medicines of batch: ${selectedBatchNumberToPrint}`);
+                    }}
+                    className="btn-primary" 
+                    style={{ flex: 1, padding: '12px', justifyContent: 'center', background: 'linear-gradient(135deg, #F97316, #F59E0B)' }}
+                  >
+                    Print All Labels
+                  </button>
+                  <button 
+                    onClick={() => setPrintingBatchNumber(null)} 
+                    className="btn-ghost" 
+                    style={{ padding: '12px 18px' }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { 
   Package, Database, ShieldAlert, ArrowRight, Activity, Receipt, 
   Settings, CheckSquare, Square, AlertTriangle, Users, MapPin, Truck,
-  LayoutDashboard, TrendingUp, Zap, Clock, Bell
+  LayoutDashboard, TrendingUp, Zap, Clock, Bell, X
 } from 'lucide-react';
 import { useRealtimeData } from '@/hooks/useRealtimeData';
 import { 
@@ -182,7 +182,7 @@ export default function DashboardClient({ profileId, metrics, auditLogs }: Dashb
   ];
 
   return (
-    <div className="space-y-6 animate-fadeIn">
+    <div className="space-y-8 animate-fadeIn">
       {/* Page Header */}
       <div
         style={{
@@ -218,9 +218,9 @@ export default function DashboardClient({ profileId, metrics, auditLogs }: Dashb
             Real-time summary of your wholesale supply chain — {metrics.companyName}
           </p>
         </div>
-        <div style={{ position: 'relative' }}>
+        <div>
           <button
-            onClick={() => setShowConfig(!showConfig)}
+            onClick={() => setShowConfig(true)}
             className="btn-ghost"
             style={{ display: 'flex', alignItems: 'center', gap: 6 }}
           >
@@ -228,83 +228,91 @@ export default function DashboardClient({ profileId, metrics, auditLogs }: Dashb
             Customize Widgets
           </button>
           {showConfig && (
-            <div
-              className="animate-scaleIn"
-              style={{
-                position: 'absolute',
-                right: 0,
-                marginTop: 8,
-                zIndex: 20,
-                width: 260,
-                background: 'rgba(255,255,255,0.98)',
-                border: '1.5px solid #E0F2FE',
-                borderRadius: 14,
-                padding: '16px',
-                boxShadow: '0 12px 40px rgba(14,165,233,0.15)',
-              }}
+            <div 
+              className="modal-overlay"
+              onClick={() => setShowConfig(false)}
             >
               <div
+                className="modal-card animate-scaleIn"
                 style={{
-                  fontSize: 10,
-                  fontWeight: 700,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.08em',
-                  color: '#94A3B8',
-                  paddingBottom: 10,
-                  marginBottom: 10,
-                  borderBottom: '1px solid #F1F5F9',
-                }}
+                  '--modal-max-width': '420px',
+                  border: '1.5px solid #FED7AA'
+                } as React.CSSProperties}
+                onClick={(e) => e.stopPropagation()}
               >
-                Toggle Widgets
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                {[
-                  { key: 'medicinesRegistered', label: 'Medicines Stat' },
-                  { key: 'activeBatches', label: 'Active Batches' },
-                  { key: 'pendingOrders', label: 'Pending Orders' },
-                  { key: 'inTransitDeliveries', label: 'In-Transit' },
-                  { key: 'nearExpiryAlerts', label: 'Near-Expiry Alerts' },
-                  { key: 'financialLedger', label: 'Revenue & Profits' },
-                  { key: 'recentActivity', label: 'Activity Logs' },
-                  { key: 'terminalStatus', label: 'Terminal Status' },
-                  { key: 'quickActions', label: 'Quick Actions' },
-                ].map((w) => {
-                  const isActive = widgets[w.key as keyof typeof widgets];
-                  return (
-                    <button
-                      key={w.key}
-                      onClick={() => toggleWidget(w.key as keyof typeof widgets)}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 10,
-                        padding: '7px 8px',
-                        borderRadius: 8,
-                        border: 'none',
-                        background: 'transparent',
-                        cursor: 'pointer',
-                        textAlign: 'left',
-                        color: isActive ? '#1E293B' : '#94A3B8',
-                        fontFamily: 'inherit',
-                      }}
-                    >
-                      {isActive ? (
-                        <CheckSquare style={{ width: 14, height: 14, color: '#F97316', flexShrink: 0 }} />
-                      ) : (
-                        <Square style={{ width: 14, height: 14, color: '#CBD5E1', flexShrink: 0 }} />
-                      )}
-                      <span
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #F1F5F9', paddingBottom: 14, padding: '22px 28px 16px' }}>
+                  <h3 style={{ fontSize: 14, fontWeight: 800, color: '#1E293B', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Settings style={{ width: 16, height: 16, color: '#F97316' }} />
+                    Customize Widgets
+                  </h3>
+                  <button 
+                    onClick={() => setShowConfig(false)} 
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8', padding: 4 }}
+                  >
+                    <X style={{ width: 20, height: 20 }} />
+                  </button>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '20px 28px' }}>
+                  {[
+                    { key: 'medicinesRegistered', label: 'Medicines Stat' },
+                    { key: 'activeBatches', label: 'Active Batches' },
+                    { key: 'pendingOrders', label: 'Pending Orders' },
+                    { key: 'inTransitDeliveries', label: 'In-Transit' },
+                    { key: 'nearExpiryAlerts', label: 'Near-Expiry Alerts' },
+                    { key: 'financialLedger', label: 'Revenue & Profits' },
+                    { key: 'recentActivity', label: 'Activity Logs' },
+                    { key: 'terminalStatus', label: 'Terminal Status' },
+                    { key: 'quickActions', label: 'Quick Actions' },
+                  ].map((w) => {
+                    const isActive = widgets[w.key as keyof typeof widgets];
+                    return (
+                      <button
+                        key={w.key}
+                        type="button"
+                        onClick={() => toggleWidget(w.key as keyof typeof widgets)}
                         style={{
-                          fontSize: 12,
-                          fontWeight: 600,
-                          textDecoration: isActive ? 'none' : 'line-through',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 12,
+                          padding: '10px 12px',
+                          borderRadius: 10,
+                          border: 'none',
+                          background: isActive ? 'rgba(249,115,22,0.06)' : 'transparent',
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          color: isActive ? '#1E293B' : '#94A3B8',
+                          fontFamily: 'inherit',
+                          transition: 'all 0.15s'
                         }}
                       >
-                        {w.label}
-                      </span>
-                    </button>
-                  );
-                })}
+                        {isActive ? (
+                          <CheckSquare style={{ width: 16, height: 16, color: '#F97316', flexShrink: 0 }} />
+                        ) : (
+                          <Square style={{ width: 16, height: 16, color: '#CBD5E1', flexShrink: 0 }} />
+                        )}
+                        <span
+                          style={{
+                            fontSize: 13,
+                            fontWeight: 600,
+                            textDecoration: isActive ? 'none' : 'line-through',
+                          }}
+                        >
+                          {w.label}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <div style={{ padding: '0 28px 22px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowConfig(false)}
+                    className="btn-primary"
+                    style={{ width: '100%', background: 'linear-gradient(135deg, #F97316, #F59E0B)', border: 'none', padding: '12px', justifyContent: 'center' }}
+                  >
+                    Apply Selection
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -378,17 +386,33 @@ export default function DashboardClient({ profileId, metrics, auditLogs }: Dashb
         style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-          gap: 16,
+          gap: 24,
         }}
       >
         {statCards.map((card) => {
           const Icon = card.icon;
           if (!widgets[card.key as keyof typeof widgets]) return null;
+          
+          // Generate a vibrant colorful shadow based on the card color
+          const shadowColor = card.color === '#F97316' ? 'rgba(249,115,22,0.18)' :
+                              card.color === '#0EA5E9' ? 'rgba(14,165,233,0.18)' :
+                              card.color === '#10B981' ? 'rgba(16,185,129,0.18)' :
+                              card.color === '#DC2626' ? 'rgba(220,38,38,0.18)' : 'rgba(148,163,184,0.15)';
+                              
           return (
-            <Link key={card.key} href={card.href} className="stat-card" style={{ textDecoration: 'none' }}>
+            <Link 
+              key={card.key} 
+              href={card.href} 
+              className="stat-card hover:-translate-y-1 transition-all duration-300" 
+              style={{ 
+                textDecoration: 'none',
+                boxShadow: `0 10px 25px ${shadowColor}, 0 1px 3px rgba(0,0,0,0.02)`,
+                border: `1.5px solid ${card.bg}`
+              }}
+            >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div
-                  className="stat-card-icon"
+                  className="stat-card-icon shadow-inner"
                   style={{ background: card.bg, color: card.color }}
                 >
                   <Icon style={{ width: 20, height: 20 }} />

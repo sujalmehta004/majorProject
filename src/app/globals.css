@@ -943,6 +943,110 @@ body {
 .tabular-nums { font-variant-numeric: tabular-nums; }
 
 /* ──────────────────────────────────────────────────────────────
+   MODAL SYSTEM — Universal Centered Overlay
+   Works regardless of parent stacking context / overflow / transform
+────────────────────────────────────────────────────────────── */
+
+/* Backdrop — always full viewport, always on top */
+.modal-overlay {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  z-index: 9999 !important;
+  background: rgba(15, 23, 42, 0.52);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 20px;
+  box-sizing: border-box;
+}
+
+/* Modal card — centers in the overlay */
+.modal-card {
+  position: relative;
+  background: rgba(255, 255, 255, 0.98);
+  border-radius: 24px;
+  width: 100%;
+  max-width: var(--modal-max-width, 540px);
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 32px 80px rgba(0, 0, 0, 0.22), 0 8px 24px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Scrollbar inside modal */
+.modal-card::-webkit-scrollbar { width: 6px; }
+.modal-card::-webkit-scrollbar-track { background: transparent; }
+.modal-card::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 6px; }
+
+/* Modal header — sticky at top */
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 22px 28px 16px;
+  border-bottom: 1px solid #F1F5F9;
+  position: sticky;
+  top: 0;
+  background: rgba(255,255,255,0.98);
+  backdrop-filter: blur(8px);
+  z-index: 10;
+  border-radius: 24px 24px 0 0;
+}
+
+/* Modal body */
+.modal-body {
+  padding: 20px 28px;
+  flex: 1;
+}
+
+/* Modal footer */
+.modal-footer {
+  padding: 16px 28px 22px;
+  border-top: 1px solid #F1F5F9;
+  position: sticky;
+  bottom: 0;
+  background: rgba(255,255,255,0.98);
+  backdrop-filter: blur(8px);
+  border-radius: 0 0 24px 24px;
+}
+
+/* Side drawer variant */
+.modal-drawer-overlay {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  z-index: 9999 !important;
+  background: rgba(15, 23, 42, 0.4);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex !important;
+  justify-content: flex-end !important;
+}
+
+.modal-drawer {
+  width: 100%;
+  max-width: 520px;
+  height: 100%;
+  background: white;
+  box-shadow: -10px 0 60px rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ──────────────────────────────────────────────────────────────
    ANIMATIONS
 ────────────────────────────────────────────────────────────── */
 @keyframes fadeIn {
@@ -955,23 +1059,30 @@ body {
   to   { opacity: 1; transform: translateX(0); }
 }
 
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(100%); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
 @keyframes scaleIn {
-  from { opacity: 0; transform: scale(0.95); }
+  from { opacity: 0; transform: scale(0.94); }
   to   { opacity: 1; transform: scale(1); }
 }
 
 .animate-fadeIn    { animation: fadeIn 0.35s ease-out both; }
 .animate-slideIn   { animation: slideInLeft 0.3s ease-out both; }
-.animate-scaleIn   { animation: scaleIn 0.25s ease-out both; }
+.animate-slideInRight { animation: slideInRight 0.3s cubic-bezier(0.4, 0, 0.2, 1) both; }
+.animate-scaleIn   { animation: scaleIn 0.22s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
 
 /* ──────────────────────────────────────────────────────────────
    PRINT
 ────────────────────────────────────────────────────────────── */
 @media print {
   .no-print { display: none !important; }
+  body { background: white !important; color: black !important; }
   body * { visibility: hidden; }
-  #print-area, #print-area * { visibility: visible; }
-  #print-area { position: absolute; left: 0; top: 0; width: 100%; }
+  #print-area, #print-area * { visibility: visible !important; }
+  #print-area { position: absolute; left: 0; top: 0; width: 100%; height: auto; visibility: visible !important; }
 }
 
 /* ──────────────────────────────────────────────────────────────
