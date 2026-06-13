@@ -29,14 +29,16 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { items, customerName, customerPhone, retailerId } = body; // items: [{ productId, qtyBoxes }]
+    const { items, customerName, customerPhone, retailerId, paidAmount: paidAmountRaw, paymentMethod: paymentMethodRaw } = body; // items: [{ productId, qtyBoxes }]
+    const paidAmount = parseFloat(paidAmountRaw) || 0;
+    const paymentMethod = paymentMethodRaw || 'CASH';
 
     if (!items || !items.length) {
       return NextResponse.json({ error: 'No items in checkout basket' }, { status: 400 });
     }
 
     // Find or seed Walk-in Customer Retailer
-    const walkinEmail = 'walkin@medhub.com';
+    const walkinEmail = `walkin-${wholesalerProfileId}@medhub.com`;
     let walkinUser = await db.user.findUnique({
       where: { email: walkinEmail },
       include: { retailerProfile: true }
@@ -61,6 +63,7 @@ export async function POST(request: Request) {
               longitude: 85.3240,
               creditLimit: 9999999,
               lifetimeSpend: 0,
+              wholesalerId: wholesalerProfileId,
             }
           }
         },
@@ -100,8 +103,8 @@ export async function POST(request: Request) {
       const tabletsPerBox = product.tabletsPerStrip * product.stripsPerBox;
       const baseUnitsOrdered = item.qtyBoxes * tabletsPerBox;
 
-      // Evaluate tiered pricing per Box
-      let pricePerBox = 100; // default backup price
+      // Evaluate tiered pricing per Box (from product tier JSON first, then fall back to batch sellingPricePerBox)
+      let pricePerBox: number | null = null;
       try {
         const tiers = JSON.parse(product.tierPricingJson || '[]');
         const matchingTier = tiers.find(
@@ -116,7 +119,21 @@ export async function POST(request: Request) {
         console.error('Failed to parse pricing tiers:', e);
       }
 
-      const pricePerBaseUnit = pricePerBox / tabletsPerBox;
+      // Fallback: use sellingPricePerBox from earliest non-expired batch (FIFO order)
+      if (pricePerBox === null) {
+        const fallbackBatch = await db.inventoryBatch.findFirst({
+          where: {
+            productId: product.id,
+            availableBaseUnits: { gt: 0 },
+            expiryDate: { gt: new Date() },
+          },
+          orderBy: { expiryDate: 'asc' },
+          select: { sellingPricePerBox: true },
+        });
+        pricePerBox = fallbackBatch?.sellingPricePerBox ?? 0;
+      }
+
+      const pricePerBaseUnit = tabletsPerBox > 0 ? pricePerBox / tabletsPerBox : 0;
       const itemSubtotal = baseUnitsOrdered * pricePerBaseUnit;
       totalAmount += itemSubtotal;
 
@@ -125,12 +142,16 @@ export async function POST(request: Request) {
         quantity: baseUnitsOrdered,
         pricePerUnit: pricePerBaseUnit,
         productName: product.name,
+        pricePerBox,
+        tabletsPerBox,
       });
     }
 
     // POS sales are cash-based physical customer sales, so no loyalty discounts are pre-loaded
     const netAmount = totalAmount;
-    const customerInfoStr = `Walk-in Customer: ${customerName || 'N/A'}, Phone: ${customerPhone || 'N/A'}`;
+    const effectivePaidAmount = Math.min(paidAmount, netAmount); // clamp to bill total
+    const dueAmount = Math.max(netAmount - effectivePaidAmount, 0);
+    const customerInfoStr = `Walk-in Customer: ${customerName || 'N/A'}, Phone: ${customerPhone || 'N/A'} | Paid: Rs.${effectivePaidAmount.toFixed(2)} | Method: ${paymentMethod} | Due: Rs.${dueAmount.toFixed(2)}`;
 
     // 2. Isolated Transaction Block for Order Creation and FIFO Allocation
     const resultOrder = await db.$transaction(async (tx) => {
@@ -244,7 +265,13 @@ export async function POST(request: Request) {
       }
     });
 
-    return NextResponse.json({ success: true, order: completeOrder });
+    return NextResponse.json({
+      success: true,
+      order: completeOrder,
+      paidAmount: effectivePaidAmount,
+      dueAmount,
+      paymentMethod,
+    });
   } catch (error: any) {
     console.error('POS checkout rolled back:', error);
     return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });

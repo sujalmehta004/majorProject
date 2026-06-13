@@ -85,6 +85,7 @@ export async function GET(request: NextRequest) {
     // 3. Search Retailers / Customers (without requiring transactions)
     const customers = await db.retailerProfile.findMany({
       where: {
+        wholesalerId,
         OR: [
           { pharmacyName: { contains: q, mode: 'insensitive' } },
           { phone: { contains: q, mode: 'insensitive' } },

@@ -47,7 +47,7 @@ export default function WholesalerLayout({ children, user, profile }: Wholesaler
 
   const allowedList = user.allowedFeatures
     ? user.allowedFeatures.split(',')
-    : ['Dashboard', 'Medicines', 'Orders', 'Billing', 'POS', 'Profile', 'Logs', 'Customers'];
+    : ['Dashboard', 'Medicines', 'Orders', 'Billing', 'POS', 'Profile', 'Logs', 'Customers', 'Suppliers'];
 
   const navItems = [
     {
@@ -83,6 +83,14 @@ export default function WholesalerLayout({ children, user, profile }: Wholesaler
       tags: 'retailer, customer, history, transactions, accounts',
     },
     {
+      name: 'Suppliers',
+      href: '/wholesaler/suppliers',
+      icon: Users,
+      desc: 'Manufacturer and supplier bills and shipments',
+      feature: 'Suppliers',
+      tags: 'vendor, manufacturer, supplier, bills, settlements',
+    },
+    {
       name: 'POS B2C',
       href: '/wholesaler/pos',
       icon: Receipt,
@@ -112,6 +120,7 @@ export default function WholesalerLayout({ children, user, profile }: Wholesaler
   else if (pathname === '/wholesaler/inventory') currentFeature = 'Medicines';
   else if (pathname === '/wholesaler/orders') currentFeature = 'Orders';
   else if (pathname === '/wholesaler/customers') currentFeature = 'Customers';
+  else if (pathname === '/wholesaler/suppliers') currentFeature = 'Suppliers';
   else if (pathname === '/wholesaler/billing') currentFeature = 'Billing';
   else if (pathname === '/wholesaler/pos') currentFeature = 'POS';
 

@@ -3,11 +3,11 @@ import { db } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import WholesalerLayout from "@/components/WholesalerLayout";
-import CustomerClient from "./CustomerClient";
+import SuppliersClient from "./SuppliersClient";
 
 export const dynamic = "force-dynamic";
 
-export default async function WholesalerCustomers() {
+export default async function WholesalerSuppliers() {
   const user = await getSessionUser();
   if (
     !user ||
@@ -35,28 +35,33 @@ export default async function WholesalerCustomers() {
     redirect("/subscription-expired");
   }
 
-  // Load registered customer pharmacies belonging to this wholesaler
-  const retailers = await db.retailerProfile.findMany({
-    where: {
-      wholesalerId: profile.id,
-    },
+  // Load all registered suppliers for the wholesaler
+  const suppliers = await db.supplier.findMany({
+    where: { wholesalerId: profile.id },
     include: {
-      user: true,
-      orders: {
-        where: { wholesalerId: profile.id },
+      batches: {
         include: {
-          items: {
-            include: {
-              product: true,
-            },
-          },
-        },
-        orderBy: { createdAt: "desc" },
+          product: true
+        }
       },
+      bills: {
+        include: {
+          settlements: true
+        },
+        orderBy: { billDate: 'desc' }
+      }
     },
+    orderBy: { name: 'asc' },
   });
 
-  const serializedRetailers = JSON.parse(JSON.stringify(retailers));
+  // Load products so we can select them when registering supplier bills or batching
+  const products = await db.product.findMany({
+    where: { wholesalerId: profile.id },
+    orderBy: { name: 'asc' }
+  });
+
+  const serializedSuppliers = JSON.parse(JSON.stringify(suppliers));
+  const serializedProducts = JSON.parse(JSON.stringify(products));
 
   return (
     <WholesalerLayout
@@ -73,8 +78,9 @@ export default async function WholesalerCustomers() {
         taxId: profile.taxId,
       }}
     >
-      <CustomerClient
-        customers={serializedRetailers}
+      <SuppliersClient
+        initialSuppliers={serializedSuppliers}
+        products={serializedProducts}
         wholesalerId={profile.id}
       />
     </WholesalerLayout>

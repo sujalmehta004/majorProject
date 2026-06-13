@@ -30,7 +30,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { productId, batchNumber, expiryDate, totalBaseUnits, manufacturingCost, invoiceData, purchasePricePerBox, sellingPricePerBox, supplierName, manufacturerName } = body;
+    const { productId, batchNumber, expiryDate, totalBaseUnits, manufacturingCost, invoiceData, purchasePricePerBox, sellingPricePerBox, supplierName, manufacturerName, tierPricing, supplierId } = body;
 
     if (!productId || !batchNumber || !expiryDate || !totalBaseUnits || !manufacturingCost) {
       return NextResponse.json({ error: 'Missing required batch ingestion fields' }, { status: 400 });
@@ -74,9 +74,20 @@ export async function POST(request: Request) {
         sellingPricePerBox: sellingPricePerBox ? parseFloat(sellingPricePerBox) : 100,
         supplierName: supplierName || null,
         manufacturerName: manufacturerName || null,
+        supplierId: supplierId || null,
         purchaseDate: new Date(),
       },
     });
+
+    // Update Product pricing tiers if provided
+    if (tierPricing) {
+      await db.product.update({
+        where: { id: productId },
+        data: {
+          tierPricingJson: JSON.stringify(tierPricing),
+        },
+      });
+    }
 
     // Record audit log
     await db.systemAuditLog.create({
@@ -152,7 +163,7 @@ export async function PUT(request: Request) {
     }
 
     const body = await request.json();
-    const { id, batchNumber, expiryDate, totalBaseUnits, availableBaseUnits, manufacturingCost, purchasePricePerBox, sellingPricePerBox, supplierName, manufacturerName } = body;
+    const { id, batchNumber, expiryDate, totalBaseUnits, availableBaseUnits, manufacturingCost, purchasePricePerBox, sellingPricePerBox, supplierName, manufacturerName, productId, tierPricing, supplierId } = body;
 
     if (!id) {
       return NextResponse.json({ error: 'Missing batch ID' }, { status: 400 });
@@ -163,19 +174,96 @@ export async function PUT(request: Request) {
       data: {
         batchNumber,
         expiryDate: expiryDate ? new Date(expiryDate) : undefined,
-        totalBaseUnits: totalBaseUnits !== undefined ? parseInt(totalBaseUnits, 10) : undefined,
-        availableBaseUnits: availableBaseUnits !== undefined ? parseInt(availableBaseUnits, 10) : undefined,
-        manufacturingCost: manufacturingCost !== undefined ? parseFloat(manufacturingCost) : undefined,
-        purchasePricePerBox: purchasePricePerBox !== undefined ? parseFloat(purchasePricePerBox) : undefined,
-        sellingPricePerBox: sellingPricePerBox !== undefined ? parseFloat(sellingPricePerBox) : undefined,
+        totalBaseUnits: totalBaseUnits !== undefined ? Number(totalBaseUnits) : undefined,
+        availableBaseUnits: availableBaseUnits !== undefined ? Number(availableBaseUnits) : undefined,
+        manufacturingCost: manufacturingCost !== undefined ? Number(manufacturingCost) : undefined,
+        purchasePricePerBox: purchasePricePerBox !== undefined ? Number(purchasePricePerBox) : undefined,
+        sellingPricePerBox: sellingPricePerBox !== undefined ? Number(sellingPricePerBox) : undefined,
         supplierName,
         manufacturerName,
+        supplierId: supplierId !== undefined ? (supplierId || null) : undefined,
       },
     });
+
+    // Update Product pricing tiers if provided
+    if (tierPricing && productId) {
+      await db.product.update({
+        where: { id: productId },
+        data: {
+          tierPricingJson: JSON.stringify(tierPricing),
+        },
+      });
+    }
 
     return NextResponse.json({ success: true, batch: updatedBatch });
   } catch (error: any) {
     console.error('Error updating batch:', error);
+    return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const user = await getSessionUser();
+    if (!user || (user.role !== 'WHOLESALER' && user.role !== 'WHOLESALER_STAFF')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+
+    if (!id) {
+      return NextResponse.json({ error: 'Missing batch ID' }, { status: 400 });
+    }
+
+    // Verify batch ownership
+    const batch = await db.inventoryBatch.findUnique({
+      where: { id },
+      include: { product: true },
+    });
+
+    if (!batch) {
+      return NextResponse.json({ error: 'Batch not found' }, { status: 404 });
+    }
+
+    let wholesalerId = '';
+    if (user.role === 'WHOLESALER') {
+      const wholesaler = await db.wholesalerProfile.findUnique({
+        where: { userId: user.userId },
+      });
+      wholesalerId = wholesaler?.id || '';
+    } else {
+      const dbUser = await db.user.findUnique({
+        where: { id: user.userId },
+      });
+      wholesalerId = dbUser?.wholesalerId || '';
+    }
+
+    if (batch.product.wholesalerId !== wholesalerId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    await db.inventoryBatch.delete({
+      where: { id },
+    });
+
+    // Log the batch deletion
+    await db.systemAuditLog.create({
+      data: {
+        action: 'DELETE_BATCH',
+        userId: user.userId,
+        details: `Deleted batch ${batch.batchNumber} for product ${batch.product.name}`,
+      },
+    });
+
+    broadcastToWholesaler(wholesalerId, 'INVENTORY_UPDATED', { type: 'BATCH_DELETE', batchId: id });
+
+    return NextResponse.json({ success: true, message: 'Batch deleted successfully' });
+  } catch (error: any) {
+    console.error('Error deleting batch:', error);
+    if (error.code === 'P2003') {
+      return NextResponse.json({ error: 'Cannot delete batch because some quantities are allocated to existing orders.' }, { status: 400 });
+    }
     return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
   }
 }

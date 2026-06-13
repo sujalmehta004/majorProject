@@ -51,7 +51,19 @@ export default async function WholesalerBillingPage() {
     orderBy: { createdAt: 'desc' },
   });
 
+  const supplierBills = await db.supplierBill.findMany({
+    where: {
+      supplier: { wholesalerId: profile.id }
+    },
+    include: {
+      supplier: true,
+      settlements: true
+    },
+    orderBy: { billDate: 'desc' }
+  });
+
   const serializedOrders = JSON.parse(JSON.stringify(orders));
+  const serializedSupplierBills = JSON.parse(JSON.stringify(supplierBills));
   const serializedProfile = JSON.parse(JSON.stringify(profile));
 
   return (
@@ -69,7 +81,12 @@ export default async function WholesalerBillingPage() {
         taxId: profile.taxId,
       }}
     >
-      <BillingClient profileId={profile.id} initialOrders={serializedOrders} profile={serializedProfile} />
+      <BillingClient 
+        profileId={profile.id} 
+        initialOrders={serializedOrders} 
+        initialSupplierBills={serializedSupplierBills}
+        profile={serializedProfile} 
+      />
     </WholesalerLayout>
   );
 }

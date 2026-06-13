@@ -79,12 +79,16 @@ model WholesalerProfile {
   products           Product[]
   orders             Order[]
   staff              User[]   @relation("WholesalerStaff")
+  suppliers          Supplier[]
+  customers          RetailerProfile[]
 }
 
 model RetailerProfile {
   id                 String              @id @default(uuid())
   userId             String              @unique
   user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  wholesalerId       String?
+  wholesaler         WholesalerProfile?  @relation(fields: [wholesalerId], references: [id], onDelete: Cascade)
   pharmacyName       String
   registrationNumber String
   address            String
@@ -124,6 +128,8 @@ model Product {
   // Pricing tiers (stored as JSON, e.g., [{minQty: 1, maxQty: 49, pricePerBox: 10}, {minQty: 50, maxQty: 9999, pricePerBox: 9}])
   tierPricingJson String           @default("[]") 
   
+  category       String            @default("Uncategorized")
+  
   createdAt      DateTime          @default(now())
   updatedAt      DateTime          @updatedAt
 
@@ -151,6 +157,9 @@ model InventoryBatch {
   purchaseDate        DateTime          @default(now())
   createdAt           DateTime          @default(now())
   updatedAt           DateTime          @updatedAt
+
+  supplierId          String?
+  supplier            Supplier?         @relation(fields: [supplierId], references: [id], onDelete: SetNull)
 
   allocations        OrderBatchAllocation[]
   inTransitLogs      InTransitLog[]
@@ -235,4 +244,49 @@ model SystemAuditLog {
   user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
   details   String
   timestamp DateTime @default(now())
+}
+
+model Supplier {
+  id            String            @id @default(uuid())
+  wholesalerId  String
+  wholesaler    WholesalerProfile @relation(fields: [wholesalerId], references: [id], onDelete: Cascade)
+  name          String
+  contactPerson String?
+  phone         String?
+  email         String?
+  address       String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  batches       InventoryBatch[]
+  bills         SupplierBill[]
+}
+
+model SupplierBill {
+  id            String            @id @default(uuid())
+  supplierId    String
+  supplier      Supplier          @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  billNumber    String
+  billDate      DateTime
+  totalAmount   Float
+  paidAmount    Float             @default(0)
+  status        String            @default("PENDING") // PENDING, PAID, PARTIAL
+  notes         String?
+  itemsJson     String?           @default("[]") // items detail JSON
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  settlements   SupplierSettlement[]
+}
+
+model SupplierSettlement {
+  id            String            @id @default(uuid())
+  billId        String
+  bill          SupplierBill      @relation(fields: [billId], references: [id], onDelete: Cascade)
+  amount        Float
+  date          DateTime          @default(now())
+  paymentMethod String            @default("CASH") // CASH, MOBILE_BANKING, CARD, BANK_TRANSFER
+  notes         String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
 }

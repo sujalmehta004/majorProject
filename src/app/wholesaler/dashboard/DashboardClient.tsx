@@ -101,6 +101,21 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   return null;
 };
 
+const SectionBreaker = ({ title, desc, icon: Icon }: { title: string; desc?: string; icon?: any }) => (
+  <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '28px 0 16px' }} className="no-print">
+    {Icon && (
+      <div style={{ padding: '6px', background: 'rgba(249,115,22,0.08)', border: '1px solid rgba(249,115,22,0.18)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Icon style={{ width: 13, height: 13, color: '#F97316' }} />
+      </div>
+    )}
+    <div style={{ flexShrink: 0 }}>
+      <h4 style={{ fontSize: 10, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#64748B' }}>{title}</h4>
+      {desc && <p style={{ fontSize: 10, color: '#94A3B8', marginTop: 1 }}>{desc}</p>}
+    </div>
+    <div style={{ flexGrow: 1, height: '1px', background: 'linear-gradient(to right, rgba(226,232,240,0.8), rgba(226,232,240,0.1))', marginLeft: 12 }} />
+  </div>
+);
+
 export default function DashboardClient({
   profileId,
   metrics,
@@ -124,7 +139,9 @@ export default function DashboardClient({
   >("monthly");
 
   // Load user threshold settings
-  const [threshold, setThreshold] = useState(10);
+  const [lowStockBoxes, setLowStockBoxes] = useState(10);
+  const [lowStockStrips, setLowStockStrips] = useState(0);
+  const [lowStockTablets, setLowStockTablets] = useState(0);
   const [expiryDays, setExpiryDays] = useState(30);
 
   useEffect(() => {
@@ -138,8 +155,21 @@ export default function DashboardClient({
         }
       }
 
-      const storedLowStock = localStorage.getItem("medhub_low_stock_threshold");
-      if (storedLowStock) setThreshold(parseInt(storedLowStock, 10));
+      const storedLowStockBoxes = localStorage.getItem("medhub_low_stock_threshold_boxes");
+      if (storedLowStockBoxes) {
+        setLowStockBoxes(parseInt(storedLowStockBoxes, 10));
+      } else {
+        const storedOld = localStorage.getItem("medhub_low_stock_threshold");
+        if (storedOld) setLowStockBoxes(parseInt(storedOld, 10));
+      }
+      const storedLowStockStrips = localStorage.getItem("medhub_low_stock_threshold_strips");
+      if (storedLowStockStrips) {
+        setLowStockStrips(parseInt(storedLowStockStrips, 10));
+      }
+      const storedLowStockTablets = localStorage.getItem("medhub_low_stock_threshold_tablets");
+      if (storedLowStockTablets) {
+        setLowStockTablets(parseInt(storedLowStockTablets, 10));
+      }
 
       const storedExpiry = localStorage.getItem("medhub_expiry_alert_days");
       if (storedExpiry) setExpiryDays(parseInt(storedExpiry, 10));
@@ -156,7 +186,7 @@ export default function DashboardClient({
     }>;
     period: string;
     totalOrders: number;
-    allProductStocks: Array<{ name: string; sku: string; units: number }>;
+    allProductStocks: Array<{ id: string; name: string; sku: string; units: number; stripsPerBox?: number; tabletsPerStrip?: number }>;
   }>(
     `/api/wholesaler/analytics?period=${period}&wholesalerId=${profileId}`,
     profileId,
@@ -176,7 +206,13 @@ export default function DashboardClient({
   // Compute Alerts dynamically based on custom thresholds
   const lowStockItems =
     analyticsData?.allProductStocks?.filter(
-      (item) => item.units < threshold * 20,
+      (item) => {
+        // default multipliers if not sent by api (or use standard 10 per box / 10 per strip if missing)
+        const spb = item.stripsPerBox || 10;
+        const tps = item.tabletsPerStrip || 10;
+        const totalThresholdUnits = (lowStockBoxes * spb * tps) + (lowStockStrips * tps) + lowStockTablets;
+        return item.units < totalThresholdUnits;
+      }
     ) || [];
 
   const expiringBatches =
@@ -480,11 +516,7 @@ export default function DashboardClient({
                     Low Stock Alert
                   </div>
                   <p style={{ fontSize: 12, marginTop: 2, color: "#7F1D1D" }}>
-                    The following items are below your threshold of{" "}
-                    <strong style={{ fontFamily: "monospace" }}>
-                      {threshold}
-                    </strong>{" "}
-                    boxes ({threshold * 20} units):{" "}
+                    The following items are below your low stock threshold ({lowStockBoxes} boxes, {lowStockStrips} strips, {lowStockTablets} tablets):{" "}
                     {lowStockItems.map((item, idx) => (
                       <span key={item.sku}>
                         {idx > 0 && ", "}
@@ -580,6 +612,8 @@ export default function DashboardClient({
         </div>
       )}
 
+      <SectionBreaker title="Operational Telemetry" desc="High level catalog and dispatch counters" icon={Activity} />
+
       {/* Stat Cards Grid */}
       <div
         style={{
@@ -643,6 +677,8 @@ export default function DashboardClient({
           );
         })}
       </div>
+
+      <SectionBreaker title="Financial Analysis" desc="Revenue and profitability insights" icon={TrendingUp} />
 
       {/* Financial Ledger Card & Recharts Bar Graph */}
       {widgets.financialLedger && (
@@ -916,6 +952,8 @@ export default function DashboardClient({
           </div>
         </div>
       )}
+
+      <SectionBreaker title="Activity & Terminal Telemetry" desc="Audit trails and hardware terminal connections" icon={Clock} />
 
       {/* Activity Logs + Sidebar */}
       <div

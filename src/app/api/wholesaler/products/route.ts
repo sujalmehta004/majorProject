@@ -30,6 +30,9 @@ export async function GET(request: Request) {
 
     const products = await db.product.findMany({
       where: { wholesalerId },
+      include: {
+        batches: true,
+      },
       orderBy: { name: 'asc' },
     });
 
@@ -67,7 +70,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { name, sku, tabletsPerStrip, stripsPerBox, tierPricing } = body;
+    const { name, sku, tabletsPerStrip, stripsPerBox, tierPricing, category } = body;
 
     if (!name || !sku) {
       return NextResponse.json({ error: 'Product name and SKU are required' }, { status: 400 });
@@ -97,6 +100,7 @@ export async function POST(request: Request) {
         tabletsPerStrip: tPerStrip,
         stripsPerBox: sPerBox,
         tierPricingJson: pricingJson,
+        category: category || 'Uncategorized',
       },
     });
 
@@ -124,7 +128,7 @@ export async function PUT(request: Request) {
     }
 
     const body = await request.json();
-    const { id, name, sku, tabletsPerStrip, stripsPerBox, tierPricing } = body;
+    const { id, name, sku, tabletsPerStrip, stripsPerBox, tierPricing, category } = body;
 
     if (!id) {
       return NextResponse.json({ error: 'Missing product ID' }, { status: 400 });
@@ -140,6 +144,7 @@ export async function PUT(request: Request) {
         tabletsPerStrip: tabletsPerStrip !== undefined ? parseInt(tabletsPerStrip, 10) : undefined,
         stripsPerBox: stripsPerBox !== undefined ? parseInt(stripsPerBox, 10) : undefined,
         tierPricingJson: pricingJson,
+        category: category !== undefined ? category : undefined,
       },
     });
 
@@ -155,6 +160,52 @@ export async function PUT(request: Request) {
     return NextResponse.json({ success: true, product });
   } catch (error: any) {
     console.error('Error updating product:', error);
+    return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const user = await getSessionUser();
+    if (!user || (user.role !== 'WHOLESALER' && user.role !== 'WHOLESALER_STAFF')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+
+    if (!id) {
+      return NextResponse.json({ error: 'Missing product ID' }, { status: 400 });
+    }
+
+    // Check if product exists
+    const existingProduct = await db.product.findUnique({
+      where: { id },
+    });
+
+    if (!existingProduct) {
+      return NextResponse.json({ error: 'Product not found' }, { status: 404 });
+    }
+
+    await db.product.delete({
+      where: { id },
+    });
+
+    // Log the product deletion
+    await db.systemAuditLog.create({
+      data: {
+        action: 'DELETE_PRODUCT',
+        userId: user.userId,
+        details: `Deleted product: ${existingProduct.name} (SKU: ${existingProduct.sku})`,
+      },
+    });
+
+    return NextResponse.json({ success: true, message: 'Product deleted successfully' });
+  } catch (error: any) {
+    console.error('Error deleting product:', error);
+    if (error.code === 'P2003') {
+      return NextResponse.json({ error: 'Cannot delete medicine because it is associated with existing orders or customer records.' }, { status: 400 });
+    }
     return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
   }
 }

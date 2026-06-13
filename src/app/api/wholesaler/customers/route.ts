@@ -4,12 +4,35 @@ import { getSessionUser } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
+async function getWholesalerId(user: any) {
+  if (user.role === 'WHOLESALER') {
+    const profile = await db.wholesalerProfile.findUnique({
+      where: { userId: user.userId },
+    });
+    return profile?.id || null;
+  } else if (user.role === 'WHOLESALER_STAFF') {
+    const dbUser = await db.user.findUnique({
+      where: { id: user.userId },
+    });
+    return dbUser?.wholesalerId || null;
+  }
+  return null;
+}
+
 export async function GET(request: NextRequest) {
   try {
     const user = await getSessionUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
+    const wholesalerProfileId = await getWholesalerId(user);
+    if (!wholesalerProfileId) {
+      return NextResponse.json({ error: 'Wholesaler profile not found' }, { status: 404 });
+    }
+
     const customers = await db.retailerProfile.findMany({
+      where: {
+        wholesalerId: wholesalerProfileId
+      },
       include: { user: true }
     });
 
@@ -23,6 +46,11 @@ export async function POST(request: NextRequest) {
   try {
     const user = await getSessionUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    const wholesalerProfileId = await getWholesalerId(user);
+    if (!wholesalerProfileId) {
+      return NextResponse.json({ error: 'Wholesaler profile not found' }, { status: 404 });
+    }
 
     const body = await request.json();
     const { pharmacyName, phone, email, fullName, address } = body;
@@ -56,6 +84,7 @@ export async function POST(request: NextRequest) {
       const profile = await tx.retailerProfile.create({
         data: {
           userId: createdUser.id,
+          wholesalerId: wholesalerProfileId,
           pharmacyName,
           registrationNumber: 'REG-' + Math.floor(Math.random() * 1000000),
           address,
@@ -83,11 +112,24 @@ export async function PUT(request: NextRequest) {
     const user = await getSessionUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
+    const wholesalerProfileId = await getWholesalerId(user);
+    if (!wholesalerProfileId) {
+      return NextResponse.json({ error: 'Wholesaler profile not found' }, { status: 404 });
+    }
+
     const body = await request.json();
     const { id, creditLimit, lifetimeSpend, phone, address, registrationNumber } = body;
 
     if (!id) {
       return NextResponse.json({ error: 'Missing customer ID' }, { status: 400 });
+    }
+
+    // Verify ownership
+    const customer = await db.retailerProfile.findUnique({
+      where: { id }
+    });
+    if (!customer || customer.wholesalerId !== wholesalerProfileId) {
+      return NextResponse.json({ error: 'Access denied or customer not found' }, { status: 403 });
     }
 
     const updatedCustomer = await db.retailerProfile.update({

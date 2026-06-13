@@ -32,6 +32,7 @@ interface Product {
   tabletsPerStrip: number;
   stripsPerBox: number;
   tierPricingJson: string;
+  batches?: any[];
 }
 
 interface OrderItem {
@@ -87,11 +88,15 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
   // Medicine search combobox
   const [medicineSearch, setMedicineSearch] = useState('');
   const [selectedProductId, setSelectedProductId] = useState('');
+  const [selectedBatchIdForOrder, setSelectedBatchIdForOrder] = useState('');
   const [showMedicineDropdown, setShowMedicineDropdown] = useState(false);
   const medicineSearchRef = useRef<HTMLDivElement>(null);
 
-  const [basket, setBasket] = useState<Array<{ productId: string; qtyBoxes: number }>>([]);
+  const [basket, setBasket] = useState<Array<{ productId: string; batchId: string; qtyBoxes: number }>>([]);
   const [currentQtyBoxes, setCurrentQtyBoxes] = useState('5');
+  
+  // Pricing mode: false = flat selling price, true = volume tier pricing
+  const [useTierPricing, setUseTierPricing] = useState(false);
   
   // Custom discount & tax/VAT
   const [orderDiscountPercent, setOrderDiscountPercent] = useState('0');
@@ -143,6 +148,7 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
   const [addLoading, setAddLoading] = useState(false);
 
   // Filters
+  const [viewMode, setViewMode] = useState<'simple' | 'detail'>('simple');
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterSearch, setFilterSearch] = useState('');
 
@@ -161,6 +167,10 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
 
   // Orders filter
   const filteredOrders = orders.filter(o => {
+    // Exclude walkin customer data
+    const isWalkin = o.retailer.pharmacyName === 'Walk-in Customer (POS)' || o.retailer.registrationNumber === 'WALKIN-POS-SECURE';
+    if (isWalkin) return false;
+
     const matchStatus = filterStatus === 'all' || o.status === filterStatus;
     const matchSearch = !filterSearch ||
       o.retailer.pharmacyName.toLowerCase().includes(filterSearch.toLowerCase()) ||
@@ -230,14 +240,18 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
-  const addToBasket = (prodId: string, qtyToAdd: number) => {
-    if (!prodId || qtyToAdd <= 0) return;
-    const existing = basket.find(item => item.productId === prodId);
-    if (existing) {
-      setBasket(basket.map(item => item.productId === prodId ? { ...item, qtyBoxes: item.qtyBoxes + qtyToAdd } : item));
-    } else {
-      setBasket([...basket, { productId: prodId, qtyBoxes: qtyToAdd }]);
-    }
+  const addToBasket = (productId: string, batchId: string, qty: number) => {
+    setBasket(prev => {
+      const exists = prev.find(i => i.productId === productId && i.batchId === batchId);
+      if (exists) {
+        return prev.map(i => (i.productId === productId && i.batchId === batchId) ? { ...i, qtyBoxes: i.qtyBoxes + qty } : i);
+      }
+      return [...prev, { productId, batchId, qtyBoxes: qty }];
+    });
+  };
+
+  const removeFromBasket = (productId: string, batchId: string) => {
+    setBasket(prev => prev.filter(i => !(i.productId === productId && i.batchId === batchId)));
   };
 
   const handleBarcodeSubmit = (e: React.FormEvent) => {
@@ -250,7 +264,13 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
       matchedProduct = products.find(p => p.id.substring(0, 8).toUpperCase() === cleanedInput.split('-')[0]);
     }
     if (matchedProduct) {
-      addToBasket(matchedProduct.id, 1);
+      // For barcode scan, auto-pick the recommended batch (earliest expiry, in-stock)
+      const mProd = matchedProduct as any;
+      const sortedBatches = [...(mProd.batches || [])]
+        .filter((b: any) => new Date(b.expiryDate) > new Date())
+        .sort((a: any, b: any) => new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime());
+      const autoBatchId = sortedBatches.find((b: any) => b.availableBaseUnits > 0)?.id || '';
+      addToBasket(matchedProduct.id, autoBatchId, 1);
       setSuccessMsg(`Scanned: Added 1 Box of "${matchedProduct.name}" to order basket.`);
       setBarcodeInput('');
       logActivity('BARCODE_SCAN', `Scanned medicine barcode: ${matchedProduct.sku} - ${matchedProduct.name}`);
@@ -261,23 +281,31 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
     if (scannerInputRef.current) scannerInputRef.current.focus();
   };
 
-  const removeFromBasket = (productId: string) => setBasket(basket.filter(item => item.productId !== productId));
-
   const calculateBasketSummary = () => {
     let subtotalPrice = 0;
     const basketItems = basket.map(item => {
-      const prod = products.find(p => p.id === item.productId);
-      if (!prod) return { name: '', sku: '', qty: 0, pricePerBox: 0, subtotal: 0 };
-      let pricePerBox = 100;
-      try {
-        const tiers = JSON.parse(prod.tierPricingJson || '[]');
-        const matchingTier = tiers.find((t: any) => item.qtyBoxes >= t.minQty && item.qtyBoxes <= (t.maxQty || 999999));
-        if (matchingTier) pricePerBox = matchingTier.pricePerBox;
-        else if (tiers.length > 0) pricePerBox = tiers[0].pricePerBox;
-      } catch (e) {}
+      const prod = products.find(p => p.id === item.productId) as any;
+      if (!prod) return { name: '', sku: '', qty: 0, pricePerBox: 0, subtotal: 0, batchId: '' };
+
+      // Use the selected batch's selling price, or fall back to earliest active batch
+      const allBatches = (prod.batches || []) as any[];
+      const selectedBatch = item.batchId ? allBatches.find((b: any) => b.id === item.batchId) : null;
+      const sortedBatches = [...allBatches].sort((a: any, b: any) => new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime());
+      const activeBatch = sortedBatches.find((b: any) => b.availableBaseUnits > 0);
+      const baseSellPrice: number = (selectedBatch ?? activeBatch ?? sortedBatches[0])?.sellingPricePerBox ?? 0;
+
+      let pricePerBox = baseSellPrice;
+      // Only apply tier logic when useTierPricing is enabled
+      if (useTierPricing) {
+        try {
+          const tiers = JSON.parse(prod.tierPricingJson || '[]');
+          const matchingTier = tiers.find((t: any) => item.qtyBoxes >= t.minQty && item.qtyBoxes <= (t.maxQty || 999999));
+          if (matchingTier) pricePerBox = matchingTier.pricePerBox;
+        } catch (e) {}
+      }
       const subtotal = item.qtyBoxes * pricePerBox;
       subtotalPrice += subtotal;
-      return { name: prod.name, sku: prod.sku, qty: item.qtyBoxes, pricePerBox, subtotal };
+      return { name: prod.name, sku: prod.sku, qty: item.qtyBoxes, pricePerBox, subtotal, batchId: item.batchId };
     });
 
     const discPct = parseFloat(orderDiscountPercent) || 0;
@@ -296,6 +324,23 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
     e.preventDefault();
     setError(''); setSuccessMsg(''); setCreditBlockMessage('');
     if (basket.length === 0) { setError('Please add at least one product to the basket.'); return; }
+    
+    // Check for loss making deal: selling price below buying price
+    for (const item of basketItems) {
+      const prod = products.find(p => p.sku === item.sku) as any;
+      if (prod) {
+        const latestBatch = prod.batches?.length > 0 ? prod.batches[prod.batches.length - 1] : null;
+        if (latestBatch) {
+          const buyPrice = latestBatch.purchasePricePerBox;
+          const sellPriceAfterDiscount = item.pricePerBox * (1 - (parseFloat(orderDiscountPercent) || 0) / 100);
+          if (sellPriceAfterDiscount < buyPrice) {
+            setError(`Cannot make loss-making deal: ${item.name} selling price (after discount) Rs. ${sellPriceAfterDiscount.toFixed(2)} is below buying price Rs. ${buyPrice.toFixed(2)}.`);
+            return;
+          }
+        }
+      }
+    }
+
     try {
       const payload: Record<string, any> = {
         retailerId: selectedRetailerId,
@@ -557,6 +602,32 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
               <span style={{ fontSize: 10, fontWeight: 700, fontFamily: 'monospace', color: '#94A3B8', textTransform: 'uppercase', marginLeft: 4 }}>({filteredOrders.length})</span>
             </h2>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+              {/* Simple / Detail view selector */}
+              <div style={{ display: 'flex', gap: 4, background: '#F1F5F9', padding: 3, borderRadius: 10, marginRight: 8 }}>
+                <button
+                  onClick={() => setViewMode('simple')}
+                  style={{
+                    padding: '4px 10px', border: 'none', borderRadius: 8, fontSize: 10, fontWeight: 700, cursor: 'pointer',
+                    background: viewMode === 'simple' ? 'white' : 'transparent',
+                    color: viewMode === 'simple' ? '#0EA5E9' : '#64748B',
+                    boxShadow: viewMode === 'simple' ? '0 1px 3px rgba(0,0,0,0.06)' : 'none'
+                  }}
+                >
+                  Simple View
+                </button>
+                <button
+                  onClick={() => setViewMode('detail')}
+                  style={{
+                    padding: '4px 10px', border: 'none', borderRadius: 8, fontSize: 10, fontWeight: 700, cursor: 'pointer',
+                    background: viewMode === 'detail' ? 'white' : 'transparent',
+                    color: viewMode === 'detail' ? '#0EA5E9' : '#64748B',
+                    boxShadow: viewMode === 'detail' ? '0 1px 3px rgba(0,0,0,0.06)' : 'none'
+                  }}
+                >
+                  Detail View
+                </button>
+              </div>
+
               {/* Search */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'white', border: '1.5px solid #E2E8F0', borderRadius: 8, padding: '4px 10px' }}>
                 <Search style={{ width: 12, height: 12, color: '#94A3B8' }} />
@@ -588,16 +659,33 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
             <div style={{ overflowX: 'auto' }}>
               <table className="data-table">
                 <thead>
-                  <tr>
-                    <th>Order / Date</th>
-                    <th>Customer</th>
-                    <th>Location</th>
-                    <th>Items</th>
-                    <th>Status</th>
-                    <th>Retailer Scan</th>
-                    <th>Net / Due</th>
-                    <th style={{ textAlign: 'right' }}>Actions</th>
-                  </tr>
+                  {viewMode === 'simple' ? (
+                    <tr>
+                      <th>Order / Date</th>
+                      <th>Customer</th>
+                      <th>Location</th>
+                      <th>Items</th>
+                      <th>Status</th>
+                      <th>Retailer Scan</th>
+                      <th>Net / Due</th>
+                      <th style={{ textAlign: 'right' }}>Actions</th>
+                    </tr>
+                  ) : (
+                    <tr>
+                      <th>Order / Date</th>
+                      <th>Customer</th>
+                      <th>Location</th>
+                      <th>Items Detailed</th>
+                      <th>Total Amount</th>
+                      <th>Discount</th>
+                      <th>Net Due</th>
+                      <th>Paid / Owed</th>
+                      <th>Override Reason</th>
+                      <th>Allocations</th>
+                      <th>Status</th>
+                      <th style={{ textAlign: 'right' }}>Actions</th>
+                    </tr>
+                  )}
                 </thead>
                 <tbody>
                   {filteredOrders.map((order) => {
@@ -605,109 +693,216 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
                     const isScanned = scannedOrders[order.id] || order.status === 'DELIVERED';
                     const paid = settlements[order.id] || 0;
                     const due = Math.max(order.netAmount - paid, 0);
-                    return (
-                      <tr 
-                        key={order.id} 
-                        style={{ cursor: 'pointer' }}
-                        onClick={() => setDetailOrder(order)}
-                      >
-                        <td>
-                          <button onClick={(e) => { e.stopPropagation(); setDetailOrder(order); }}
-                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'monospace', fontWeight: 800, color: '#0EA5E9', fontSize: 11, padding: 0, textDecoration: 'underline dotted' }}>
-                            ORD-{order.id.substring(0, 8).toUpperCase()}
-                          </button>
-                          <span style={{ fontSize: 10, color: '#94A3B8', fontFamily: 'monospace', display: 'block', marginTop: 2 }}>{new Date(order.createdAt).toLocaleString()}</span>
-                        </td>
-                        <td>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <User style={{ width: 12, height: 12, color: '#0EA5E9', flexShrink: 0 }} />
-                            <span style={{ fontWeight: 700, fontSize: 12, color: '#1E293B' }}>{order.retailer.pharmacyName}</span>
-                          </div>
-                        </td>
-                        <td onClick={(e) => e.stopPropagation()}>
-                          <a 
-                            href={`https://www.google.com/maps?q=${order.retailer.latitude || 27.7172},${order.retailer.longitude || 85.3240}`}
-                            target="_blank" rel="noopener noreferrer"
-                            style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#0EA5E9', fontWeight: 600 }}
-                          >
-                            <MapPin style={{ width: 12, height: 12 }} /> Map
-                          </a>
-                        </td>
-                        <td style={{ maxWidth: 160 }}>
-                          {order.items.map((item) => (
-                            <div key={item.id} style={{ fontSize: 10, color: '#64748B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {item.product.name} ×{item.quantity}
-                            </div>
-                          ))}
-                        </td>
-                        <td>
-                          <span style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: 'monospace', background: s.bg, color: s.color, border: `1px solid ${s.border}`, padding: '3px 10px', borderRadius: 20 }}>
-                            {order.status}
-                          </span>
-                        </td>
-                        <td onClick={(e) => e.stopPropagation()}>
-                          {order.status === 'DISPATCHED' ? (
-                            <button 
-                              onClick={() => toggleRetailerScan(order.id)}
-                              style={{
-                                border: 'none', background: isScanned ? '#ECFDF5' : '#FFF7ED',
-                                color: isScanned ? '#059669' : '#D97706',
-                                fontSize: 10, fontWeight: 700, padding: '4px 8px', borderRadius: 8, cursor: 'pointer'
-                              }}
-                            >
-                              {isScanned ? '✓ Scanned' : '⚡ Simulate Scan'}
+                    
+                    if (viewMode === 'simple') {
+                      return (
+                        <tr 
+                          key={order.id} 
+                          style={{ cursor: 'pointer' }}
+                          onClick={() => setDetailOrder(order)}
+                        >
+                          <td>
+                            <button onClick={(e) => { e.stopPropagation(); setDetailOrder(order); }}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'monospace', fontWeight: 800, color: '#0EA5E9', fontSize: 11, padding: 0, textDecoration: 'underline dotted' }}>
+                              ORD-{order.id.substring(0, 8).toUpperCase()}
                             </button>
-                          ) : (
-                            <span style={{ fontSize: 10, color: '#64748B' }}>
-                              {order.status === 'DELIVERED' ? '✓ Received' : '—'}
-                            </span>
-                          )}
-                        </td>
-                        <td style={{ fontFamily: 'monospace' }}>
-                          <div style={{ fontWeight: 800, color: '#1E293B', fontSize: 12 }}>Rs. {order.netAmount.toFixed(2)}</div>
-                          {due > 0 && <div style={{ fontSize: 10, color: '#DC2626', marginTop: 2 }}>Due: Rs. {due.toLocaleString()}</div>}
-                          {order.overrideJustification && (
-                            <span style={{ fontSize: 9, color: '#DC2626', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 3, marginTop: 2 }}>
-                              <ShieldAlert style={{ width: 10, height: 10 }} /> Hold Bypassed
-                            </span>
-                          )}
-                        </td>
-                        <td style={{ textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
-                          <div style={{ display: 'flex', gap: 5, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-                            {(order.status === 'PENDING' || order.status === 'DISPATCHED') && (
-                              <button onClick={() => printDispatchLabel(order)} className="btn-ghost" style={{ padding: '4px 8px', fontSize: 10, gap: 3 }} title="Print Dispatch Label">
-                                <Tag style={{ width: 10, height: 10 }} /> Label
-                              </button>
-                            )}
-                            {order.status === 'PENDING' && (
-                              <button onClick={() => handleDispatchOrder(order.id)} className="btn-primary" style={{ padding: '5px 12px', fontSize: 10, gap: 4 }}>
-                                <Truck style={{ width: 11, height: 11 }} /> Ship
-                              </button>
-                            )}
-                            {order.status === 'DISPATCHED' && (
-                              <div style={{ display: 'flex', gap: 4 }}>
-                                <button onClick={() => handleConfirmOrder(order.id)} style={{ padding: '5px 12px', fontSize: 10, fontWeight: 700, borderRadius: 8, border: '1.5px solid #A7F3D0', background: '#ECFDF5', color: '#059669', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontFamily: 'inherit' }}>
-                                  Fulfill
-                                </button>
-                                <button onClick={() => handleUnsuccessfulDispatch(order.id)} style={{ padding: '5px 8px', fontSize: 10, fontWeight: 700, borderRadius: 8, border: '1.5px solid #FCA5A5', background: '#FEF2F2', color: '#DC2626', cursor: 'pointer' }}>
-                                  Fail
-                                </button>
+                            <span style={{ fontSize: 10, color: '#94A3B8', fontFamily: 'monospace', display: 'block', marginTop: 2 }}>{new Date(order.createdAt).toLocaleString()}</span>
+                          </td>
+                          <td>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <User style={{ width: 12, height: 12, color: '#0EA5E9', flexShrink: 0 }} />
+                              <span style={{ fontWeight: 700, fontSize: 12, color: '#1E293B' }}>{order.retailer.pharmacyName}</span>
+                            </div>
+                          </td>
+                          <td onClick={(e) => e.stopPropagation()}>
+                            <a 
+                              href={`https://www.google.com/maps?q=${order.retailer.latitude || 27.7172},${order.retailer.longitude || 85.3240}`}
+                              target="_blank" rel="noopener noreferrer"
+                              style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#0EA5E9', fontWeight: 600 }}
+                            >
+                              <MapPin style={{ width: 12, height: 12 }} /> Map
+                            </a>
+                          </td>
+                          <td style={{ maxWidth: 160 }}>
+                            {order.items.map((item) => (
+                              <div key={item.id} style={{ fontSize: 10, color: '#64748B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {item.product.name} ×{item.quantity}
                               </div>
+                            ))}
+                          </td>
+                          <td>
+                            <span style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: 'monospace', background: s.bg, color: s.color, border: `1px solid ${s.border}`, padding: '3px 10px', borderRadius: 20 }}>
+                              {order.status}
+                            </span>
+                          </td>
+                          <td onClick={(e) => e.stopPropagation()}>
+                            {order.status === 'DISPATCHED' ? (
+                              <button 
+                                onClick={() => toggleRetailerScan(order.id)}
+                                style={{
+                                  border: 'none', background: isScanned ? '#ECFDF5' : '#FFF7ED',
+                                  color: isScanned ? '#059669' : '#D97706',
+                                  fontSize: 10, fontWeight: 700, padding: '4px 8px', borderRadius: 8, cursor: 'pointer'
+                                }}
+                              >
+                                {isScanned ? '✓ Scanned' : '⚡ Simulate Scan'}
+                              </button>
+                            ) : (
+                              <span style={{ fontSize: 10, color: '#64748B' }}>
+                                {order.status === 'DELIVERED' ? '✓ Received' : '—'}
+                              </span>
                             )}
-                            {order.status === 'DELIVERED' && (
-                              <>
-                                <span style={{ fontSize: 10, color: '#059669', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
-                                  <CheckCircle style={{ width: 13, height: 13 }} /> Fulfilled
-                                </span>
-                                <button onClick={() => openReturnModal(order)} className="btn-ghost" style={{ padding: '4px 8px', fontSize: 10, gap: 3, color: '#DC2626', borderColor: '#FECACA' }} title="Process Return">
-                                  <RotateCcw style={{ width: 10, height: 10 }} /> Return
+                          </td>
+                          <td style={{ fontFamily: 'monospace' }}>
+                            <div style={{ fontWeight: 800, color: '#1E293B', fontSize: 12 }}>Rs. {order.netAmount.toFixed(2)}</div>
+                            {due > 0 && <div style={{ fontSize: 10, color: '#DC2626', marginTop: 2 }}>Due: Rs. {due.toLocaleString()}</div>}
+                            {order.overrideJustification && (
+                              <span style={{ fontSize: 9, color: '#DC2626', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 3, marginTop: 2 }}>
+                                <ShieldAlert style={{ width: 10, height: 10 }} /> Hold Bypassed
+                              </span>
+                            )}
+                          </td>
+                          <td style={{ textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
+                            <div style={{ display: 'flex', gap: 5, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                              {(order.status === 'PENDING' || order.status === 'DISPATCHED') && (
+                                <button onClick={() => printDispatchLabel(order)} className="btn-ghost" style={{ padding: '4px 8px', fontSize: 10, gap: 3 }} title="Print Dispatch Label">
+                                  <Tag style={{ width: 10, height: 10 }} /> Label
                                 </button>
-                              </>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
+                              )}
+                              {order.status === 'PENDING' && (
+                                <button onClick={() => handleDispatchOrder(order.id)} className="btn-primary" style={{ padding: '5px 12px', fontSize: 10, gap: 4 }}>
+                                  <Truck style={{ width: 11, height: 11 }} /> Ship
+                                </button>
+                              )}
+                              {order.status === 'DISPATCHED' && (
+                                <div style={{ display: 'flex', gap: 4 }}>
+                                  <button onClick={() => handleConfirmOrder(order.id)} style={{ padding: '5px 12px', fontSize: 10, fontWeight: 700, borderRadius: 8, border: '1.5px solid #A7F3D0', background: '#ECFDF5', color: '#059669', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontFamily: 'inherit' }}>
+                                    Fulfill
+                                  </button>
+                                  <button onClick={() => handleUnsuccessfulDispatch(order.id)} style={{ padding: '5px 8px', fontSize: 10, fontWeight: 700, borderRadius: 8, border: '1.5px solid #FCA5A5', background: '#FEF2F2', color: '#DC2626', cursor: 'pointer' }}>
+                                    Fail
+                                  </button>
+                                </div>
+                              )}
+                              {order.status === 'DELIVERED' && (
+                                <>
+                                  <span style={{ fontSize: 10, color: '#059669', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                    <CheckCircle style={{ width: 13, height: 13 }} /> Fulfilled
+                                  </span>
+                                  <button onClick={() => openReturnModal(order)} className="btn-ghost" style={{ padding: '4px 8px', fontSize: 10, gap: 3, color: '#DC2626', borderColor: '#FECACA' }} title="Process Return">
+                                    <RotateCcw style={{ width: 10, height: 10 }} /> Return
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    } else {
+                      // Detailed Table View
+                      return (
+                        <tr 
+                          key={order.id} 
+                          style={{ cursor: 'pointer' }}
+                          onClick={() => setDetailOrder(order)}
+                        >
+                          <td>
+                            <button onClick={(e) => { e.stopPropagation(); setDetailOrder(order); }}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'monospace', fontWeight: 800, color: '#0EA5E9', fontSize: 11, padding: 0, textDecoration: 'underline dotted' }}>
+                              ORD-{order.id.substring(0, 8).toUpperCase()}
+                            </button>
+                            <span style={{ fontSize: 10, color: '#94A3B8', fontFamily: 'monospace', display: 'block', marginTop: 2 }}>{new Date(order.createdAt).toLocaleString()}</span>
+                          </td>
+                          <td>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <User style={{ width: 12, height: 12, color: '#0EA5E9', flexShrink: 0 }} />
+                              <span style={{ fontWeight: 700, fontSize: 12, color: '#1E293B' }}>{order.retailer.pharmacyName}</span>
+                            </div>
+                            <span style={{ fontSize: 9, color: '#64748B', display: 'block' }}>Reg: {order.retailer.registrationNumber}</span>
+                          </td>
+                          <td onClick={(e) => e.stopPropagation()}>
+                            <a 
+                              href={`https://www.google.com/maps?q=${order.retailer.latitude || 27.7172},${order.retailer.longitude || 85.3240}`}
+                              target="_blank" rel="noopener noreferrer"
+                              style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#0EA5E9', fontWeight: 600 }}
+                            >
+                              <MapPin style={{ width: 12, height: 12 }} /> Map
+                            </a>
+                          </td>
+                          <td>
+                            {order.items.map((item) => (
+                              <div key={item.id} style={{ fontSize: 10, color: '#334155' }}>
+                                <strong>{item.product.name}</strong> ({item.product.sku})
+                                <br />
+                                <span style={{ color: '#64748B' }}>Qty: {item.quantity} boxes @ Rs. {item.pricePerUnit}/box</span>
+                              </div>
+                            ))}
+                          </td>
+                          <td style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 700 }}>
+                            Rs. {order.totalAmount.toFixed(2)}
+                          </td>
+                          <td style={{ fontFamily: 'monospace', fontSize: 11, color: '#EF4444' }}>
+                            Rs. {order.discountAmount.toFixed(2)}
+                          </td>
+                          <td style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 800 }}>
+                            Rs. {order.netAmount.toFixed(2)}
+                          </td>
+                          <td style={{ fontFamily: 'monospace', fontSize: 10 }}>
+                            <div style={{ color: '#10B981' }}>Paid: Rs. {paid.toLocaleString()}</div>
+                            <div style={{ color: due > 0 ? '#EF4444' : '#64748B' }}>Due: Rs. {due.toLocaleString()}</div>
+                          </td>
+                          <td style={{ fontSize: 10, color: '#DC2626', maxWidth: 120 }}>
+                            {order.overrideJustification || <span style={{ color: '#94A3B8' }}>None</span>}
+                          </td>
+                          <td style={{ fontSize: 9, color: '#475569', maxWidth: 150 }}>
+                            {order.items.flatMap(i => i.allocations || []).map((alloc, aidx) => (
+                              <div key={aidx}>
+                                Batch: {alloc.batchId.substring(0, 8)} (Qty: {alloc.quantity})
+                              </div>
+                            )) || <span style={{ color: '#94A3B8' }}>—</span>}
+                          </td>
+                          <td>
+                            <span style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: 'monospace', background: s.bg, color: s.color, border: `1px solid ${s.border}`, padding: '3px 10px', borderRadius: 20 }}>
+                              {order.status}
+                            </span>
+                          </td>
+                          <td style={{ textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
+                            <div style={{ display: 'flex', gap: 5, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                              {(order.status === 'PENDING' || order.status === 'DISPATCHED') && (
+                                <button onClick={() => printDispatchLabel(order)} className="btn-ghost" style={{ padding: '4px 8px', fontSize: 10, gap: 3 }} title="Print Dispatch Label">
+                                  <Tag style={{ width: 10, height: 10 }} /> Label
+                                </button>
+                              )}
+                              {order.status === 'PENDING' && (
+                                <button onClick={() => handleDispatchOrder(order.id)} className="btn-primary" style={{ padding: '5px 12px', fontSize: 10, gap: 4 }}>
+                                  <Truck style={{ width: 11, height: 11 }} /> Ship
+                                </button>
+                              )}
+                              {order.status === 'DISPATCHED' && (
+                                <div style={{ display: 'flex', gap: 4 }}>
+                                  <button onClick={() => handleConfirmOrder(order.id)} style={{ padding: '5px 12px', fontSize: 10, fontWeight: 700, borderRadius: 8, border: '1.5px solid #A7F3D0', background: '#ECFDF5', color: '#059669', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontFamily: 'inherit' }}>
+                                    Fulfill
+                                  </button>
+                                  <button onClick={() => handleUnsuccessfulDispatch(order.id)} style={{ padding: '5px 8px', fontSize: 10, fontWeight: 700, borderRadius: 8, border: '1.5px solid #FCA5A5', background: '#FEF2F2', color: '#DC2626', cursor: 'pointer' }}>
+                                    Fail
+                                  </button>
+                                </div>
+                              )}
+                              {order.status === 'DELIVERED' && (
+                                <>
+                                  <span style={{ fontSize: 10, color: '#059669', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                    <CheckCircle style={{ width: 13, height: 13 }} /> Fulfilled
+                                  </span>
+                                  <button onClick={() => openReturnModal(order)} className="btn-ghost" style={{ padding: '4px 8px', fontSize: 10, gap: 3, color: '#DC2626', borderColor: '#FECACA' }} title="Process Return">
+                                    <RotateCcw style={{ width: 10, height: 10 }} /> Return
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    }
                   })}
                 </tbody>
               </table>
@@ -718,9 +913,38 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
         {/* RIGHT — Order Creator Panel */}
         <div style={{ background: 'rgba(255,255,255,0.95)', border: '1.5px solid rgba(14,165,233,0.25)', borderRadius: 18, padding: 20, boxShadow: '0 4px 20px rgba(14,165,233,0.08)', display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={{ borderBottom: '1px solid #F1F5F9', paddingBottom: 12 }}>
-            <h2 style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#1E293B', display: 'flex', alignItems: 'center', gap: 6 }}>
-              <ShoppingCart style={{ width: 14, height: 14, color: '#0EA5E9' }} /> B2B Order Creator
-            </h2>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h2 style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#1E293B', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <ShoppingCart style={{ width: 14, height: 14, color: '#0EA5E9' }} /> B2B Order Creator
+              </h2>
+              {/* Pricing Mode Toggle */}
+              <div style={{ display: 'flex', gap: 4, background: '#F1F5F9', padding: 3, borderRadius: 10 }}>
+                <button
+                  type="button"
+                  onClick={() => setUseTierPricing(false)}
+                  style={{
+                    padding: '3px 8px', border: 'none', borderRadius: 7, fontSize: 9, fontWeight: 700, cursor: 'pointer',
+                    background: !useTierPricing ? 'white' : 'transparent',
+                    color: !useTierPricing ? '#0EA5E9' : '#94A3B8',
+                    boxShadow: !useTierPricing ? '0 1px 3px rgba(0,0,0,0.08)' : 'none'
+                  }}
+                >
+                  Flat Price
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setUseTierPricing(true)}
+                  style={{
+                    padding: '3px 8px', border: 'none', borderRadius: 7, fontSize: 9, fontWeight: 700, cursor: 'pointer',
+                    background: useTierPricing ? 'white' : 'transparent',
+                    color: useTierPricing ? '#F97316' : '#94A3B8',
+                    boxShadow: useTierPricing ? '0 1px 3px rgba(0,0,0,0.08)' : 'none'
+                  }}
+                >
+                  Tier Pricing
+                </button>
+              </div>
+            </div>
             <p style={{ fontSize: 11, color: '#64748B', marginTop: 4 }}>Scan barcodes or select medicines to create a pharmacy order.</p>
           </div>
 
@@ -818,26 +1042,167 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
                           {filteredProducts.length === 0 ? (
                             <div style={{ padding: '8px 12px', fontSize: 11, color: '#94A3B8', textAlign: 'center' }}>No medicines found</div>
                           ) : (
-                            filteredProducts.map(p => (
-                              <button key={p.id} onClick={() => { setSelectedProductId(p.id); setMedicineSearch(''); setShowMedicineDropdown(false); }}
-                                style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px', border: 'none', background: 'none', cursor: 'pointer', fontFamily: 'inherit' }}
-                                onMouseEnter={e => (e.currentTarget.style.background = '#FFF7ED')}
-                                onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
-                                <div style={{ fontSize: 12, fontWeight: 700, color: '#1E293B' }}>{p.name}</div>
-                                <div style={{ fontSize: 10, color: '#64748B' }}>SKU: {p.sku}</div>
-                              </button>
-                            ))
+                            filteredProducts.map(p => {
+                              const tabletsPerBox = p.tabletsPerStrip * p.stripsPerBox;
+                              return (
+                                <button key={p.id} onClick={() => { setSelectedProductId(p.id); setMedicineSearch(''); setShowMedicineDropdown(false); }}
+                                  style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px', border: 'none', background: 'none', borderBottom: '1px solid #F1F5F9', cursor: 'pointer', fontFamily: 'inherit' }}
+                                  onMouseEnter={e => (e.currentTarget.style.background = '#FFF7ED')}
+                                  onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
+                                  <div style={{ fontSize: 12, fontWeight: 700, color: '#1E293B' }}>{p.name}</div>
+                                  <div style={{ fontSize: 10, color: '#64748B', display: 'flex', flexDirection: 'column', gap: 2, marginTop: 2 }}>
+                                    <div>SKU: {p.sku}</div>
+                                    {p.batches && p.batches.length > 0 ? (
+                                      <div style={{ display: 'flex', flexDirection: 'column', gap: 1, paddingLeft: 4, borderLeft: '2px solid #E2E8F0', marginTop: 2 }}>
+                                        {p.batches.map((b: any) => {
+                                          const bx = Math.floor(b.availableBaseUnits / tabletsPerBox);
+                                          const remaining = b.availableBaseUnits % tabletsPerBox;
+                                          const st = Math.floor(remaining / p.tabletsPerStrip);
+                                          const tb = remaining % p.tabletsPerStrip;
+                                          const expStr = new Date(b.expiryDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+                                          return (
+                                            <span key={b.id} style={{ fontSize: 9, color: '#475569' }}>
+                                              Batch: <strong>{b.batchNumber}</strong> | Stock: {bx} Bx, {st} St, {tb} Tb | Exp: {expStr}
+                                            </span>
+                                          );
+                                        })}
+                                      </div>
+                                    ) : (
+                                      <div style={{ fontSize: 9, color: '#EF4444' }}>Out of Stock</div>
+                                    )}
+                                  </div>
+                                </button>
+                              );
+                            })
                           )}
                         </div>
                       )}
                     </>
                   )}
                 </div>
+                {selectedProduct && (() => {
+                  const prodObj = products.find(p => p.id === selectedProduct.id) as any;
+                  const tiers = JSON.parse(prodObj?.tierPricingJson || '[]');
+                  const allBatches: any[] = (prodObj?.batches || []);
+                  // Sort batches: earliest expiry first (FIFO recommended)
+                  const sortedBatches = [...allBatches]
+                    .filter((b: any) => new Date(b.expiryDate) > new Date())
+                    .sort((a: any, b: any) => new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime());
+                  const recommendedBatchId = sortedBatches.find((b: any) => b.availableBaseUnits > 0)?.id;
+                  const activeBatch = selectedBatchIdForOrder
+                    ? allBatches.find((b: any) => b.id === selectedBatchIdForOrder)
+                    : sortedBatches.find((b: any) => b.availableBaseUnits > 0);
+                  const purchasePrice = activeBatch?.purchasePricePerBox ?? 'N/A';
+                  const defaultSellingPrice = activeBatch?.sellingPricePerBox ?? 'N/A';
+                  const profit = (activeBatch && typeof purchasePrice === 'number' && typeof defaultSellingPrice === 'number')
+                    ? (defaultSellingPrice - purchasePrice).toFixed(2) : 'N/A';
+
+                  return (
+                    <>
+                      {/* Batch Selector */}
+                      {sortedBatches.length > 0 && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          <div style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', color: '#64748B', letterSpacing: '0.06em' }}>Select Batch</div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 140, overflowY: 'auto' }}>
+                            {sortedBatches.map((b: any) => {
+                              const tbx = prodObj.tabletsPerStrip * prodObj.stripsPerBox;
+                              const bx = Math.floor(b.availableBaseUnits / tbx);
+                              const rem = b.availableBaseUnits % tbx;
+                              const st = Math.floor(rem / prodObj.tabletsPerStrip);
+                              const tb = rem % prodObj.tabletsPerStrip;
+                              const expStr = new Date(b.expiryDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+                              const isRecommended = b.id === recommendedBatchId;
+                              const isSelected = (selectedBatchIdForOrder || recommendedBatchId) === b.id;
+                              const isOutOfStock = b.availableBaseUnits === 0;
+                              return (
+                                <button
+                                  key={b.id}
+                                  type="button"
+                                  onClick={() => setSelectedBatchIdForOrder(b.id)}
+                                  disabled={isOutOfStock}
+                                  style={{
+                                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                    padding: '7px 10px', border: isSelected ? '1.5px solid #F97316' : '1.5px solid #E2E8F0',
+                                    borderRadius: 8, background: isSelected ? '#FFF7ED' : (isOutOfStock ? '#F8FAFC' : 'white'),
+                                    cursor: isOutOfStock ? 'not-allowed' : 'pointer', textAlign: 'left',
+                                    opacity: isOutOfStock ? 0.5 : 1, fontFamily: 'inherit', width: '100%'
+                                  }}
+                                >
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                                      <span style={{ fontWeight: 700, fontSize: 11, color: '#1E293B', fontFamily: 'monospace' }}>{b.batchNumber}</span>
+                                      {isRecommended && (
+                                        <span style={{ fontSize: 8, fontWeight: 800, background: '#F97316', color: 'white', padding: '1px 5px', borderRadius: 4 }}>⭐ RECOMMENDED</span>
+                                      )}
+                                      {isOutOfStock && (
+                                        <span style={{ fontSize: 8, fontWeight: 800, background: '#FEE2E2', color: '#DC2626', padding: '1px 5px', borderRadius: 4 }}>OUT OF STOCK</span>
+                                      )}
+                                    </div>
+                                    <div style={{ fontSize: 9, color: '#64748B' }}>
+                                      Exp: <strong>{expStr}</strong> &nbsp;|&nbsp; Stock: {bx} Bx, {st} St, {tb} Tb
+                                    </div>
+                                  </div>
+                                  <div style={{ textAlign: 'right', flexShrink: 0, fontSize: 10 }}>
+                                    <div style={{ color: '#64748B' }}>Buy: Rs.{b.purchasePricePerBox}</div>
+                                    <div style={{ fontWeight: 700, color: '#F97316' }}>Sell: Rs.{b.sellingPricePerBox}</div>
+                                  </div>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Medicine Info Box */}
+                      <div style={{ background: '#FFF7ED', border: '1px solid #FFEDD5', borderRadius: 8, padding: 10, fontSize: 11, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <div style={{ fontWeight: 800, color: '#C2410C' }}>Batch Info:</div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span>Buying Price:</span>
+                          <span style={{ fontWeight: 700 }}>Rs. {purchasePrice}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span>Selling Price:</span>
+                          <span style={{ fontWeight: 700, color: '#F97316' }}>Rs. {defaultSellingPrice}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', color: '#059669' }}>
+                          <span>Profit / Box:</span>
+                          <span style={{ fontWeight: 700 }}>Rs. {profit}</span>
+                        </div>
+                        {tiers.length > 0 && (
+                          <div style={{ marginTop: 4 }}>
+                            <div style={{ fontWeight: 700, color: '#EA580C', marginBottom: 2 }}>Volume Tiers:</div>
+                            {tiers.map((t: any, idx: number) => (
+                              <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', paddingLeft: 6, color: '#7C2D12', fontSize: 10 }}>
+                                <span>{t.minQty}–{t.maxQty || '∞'} boxes:</span>
+                                <span style={{ fontWeight: 700 }}>Rs. {t.pricePerBox}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  );
+                })()}
+
                 <div style={{ display: 'flex', gap: 6 }}>
                   <input type="number" min="1" placeholder="Qty (boxes)" value={currentQtyBoxes} onChange={(e) => setCurrentQtyBoxes(e.target.value)}
+                    onFocus={(e) => e.target.select()}
                     className="input-crisp" style={{ width: 90, textAlign: 'center', fontFamily: 'monospace', fontWeight: 700 }} />
                   <button type="button" className="btn-primary" style={{ flex: 1, justifyContent: 'center', padding: '8px', fontSize: 11 }}
-                    onClick={() => { if (selectedProductId) { addToBasket(selectedProductId, parseInt(currentQtyBoxes) || 1); setSelectedProductId(''); setCurrentQtyBoxes('5'); logActivity('ADD_BASKET_MANUAL', 'Added item to basket manually'); } }}>
+                    onClick={() => {
+                      if (selectedProductId) {
+                        const prodObj = products.find(p => p.id === selectedProductId) as any;
+                        const sortedBatches = [...(prodObj?.batches || [])]
+                          .filter((b: any) => new Date(b.expiryDate) > new Date())
+                          .sort((a: any, b: any) => new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime());
+                        const batchId = selectedBatchIdForOrder || sortedBatches.find((b: any) => b.availableBaseUnits > 0)?.id || '';
+                        addToBasket(selectedProductId, batchId, parseInt(currentQtyBoxes) || 1);
+                        setSelectedProductId('');
+                        setSelectedBatchIdForOrder('');
+                        setCurrentQtyBoxes('5');
+                        logActivity('ADD_BASKET_MANUAL', 'Added item to basket manually');
+                      }
+                    }}>
                     Add to Order
                   </button>
                 </div>
@@ -854,7 +1219,7 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
                       <span style={{ fontSize: 11, fontWeight: 600, color: '#1E293B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 140 }}>{item.name}</span>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <span style={{ fontFamily: 'monospace', fontSize: 10, color: '#64748B' }}>{item.qty} × Rs.{item.pricePerBox}</span>
-                        <button type="button" onClick={() => { logActivity('REMOVE_BASKET_ITEM', 'Removed item from basket'); removeFromBasket(basket[idx].productId); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#EF4444', padding: 2 }}>
+                        <button type="button" onClick={() => { logActivity('REMOVE_BASKET_ITEM', 'Removed item from basket'); removeFromBasket(basket[idx].productId, basket[idx].batchId); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#EF4444', padding: 2 }}>
                           <Trash2 style={{ width: 13, height: 13 }} />
                         </button>
                       </div>
@@ -866,6 +1231,7 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
                       <input 
                         type="number" min="0" max="100" value={orderDiscountPercent} 
                         onChange={e => setOrderDiscountPercent(e.target.value)} 
+                        onFocus={(e) => e.target.select()}
                         className="input-crisp" style={{ fontSize: 11, padding: 4, width: '100%', textAlign: 'center' }} 
                       />
                     </div>
@@ -874,6 +1240,7 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
                       <input 
                         type="number" min="0" max="100" value={orderTaxPercent} 
                         onChange={e => setOrderTaxPercent(e.target.value)} 
+                        onFocus={(e) => e.target.select()}
                         className="input-crisp" style={{ fontSize: 11, padding: 4, width: '100%', textAlign: 'center' }} 
                       />
                     </div>
@@ -1328,12 +1695,16 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
               {/* Items included section */}
               <div style={{ border: '1.5px solid #000', padding: '10px', borderRadius: 8, marginTop: 10 }}>
                 <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', color: '#64748B', marginBottom: 4 }}>Items List</div>
-                {printPreviewOrder.items.map(item => (
-                  <div key={item.id} style={{ padding: '4px 0', borderBottom: '1px dashed #ccc', fontSize: 11, display: 'flex', justifyContent: 'space-between' }}>
-                    <span>{item.product.name}</span>
-                    <strong>{item.quantity} boxes</strong>
-                  </div>
-                ))}
+                {printPreviewOrder.items.map(item => {
+                  const tbx = (item.product.tabletsPerStrip || 10) * (item.product.stripsPerBox || 10);
+                  const boxes = Math.floor(item.quantity / tbx);
+                  return (
+                    <div key={item.id} style={{ padding: '4px 0', borderBottom: '1px dashed #ccc', fontSize: 11, display: 'flex', justifyContent: 'space-between' }}>
+                      <span>{item.product.name}</span>
+                      <strong>{boxes} boxes</strong>
+                    </div>
+                  );
+                })}
               </div>
 
               <div style={{ marginTop: 14, fontSize: 8.5, textAlign: 'center', color: '#64748B', borderTop: '1px dashed #ccc', paddingTop: 6 }}>
@@ -1359,7 +1730,88 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
             <div style={{ display: 'flex', gap: 10, borderTop: '1px solid #F1F5F9', paddingTop: 14 }} className="no-print">
               <button 
                 onClick={() => {
-                  window.print();
+                  const printWindow = window.open('', '_blank', 'width=380,height=550');
+                  if (printWindow) {
+                    const pagesHtml = `
+                      <div id="print-area" style="background: white; border: 1.5px solid #000; padding: 20px; border-radius: 12px; color: black; fontFamily: monospace; font-size: 12px;">
+                        <div style="font-size: 16px; font-weight: 900; text-transform: uppercase; border-bottom: 2.5px solid #000; padding-bottom: 6px; margin-bottom: 12px; font-family: monospace;">
+                          Dispatch Shipment Label
+                        </div>
+                        <div style="margin-bottom: 8px; font-family: monospace;">
+                          <div style="font-size: 9px; font-weight: 700; text-transform: uppercase; color: #64748B;">Order ID</div>
+                          <strong style="font-size: 13px;">ORD-${printPreviewOrder.id.substring(0, 12).toUpperCase()}</strong>
+                        </div>
+                        <div style="margin-bottom: 8px; font-family: monospace;">
+                          <div style="font-size: 9px; font-weight: 700; text-transform: uppercase; color: #64748B;">Deliver To</div>
+                          <strong style="font-size: 13px;">${printPreviewOrder.retailer.pharmacyName}</strong>
+                          <div>${printPreviewOrder.retailer.address || 'N/A'}</div>
+                        </div>
+                        <div style="margin-bottom: 12px; font-family: monospace;">
+                          <div style="font-size: 9px; font-weight: 700; text-transform: uppercase; color: #64748B;">Dispatch Date</div>
+                          <div>${new Date(printPreviewOrder.createdAt).toLocaleDateString()}</div>
+                        </div>
+
+                        <div style="display: flex; flex-direction: column; align-items: center; margin: 14px 0; gap: 6px; font-family: monospace;">
+                          <div style="display: flex; align-items: flex-end; justify-content: center; height: 48px; background: white; padding: 4px 8px; border: 1px solid #000; border-radius: 4px; width: 100%;">
+                            ${[1,0,1,1,0,1,0,0,2,0,1,0,2,0,0,1,0,2,0,1,0,0,2,0,1,0,1,0,0,1,0,2,0,0,2,0,1,0,2,0,0,1,0,1,1,0,1,0,0].map((width) => {
+                              if (width === 0) return '<div style="width: 2px; height: 100%; background: transparent;"></div>';
+                              return `<div style="width: ${width * 2}px; height: 100%; background: black;"></div>`;
+                            }).join('')}
+                          </div>
+                          <div style="font-size: 11px; font-weight: 800; letter-spacing: 0.05em;">
+                            ${manualBarcodeText}
+                          </div>
+                        </div>
+
+                        <div style="border: 1.5px solid #000; padding: 10px; border-radius: 8px; margin-top: 10px; font-family: monospace;">
+                          <div style="font-size: 9px; font-weight: 700; text-transform: uppercase; color: #64748B; margin-bottom: 4px;">Items List</div>
+                          ${printPreviewOrder.items.map(item => {
+                            const tbx = (item.product.tabletsPerStrip || 10) * (item.product.stripsPerBox || 10);
+                            const boxes = Math.floor(item.quantity / tbx);
+                            return `
+                              <div style="padding: 4px 0; border-bottom: 1px dashed #ccc; fontSize: 11px; display: flex; justify-content: space-between; font-family: monospace;">
+                                <span>${item.product.name}</span>
+                                <strong>${boxes} boxes</strong>
+                              </div>
+                            `;
+                          }).join('')}
+                        </div>
+
+                        <div style="margin-top: 14px; font-size: 8.5px; text-align: center; color: #64748B; border-top: 1px dashed #ccc; padding-top: 6px; font-family: monospace;">
+                          Scan this label on delivery — MedHub Wholesaler Distribution
+                        </div>
+                      </div>
+                    `;
+                    printWindow.document.write(`
+                      <html>
+                        <head>
+                          <title>Shipment Label Print</title>
+                          <style>
+                            @page { size: auto; margin: 5mm; }
+                            body { margin: 0; padding: 0; background-color: white; font-family: monospace; }
+                          </style>
+                        </head>
+                        <body>
+                          \${pagesHtml}
+                          <script>
+                            var printed = false;
+                            function doPrint() {
+                              if (printed) return;
+                              printed = true;
+                              window.print();
+                              window.close();
+                            }
+                            window.onload = function() {
+                              setTimeout(doPrint, 200);
+                            };
+                            // Safety fallback
+                            setTimeout(doPrint, 2000);
+                          </script>
+                        </body>
+                      </html>
+                    `);
+                    printWindow.document.close();
+                  }
                   logActivity('PRINT_SHIPMENT_LABEL', `Printed dispatch shipping label for Order ${printPreviewOrder.id.substring(0, 8)}`);
                 }}
                 className="btn-primary" 

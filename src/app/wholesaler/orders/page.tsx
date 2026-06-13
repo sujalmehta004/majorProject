@@ -32,8 +32,11 @@ export default async function WholesalerOrdersPage() {
     redirect('/subscription-expired');
   }
 
-  // Load all registered retailers in the database to populate the sandbox dropdown
+  // Load registered retailers belonging to this wholesaler
   const retailers = await db.retailerProfile.findMany({
+    where: {
+      wholesalerId: profile.id,
+    },
     orderBy: { pharmacyName: 'asc' },
     select: {
       id: true,

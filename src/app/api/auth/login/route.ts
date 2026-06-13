@@ -4,14 +4,10 @@ import { comparePassword, setSessionCookie } from '@/lib/auth';
 
 export async function POST(request: Request) {
   try {
-    const { email, password, isStaff, shopId } = await request.json();
+    const { email, password } = await request.json();
 
     if (!email || !password) {
       return NextResponse.json({ error: 'Email and password are required' }, { status: 400 });
-    }
-
-    if (isStaff && !shopId) {
-      return NextResponse.json({ error: 'Wholesaler Shop ID is required for staff login' }, { status: 400 });
     }
 
     const user = await db.user.findUnique({
@@ -20,15 +16,6 @@ export async function POST(request: Request) {
 
     if (!user) {
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
-    }
-
-    if (isStaff) {
-      if (user.role !== 'WHOLESALER_STAFF') {
-        return NextResponse.json({ error: 'Unauthorized role for staff login' }, { status: 403 });
-      }
-      if (user.wholesalerId !== shopId) {
-        return NextResponse.json({ error: 'Staff account not associated with this Shop ID' }, { status: 403 });
-      }
     }
 
     const isMatch = await comparePassword(password, user.passwordHash);
@@ -89,7 +76,7 @@ export async function POST(request: Request) {
 
     // Determine dashboard redirect
     let redirectUrl = '/';
-    if (user.role === 'WHOLESALER') redirectUrl = '/wholesaler/dashboard';
+    if (user.role === 'WHOLESALER' || user.role === 'WHOLESALER_STAFF') redirectUrl = '/wholesaler/dashboard';
     else if (user.role === 'RETAILER') redirectUrl = '/retailer/dashboard';
     else if (user.role === 'SUPERADMIN') redirectUrl = '/superadmin/matrix-dashboard';
     else if (user.role === 'CLINIC') redirectUrl = '/'; // CLINIC has no functional dashboard in Sprint 1

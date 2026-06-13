@@ -6,7 +6,7 @@ export async function POST() {
   return NextResponse.json({ success: true, message: 'Logged out successfully.' });
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   await clearSessionCookie();
-  return NextResponse.json({ success: true, message: 'Logged out successfully.' });
+  return NextResponse.redirect(new URL('/login', request.url));
 }

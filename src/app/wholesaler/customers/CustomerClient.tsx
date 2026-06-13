@@ -3,10 +3,10 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Users, Search, ChevronRight, ShoppingBag, CreditCard, Mail, Phone, 
-  MapPin, Calendar, Receipt, TrendingUp, Info, Plus, X, UserPlus, CheckCircle, AlertCircle, FileText
+  MapPin, Calendar, Receipt, TrendingUp, Info, Plus, X, UserPlus, CheckCircle, AlertCircle, FileText, Filter, SlidersHorizontal
 } from 'lucide-react';
 import { useSSEListener } from '@/hooks/useRealtimeData';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 
 interface OrderItem {
   id: string;
@@ -51,10 +51,15 @@ interface CustomerClientProps {
 
 export default function CustomerClient({ customers: initialCustomers, wholesalerId }: CustomerClientProps) {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [customers, setCustomers] = useState<Customer[]>(initialCustomers);
+  
+  // Filters and Sorting
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(searchParams.get('id') || null);
+  const [dueFilter, setDueFilter] = useState<'all' | 'due' | 'cleared'>('all');
+  const [spendFilter, setSpendFilter] = useState<'all' | 'high' | 'medium' | 'low'>('all');
+  const [sortOrder, setSortOrder] = useState<'alpha' | 'spend' | 'due'>('alpha');
+
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
 
   // Add Customer Modal state
   const [showAddModal, setShowAddModal] = useState(false);
@@ -86,9 +91,6 @@ export default function CustomerClient({ customers: initialCustomers, wholesaler
   // Sync state with prop updates
   useEffect(() => {
     setCustomers(initialCustomers);
-    if (initialCustomers.length > 0 && !selectedCustomerId) {
-      setSelectedCustomerId(initialCustomers[0].id);
-    }
     
     // Load local storage payments mapping
     const storedPayments = localStorage.getItem('medhub_order_payments');
@@ -149,15 +151,6 @@ export default function CustomerClient({ customers: initialCustomers, wholesaler
     setSettlingOrderId(null);
   };
 
-  const filteredCustomers = customers.filter(c => 
-    c.pharmacyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    c.user.fullName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    c.phone.includes(searchTerm)
-  );
-
-  const selectedCustomer = customers.find(c => c.id === selectedCustomerId) || filteredCustomers[0];
-
-  // Calculate statements balances
   const calculateCustomerBalance = (customer: Customer) => {
     if (!customer) return { totalPaid: 0, totalPending: 0 };
     let totalPaid = 0;
@@ -170,7 +163,45 @@ export default function CustomerClient({ customers: initialCustomers, wholesaler
     return { totalPaid, totalPending };
   };
 
+  // Filter and Sort Logic
+  let filteredCustomers = customers.filter(c => {
+    const matchesSearch = c.pharmacyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      c.user.fullName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      c.phone.includes(searchTerm);
+    if (!matchesSearch) return false;
+
+    const { totalPending: pendingVal } = calculateCustomerBalance(c);
+    if (dueFilter === 'due' && pendingVal <= 0) return false;
+    if (dueFilter === 'cleared' && pendingVal > 0) return false;
+
+    if (spendFilter === 'high' && c.lifetimeSpend < 100000) return false;
+    if (spendFilter === 'medium' && (c.lifetimeSpend < 20000 || c.lifetimeSpend >= 100000)) return false;
+    if (spendFilter === 'low' && c.lifetimeSpend >= 20000) return false;
+
+    return true;
+  });
+
+  filteredCustomers = [...filteredCustomers].sort((a, b) => {
+    if (sortOrder === 'spend') {
+      return b.lifetimeSpend - a.lifetimeSpend;
+    }
+    if (sortOrder === 'due') {
+      const dueA = calculateCustomerBalance(a).totalPending;
+      const dueB = calculateCustomerBalance(b).totalPending;
+      return dueB - dueA;
+    }
+    return a.pharmacyName.localeCompare(b.pharmacyName);
+  });
+
+  const selectedCustomer = customers.find(c => c.id === selectedCustomerId);
   const { totalPaid, totalPending } = selectedCustomer ? calculateCustomerBalance(selectedCustomer) : { totalPaid: 0, totalPending: 0 };
+
+  const clearFilters = () => {
+    setSearchTerm('');
+    setDueFilter('all');
+    setSpendFilter('all');
+    setSortOrder('alpha');
+  };
 
   return (
     <div className="space-y-6 animate-fadeIn">
@@ -195,40 +226,108 @@ export default function CustomerClient({ customers: initialCustomers, wholesaler
         </button>
       </div>
 
-      {/* Main Grid Split */}
-      <div style={{ display: 'grid', gridTemplateColumns: '380px 1fr', gap: 16, alignItems: 'start' }}>
+      {/* Advanced Filter Panel */}
+      <div style={{
+        display: 'flex', flexWrap: 'wrap', gap: 12, padding: '14px 20px',
+        background: 'rgba(255,255,255,0.8)', backdropFilter: 'blur(12px)',
+        border: '1px solid rgba(226,232,240,0.8)', borderRadius: 16,
+        boxShadow: '0 4px 20px rgba(0,0,0,0.02)'
+      }}>
+        {/* Search */}
+        <div style={{ minWidth: 200, flex: '1 1 200px' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, fontWeight: 700, color: '#475569', textTransform: 'uppercase', marginBottom: 6 }}>
+            <Search style={{ width: 12, height: 12, color: '#0EA5E9' }} /> Search Retailers
+          </label>
+          <input
+            type="text"
+            placeholder="Search by pharmacy, contact, phone..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="filter-input"
+            style={{ width: '100%', padding: '8px 12px', fontSize: 12, border: '1.5px solid #E2E8F0', borderRadius: 10, outline: 'none', background: 'white' }}
+          />
+        </div>
+
+        {/* Due Status Filter */}
+        <div style={{ minWidth: 140 }}>
+          <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#475569', textTransform: 'uppercase', marginBottom: 6 }}>Due Status</label>
+          <select
+            value={dueFilter}
+            onChange={(e: any) => setDueFilter(e.target.value)}
+            className="filter-select"
+            style={{ width: '100%', padding: '8px 12px', fontSize: 12, border: '1.5px solid #E2E8F0', borderRadius: 10, outline: 'none', background: 'white', cursor: 'pointer' }}
+          >
+            <option value="all">All Statuses</option>
+            <option value="due">Has Outstanding Due</option>
+            <option value="cleared">Cleared Accounts</option>
+          </select>
+        </div>
+
+        {/* Spending Tier Filter */}
+        <div style={{ minWidth: 140 }}>
+          <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#475569', textTransform: 'uppercase', marginBottom: 6 }}>Spending Tier</label>
+          <select
+            value={spendFilter}
+            onChange={(e: any) => setSpendFilter(e.target.value)}
+            className="filter-select"
+            style={{ width: '100%', padding: '8px 12px', fontSize: 12, border: '1.5px solid #E2E8F0', borderRadius: 10, outline: 'none', background: 'white', cursor: 'pointer' }}
+          >
+            <option value="all">All Tiers</option>
+            <option value="high">High Spend (&gt;Rs.100k)</option>
+            <option value="medium">Medium Spend (Rs.20k - Rs.100k)</option>
+            <option value="low">Low Spend (&lt;Rs.20k)</option>
+          </select>
+        </div>
+
+        {/* Sorting Selection */}
+        <div style={{ minWidth: 140 }}>
+          <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#475569', textTransform: 'uppercase', marginBottom: 6 }}>Sort Order</label>
+          <select
+            value={sortOrder}
+            onChange={(e: any) => setSortOrder(e.target.value)}
+            className="filter-select"
+            style={{ width: '100%', padding: '8px 12px', fontSize: 12, border: '1.5px solid #E2E8F0', borderRadius: 10, outline: 'none', background: 'white', cursor: 'pointer' }}
+          >
+            <option value="alpha">Pharmacy Name (A-Z)</option>
+            <option value="spend">Lifetime Spend (Highest)</option>
+            <option value="due">Outstanding Due (Highest)</option>
+          </select>
+        </div>
+
+        {/* Clear Filters Button */}
+        {(searchTerm || dueFilter !== 'all' || spendFilter !== 'all' || sortOrder !== 'alpha') && (
+          <div style={{ display: 'flex', alignItems: 'end' }}>
+            <button
+              onClick={clearFilters}
+              style={{
+                padding: '8px 16px', background: '#FEF2F2', border: '1.5px solid #FCA5A5',
+                color: '#EF4444', borderRadius: 10, fontSize: 11, fontWeight: 700,
+                cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6
+              }}
+            >
+              <X style={{ width: 12, height: 12 }} /> Clear Filters
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Main Grid Split - Side-by-Side Detail View */}
+      <div style={{ display: 'grid', gridTemplateColumns: '360px 1fr', gap: 16, alignItems: 'start' }}>
         {/* Left Side: Customer List */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {/* Search bar */}
-          <div className="filter-bar" style={{ padding: '10px 14px' }}>
-            <div className="filter-field" style={{ minWidth: 'unset' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'white', border: '1px solid rgba(186,230,253,0.6)', borderRadius: 8, padding: '6px 12px', width: '100%' }}>
-                <Search style={{ width: 14, height: 14, color: '#94A3B8' }} />
-                <input
-                  type="text"
-                  placeholder="Filter by pharmacy name..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  style={{ border: 'none', outline: 'none', fontSize: 12, width: '100%', color: '#1E293B' }}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* List Wrapper */}
-          <div className="card" style={{ background: 'rgba(255,255,255,0.85)', padding: 10, display: 'flex', flexDirection: 'column', gap: 6, maxHeight: '65vh', overflowY: 'auto' }}>
+          <div className="card" style={{ background: 'rgba(255,255,255,0.85)', padding: 10, display: 'flex', flexDirection: 'column', gap: 6, maxHeight: '68vh', overflowY: 'auto' }}>
             {filteredCustomers.length === 0 ? (
-              <div style={{ padding: '32px 16px', textAlign: 'center', color: '#94A3B8', fontSize: 12, fontStyle: 'italic' }}>
-                No customers found matching search.
+              <div style={{ padding: '48px 16px', textAlign: 'center', color: '#94A3B8', fontSize: 12, fontStyle: 'italic' }}>
+                No customers found matching filters.
               </div>
             ) : (
               filteredCustomers.map(c => {
-                const isSelected = selectedCustomer?.id === c.id;
+                const isSelected = selectedCustomerId === c.id;
                 const { totalPending: pendingVal } = calculateCustomerBalance(c);
                 return (
                   <button
                     key={c.id}
-                    onClick={() => setSelectedCustomerId(c.id)}
+                    onClick={() => setSelectedCustomerId(isSelected ? null : c.id)}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
@@ -269,14 +368,12 @@ export default function CustomerClient({ customers: initialCustomers, wholesaler
             )}
           </div>
         </div>
-      </div>
 
-
-        {/* Right Side: Customer Detail Modal */}
-        {selectedCustomer && selectedCustomerId && (
-          <div className="modal-overlay" onClick={() => setSelectedCustomerId(null)}>
-            <div className="modal-card animate-scaleIn" style={{ '--modal-max-width': '780px' } as React.CSSProperties} onClick={e => e.stopPropagation()}>
-              <div className="modal-header">
+        {/* Right Side: Customer Detail Pane */}
+        <div className="card" style={{ background: 'rgba(255,255,255,0.85)', padding: 20, minHeight: '50vh' }}>
+          {selectedCustomer && selectedCustomerId ? (
+            <div className="space-y-6">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #F1F5F9', paddingBottom: 12 }}>
                 <div>
                   <h3 style={{ fontSize: 15, fontWeight: 900, color: '#1E293B', display: 'flex', alignItems: 'center', gap: 6 }}>
                     <Users style={{ width: 18, height: 18, color: '#F97316' }} />
@@ -289,130 +386,130 @@ export default function CustomerClient({ customers: initialCustomers, wholesaler
                 </button>
               </div>
 
-              <div className="modal-body space-y-6">
-                {/* Contact information card */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, background: '#FAFCFF', border: '1.5px solid #E0F2FE', borderRadius: 16, padding: 16 }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12, color: '#475569' }}>
-                    <div><strong>Contact Person:</strong> {selectedCustomer.user?.fullName || 'N/A'}</div>
-                    <div><strong>Phone:</strong> {selectedCustomer.phone}</div>
-                    <div><strong>Email:</strong> {selectedCustomer.user?.email}</div>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12, color: '#475569' }}>
-                    <div><strong>Address:</strong> {selectedCustomer.address || 'N/A'}</div>
-                    <div><strong>Drug Registration:</strong> {selectedCustomer.registrationNumber}</div>
-                  </div>
+              {/* Contact information card */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, background: '#FAFCFF', border: '1.5px solid #E0F2FE', borderRadius: 16, padding: 16 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12, color: '#475569' }}>
+                  <div><strong>Contact Person:</strong> {selectedCustomer.user?.fullName || 'N/A'}</div>
+                  <div><strong>Phone:</strong> {selectedCustomer.phone}</div>
+                  <div><strong>Email:</strong> {selectedCustomer.user?.email}</div>
                 </div>
-
-                {/* Financial KPI stats */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
-                  <div className="card" style={{ padding: 14, background: '#ECFDF5', border: '1px solid #A7F3D0' }}>
-                    <div style={{ fontSize: 9, fontWeight: 800, color: '#065F46', textTransform: 'uppercase' }}>Lifetime Spend</div>
-                    <div style={{ fontSize: 16, fontWeight: 900, color: '#047857', fontFamily: 'monospace', marginTop: 4 }}>Rs. {selectedCustomer.lifetimeSpend.toLocaleString()}</div>
-                  </div>
-                  <div className="card" style={{ padding: 14, background: '#FFF7ED', border: '1px solid #FED7AA' }}>
-                    <div style={{ fontSize: 9, fontWeight: 800, color: '#854D0E', textTransform: 'uppercase' }}>Total Outstanding Due</div>
-                    <div style={{ fontSize: 16, fontWeight: 900, color: '#C2410C', fontFamily: 'monospace', marginTop: 4 }}>Rs. {totalPending.toLocaleString()}</div>
-                  </div>
-                  <div className="card" style={{ padding: 14, background: '#F0F9FF', border: '1px solid #BAE6FD' }}>
-                    <div style={{ fontSize: 9, fontWeight: 800, color: '#075985', textTransform: 'uppercase' }}>B2B Credit Limit</div>
-                    <div style={{ fontSize: 16, fontWeight: 900, color: '#0369A1', fontFamily: 'monospace', marginTop: 4 }}>Rs. {selectedCustomer.creditLimit.toLocaleString()}</div>
-                  </div>
-                </div>
-
-                {/* Order ledger statement */}
-                <div>
-                  <h4 style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: '#475569', letterSpacing: '0.05em', marginBottom: 10 }}>Transaction Ledger Statement</h4>
-                  <div className="table-wrapper">
-                    <table className="data-table">
-                      <thead>
-                        <tr>
-                          <th>Date</th>
-                          <th>Invoice Ref</th>
-                          <th>Invoice status</th>
-                          <th style={{ textAlign: 'right' }}>Net Amount</th>
-                          <th style={{ textAlign: 'right' }}>Paid Amt</th>
-                          <th style={{ textAlign: 'right' }}>Settlement</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {selectedCustomer.orders.length === 0 ? (
-                          <tr>
-                            <td colSpan={6} style={{ padding: 24, textAlign: 'center', color: '#94A3B8', fontStyle: 'italic' }}>No billing orders registered for this customer.</td>
-                          </tr>
-                        ) : (
-                          selectedCustomer.orders.map(o => {
-                            const oPaid = settlements[o.id] || 0;
-                            const oRemaining = Math.max(o.netAmount - oPaid, 0);
-                            const isFullyPaid = oPaid >= o.netAmount;
-                            return (
-                              <tr key={o.id}>
-                                <td style={{ fontSize: 11, color: '#64748B' }}>{new Date(o.createdAt).toLocaleDateString()}</td>
-                                <td>
-                                  <button onClick={() => setActiveInvoice(o)} style={{ background: 'none', border: 'none', color: '#0EA5E9', fontWeight: 800, cursor: 'pointer', fontFamily: 'monospace', textDecoration: 'underline' }}>
-                                    ORD-{o.id.substring(0, 8).toUpperCase()}
-                                  </button>
-                                </td>
-                                <td>
-                                  <span className={`status-pill status-pill-${o.status.toLowerCase()}`}>{o.status}</span>
-                                </td>
-                                <td style={{ textAlign: 'right', fontFamily: 'monospace', fontWeight: 700 }}>Rs. {o.netAmount.toLocaleString()}</td>
-                                <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#059669', fontWeight: 700 }}>Rs. {oPaid.toLocaleString()}</td>
-                                <td style={{ textAlign: 'right' }}>
-                                  {!isFullyPaid ? (
-                                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 4 }} onClick={e => e.stopPropagation()}>
-                                      {settlingOrderId === o.id ? (
-                                        <div style={{ display: 'flex', gap: 4 }}>
-                                          <input 
-                                            type="number" 
-                                            placeholder="Amt" 
-                                            value={settleAmount} 
-                                            onChange={e => setSettleAmount(e.target.value)} 
-                                            className="input-crisp" 
-                                            style={{ width: 64, fontSize: 10, padding: 4 }} 
-                                          />
-                                          <button 
-                                            onClick={() => handleSettleSubmit(o.id, o.netAmount)}
-                                            style={{ padding: '4px 8px', fontSize: 9, background: '#10B981', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 700 }}
-                                          >
-                                            OK
-                                          </button>
-                                          <button 
-                                            onClick={() => setSettlingOrderId(null)}
-                                            style={{ padding: '4px 6px', fontSize: 9, background: '#64748B', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer' }}
-                                          >
-                                            ✕
-                                          </button>
-                                        </div>
-                                      ) : (
-                                        <button 
-                                          onClick={() => setSettlingOrderId(o.id)}
-                                          className="btn-ghost"
-                                          style={{ padding: '4px 8px', fontSize: 10, borderColor: '#BAE6FD', color: '#0EA5E9' }}
-                                        >
-                                          Settle
-                                        </button>
-                                      )}
-                                    </div>
-                                  ) : (
-                                    <span style={{ fontSize: 11, color: '#059669', fontWeight: 700 }}>✓ Settled</span>
-                                  )}
-                                </td>
-                              </tr>
-                            );
-                          })
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12, color: '#475569' }}>
+                  <div><strong>Address:</strong> {selectedCustomer.address || 'N/A'}</div>
+                  <div><strong>Drug Registration:</strong> {selectedCustomer.registrationNumber}</div>
                 </div>
               </div>
 
-              <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-                <button onClick={() => setSelectedCustomerId(null)} className="btn-primary" style={{ background: '#475569' }}>Close Details</button>
+              {/* Financial KPI stats */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+                <div className="card" style={{ padding: 14, background: '#ECFDF5', border: '1px solid #A7F3D0' }}>
+                  <div style={{ fontSize: 9, fontWeight: 800, color: '#065F46', textTransform: 'uppercase' }}>Lifetime Spend</div>
+                  <div style={{ fontSize: 16, fontWeight: 900, color: '#047857', fontFamily: 'monospace', marginTop: 4 }}>Rs. {selectedCustomer.lifetimeSpend.toLocaleString()}</div>
+                </div>
+                <div className="card" style={{ padding: 14, background: '#FFF7ED', border: '1px solid #FED7AA' }}>
+                  <div style={{ fontSize: 9, fontWeight: 800, color: '#854D0E', textTransform: 'uppercase' }}>Total Outstanding Due</div>
+                  <div style={{ fontSize: 16, fontWeight: 900, color: '#C2410C', fontFamily: 'monospace', marginTop: 4 }}>Rs. {totalPending.toLocaleString()}</div>
+                </div>
+                <div className="card" style={{ padding: 14, background: '#F0F9FF', border: '1px solid #BAE6FD' }}>
+                  <div style={{ fontSize: 9, fontWeight: 800, color: '#075985', textTransform: 'uppercase' }}>B2B Credit Limit</div>
+                  <div style={{ fontSize: 16, fontWeight: 900, color: '#0369A1', fontFamily: 'monospace', marginTop: 4 }}>Rs. {selectedCustomer.creditLimit.toLocaleString()}</div>
+                </div>
+              </div>
+
+              {/* Order ledger statement */}
+              <div>
+                <h4 style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: '#475569', letterSpacing: '0.05em', marginBottom: 10 }}>Transaction Ledger Statement</h4>
+                <div className="table-wrapper">
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        <th>Invoice Ref</th>
+                        <th>Invoice status</th>
+                        <th style={{ textAlign: 'right' }}>Net Amount</th>
+                        <th style={{ textAlign: 'right' }}>Paid Amt</th>
+                        <th style={{ textAlign: 'right' }}>Settlement</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedCustomer.orders.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} style={{ padding: 24, textAlign: 'center', color: '#94A3B8', fontStyle: 'italic' }}>No billing orders registered for this customer.</td>
+                        </tr>
+                      ) : (
+                        selectedCustomer.orders.map(o => {
+                          const oPaid = settlements[o.id] || 0;
+                          const isFullyPaid = oPaid >= o.netAmount;
+                          return (
+                            <tr key={o.id}>
+                              <td style={{ fontSize: 11, color: '#64748B' }}>{new Date(o.createdAt).toLocaleDateString()}</td>
+                              <td>
+                                <button onClick={() => setActiveInvoice(o)} style={{ background: 'none', border: 'none', color: '#0EA5E9', fontWeight: 800, cursor: 'pointer', fontFamily: 'monospace', textDecoration: 'underline' }}>
+                                  ORD-{o.id.substring(0, 8).toUpperCase()}
+                                </button>
+                              </td>
+                              <td>
+                                <span className={`status-pill status-pill-${o.status.toLowerCase()}`}>{o.status}</span>
+                              </td>
+                              <td style={{ textAlign: 'right', fontFamily: 'monospace', fontWeight: 700 }}>Rs. {o.netAmount.toLocaleString()}</td>
+                              <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#059669', fontWeight: 700 }}>Rs. {oPaid.toLocaleString()}</td>
+                              <td style={{ textAlign: 'right' }}>
+                                {!isFullyPaid ? (
+                                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 4 }} onClick={e => e.stopPropagation()}>
+                                    {settlingOrderId === o.id ? (
+                                      <div style={{ display: 'flex', gap: 4 }}>
+                                        <input 
+                                          type="number" 
+                                          placeholder="Amt" 
+                                          value={settleAmount} 
+                                          onChange={e => setSettleAmount(e.target.value)} 
+                                          className="input-crisp" 
+                                          style={{ width: 64, fontSize: 10, padding: 4 }} 
+                                        />
+                                        <button 
+                                          onClick={() => handleSettleSubmit(o.id, o.netAmount)}
+                                          style={{ padding: '4px 8px', fontSize: 9, background: '#10B981', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 700 }}
+                                        >
+                                          OK
+                                        </button>
+                                        <button 
+                                          onClick={() => setSettlingOrderId(null)}
+                                          style={{ padding: '4px 6px', fontSize: 9, background: '#64748B', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer' }}
+                                        >
+                                          ✕
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <button 
+                                        onClick={() => setSettlingOrderId(o.id)}
+                                        className="btn-ghost"
+                                        style={{ padding: '4px 8px', fontSize: 10, borderColor: '#BAE6FD', color: '#0EA5E9' }}
+                                      >
+                                        Settle
+                                      </button>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <span style={{ fontSize: 11, color: '#059669', fontWeight: 700 }}>✓ Settled</span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', padding: '60px 20px', textAlign: 'center', color: '#94A3B8' }}>
+              <Users style={{ width: 48, height: 48, color: '#E2E8F0', marginBottom: 16 }} />
+              <h3 style={{ fontSize: 14, fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Select a Retailer</h3>
+              <p style={{ fontSize: 12, color: '#94A3B8', marginTop: 6, maxWidth: 360, lineHeight: 1.6 }}>Choose a pharmacy retailer from the directory list on the left to inspect their lifetime spending metrics, credit warnings, and ledger invoices side-by-side.</p>
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Add Customer Modal */}
       {showAddModal && (
@@ -554,7 +651,7 @@ export default function CustomerClient({ customers: initialCustomers, wholesaler
                 {/* Settle Action inside detail modal */}
                 {orderRemaining > 0 && (
                   <div style={{ background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 16, padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', justifySelf: 'space-between', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span style={{ fontSize: 11, fontWeight: 800, color: '#C2410C', textTransform: 'uppercase' }}>Record Settlement Payment</span>
                       <span style={{ fontSize: 11, fontWeight: 700, color: '#EA580C' }}>Due: Rs. {orderRemaining.toLocaleString()}</span>
                     </div>
@@ -585,7 +682,7 @@ export default function CustomerClient({ customers: initialCustomers, wholesaler
                     {settleLogs[activeInvoice.id] && settleLogs[activeInvoice.id].length > 0 ? (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                         {settleLogs[activeInvoice.id].map((log: any, idx: number) => (
-                          <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, borderBottom: '1px solid #F1F5F9', paddingBottom: 6 }}>
+                          <div key={idx} style={{ display: 'flex', justifySelf: 'space-between', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, borderBottom: '1px solid #F1F5F9', paddingBottom: 6 }}>
                             <span style={{ color: '#64748B' }}>{new Date(log.date).toLocaleString()}</span>
                             <span style={{ fontWeight: 800, color: '#059669' }}>+ Rs. {log.amount.toLocaleString()}</span>
                           </div>

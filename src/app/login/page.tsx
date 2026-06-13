@@ -10,10 +10,8 @@ export default function LoginPage() {
 
   const [view, setView] = useState<'login' | 'reset-force'>('login');
   const [resetUserEmail, setResetUserEmail] = useState('');
-  const [isStaff, setIsStaff] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [shopId, setShopId] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -29,6 +27,14 @@ export default function LoginPage() {
       try { await fetch('/api/auth/logout'); } catch (err) { }
     };
     clearSession();
+
+    const savedEmail = localStorage.getItem('medhub_remembered_email');
+    const savedPassword = localStorage.getItem('medhub_remembered_password');
+    if (savedEmail && savedPassword) {
+      setEmail(savedEmail);
+      setPassword(savedPassword);
+      setRememberMe(true);
+    }
   }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -40,7 +46,7 @@ export default function LoginPage() {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, isStaff, shopId }),
+        body: JSON.stringify({ email, password }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Invalid credentials');
@@ -49,6 +55,13 @@ export default function LoginPage() {
         setView('reset-force');
         setLoading(false);
         return;
+      }
+      if (rememberMe) {
+        localStorage.setItem('medhub_remembered_email', email);
+        localStorage.setItem('medhub_remembered_password', password);
+      } else {
+        localStorage.removeItem('medhub_remembered_email');
+        localStorage.removeItem('medhub_remembered_password');
       }
       setSuccessMsg('Authentication successful. Redirecting to panel...');
       setTimeout(() => { router.push(data.redirectUrl); }, 800);
@@ -76,7 +89,7 @@ export default function LoginPage() {
       const loginRes = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: resetUserEmail, password: newPassword, isStaff: false }),
+        body: JSON.stringify({ email: resetUserEmail, password: newPassword }),
       });
       const loginData = await loginRes.json();
       if (loginRes.ok) {
@@ -272,61 +285,10 @@ export default function LoginPage() {
                   Sign in to your MedHub workspace
                 </p>
 
-                {/* Mode toggle */}
-                <div style={{
-                  display: 'flex',
-                  background: '#F1F5F9',
-                  borderRadius: 10, padding: 4,
-                  marginBottom: 24,
-                  border: '1px solid #E2E8F0',
-                }}>
-                  {[
-                    { label: 'Registered User', value: false },
-                    { label: 'Wholesaler Staff', value: true },
-                  ].map((opt) => (
-                    <button
-                      key={opt.label}
-                      type="button"
-                      onClick={() => { setIsStaff(opt.value); setError(''); }}
-                      style={{
-                        flex: 1, padding: '8px 12px',
-                        borderRadius: 8, border: 'none',
-                        fontSize: 11, fontWeight: 700,
-                        textTransform: 'uppercase', letterSpacing: '0.04em',
-                        cursor: 'pointer', fontFamily: 'inherit',
-                        transition: 'all 0.2s',
-                        background: isStaff === opt.value ? 'white' : 'transparent',
-                        color: isStaff === opt.value ? '#1E293B' : '#94A3B8',
-                        boxShadow: isStaff === opt.value ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
-                      }}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-
                 <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                  {isStaff && (
-                    <div>
-                      <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
-                        Wholesaler Shop Node ID
-                      </label>
-                      <div style={{ position: 'relative' }}>
-                        <Users style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', width: 14, height: 14, color: '#94A3B8' }} />
-                        <input
-                          type="text" required value={shopId}
-                          onChange={(e) => setShopId(e.target.value)}
-                          placeholder="Shop UUID (e.g. 63a67a8c-...)"
-                          className="input-crisp"
-                          style={{ paddingLeft: 34, fontFamily: 'monospace', fontSize: 11 }}
-                        />
-                      </div>
-                    </div>
-                  )}
-
                   <div>
                     <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
-                      {isStaff ? 'Staff Email' : 'Email Address'}
+                      Email Address
                     </label>
                     <div style={{ position: 'relative' }}>
                       <Mail style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', width: 14, height: 14, color: '#94A3B8' }} />

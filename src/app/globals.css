@@ -1104,3 +1104,15 @@ body {
     padding: 16px;
   }
 }
+
+/* Custom utility overrides to increase vertical gaps globally */
+.space-y-6 > :not([hidden]) ~ :not([hidden]) {
+  --tw-space-y-reverse: 0;
+  margin-top: calc(2.25rem * calc(1 - var(--tw-space-y-reverse))) !important;
+  margin-bottom: calc(2.25rem * var(--tw-space-y-reverse)) !important;
+}
+.space-y-4 > :not([hidden]) ~ :not([hidden]) {
+  --tw-space-y-reverse: 0;
+  margin-top: calc(1.75rem * calc(1 - var(--tw-space-y-reverse))) !important;
+  margin-bottom: calc(1.75rem * var(--tw-space-y-reverse)) !important;
+}

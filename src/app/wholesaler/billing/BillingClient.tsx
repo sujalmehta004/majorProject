@@ -21,8 +21,8 @@ interface Retailer {
   phone: string;
 }
 
-interface Product { id: string; name: string; sku: string; tabletsPerStrip: number; stripsPerBox: number; }
 interface Batch { id: string; batchNumber: string; manufacturingCost: number; purchasePricePerBox: number; }
+interface Product { id: string; name: string; sku: string; tabletsPerStrip: number; stripsPerBox: number; batches?: Batch[]; }
 interface OrderAllocation { id: string; quantity: number; batch: Batch; }
 interface OrderItem { id: string; productId: string; product: Product; quantity: number; pricePerUnit: number; allocations: OrderAllocation[]; }
 
@@ -44,9 +44,35 @@ interface SettleEntry {
   date: string; // ISO string
 }
 
+interface SupplierSettlement {
+  id: string;
+  amount: number;
+  date: string;
+  paymentMethod: string;
+  notes?: string | null;
+}
+
+interface SupplierBill {
+  id: string;
+  supplierId: string;
+  supplier: {
+    name: string;
+    phone?: string | null;
+  };
+  billNumber: string;
+  billDate: string;
+  totalAmount: number;
+  paidAmount: number;
+  status: string;
+  notes?: string | null;
+  itemsJson?: string | null;
+  settlements: SupplierSettlement[];
+}
+
 interface BillingClientProps {
   profileId: string;
   initialOrders: Order[];
+  initialSupplierBills: SupplierBill[];
   profile?: {
     companyName: string;
     taxId: string;
@@ -55,7 +81,7 @@ interface BillingClientProps {
   };
 }
 
-type TabType = 'transactions' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'fiscal';
+type TabType = 'transactions' | 'supplier_bills' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'fiscal';
 
 const COLUMN_LABELS: Record<string, string> = {
   date: 'Billing Date',
@@ -84,8 +110,21 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   return null;
 };
 
-export default function BillingClient({ profileId, initialOrders, profile }: BillingClientProps) {
+const getWalkInName = (justification?: string | null) => {
+  if (!justification) return 'Walk-in Customer';
+  const match = justification.match(/Walk-in Customer:\s*([^,]+)/);
+  return match ? match[1].trim() : justification;
+};
+
+const getWalkInPhone = (justification?: string | null) => {
+  if (!justification) return '';
+  const match = justification.match(/Phone:\s*(.+)$/);
+  return match ? match[1].trim() : '';
+};
+
+export default function BillingClient({ profileId, initialOrders, initialSupplierBills, profile }: BillingClientProps) {
   const [orders, setOrders] = useState<Order[]>(initialOrders);
+  const [supplierBills, setSupplierBills] = useState<SupplierBill[]>(initialSupplierBills || []);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
@@ -114,23 +153,216 @@ export default function BillingClient({ profileId, initialOrders, profile }: Bil
   // Transaction detail modal (replaces old side panel)
   const [detailOrder, setDetailOrder] = useState<Order | null>(null);
 
+  // Supplier bill detail modal
+  const [detailSupplierBill, setDetailSupplierBill] = useState<SupplierBill | null>(null);
+  const [products, setProducts] = useState<Product[]>([]);
+
   // Partial payment settlements — amount totals
   const [settlements, setSettlements] = useState<Record<string, number>>({});
   // Settle log — detailed entries per order: orderId → [{amount, date}]
   const [settleLogs, setSettleLogs] = useState<Record<string, SettleEntry[]>>({});
   const [settleAmount, setSettleAmount] = useState('');
   const [settlingOrderId, setSettlingOrderId] = useState<string | null>(null);
+  const [settlingBillId, setSettlingBillId] = useState<string | null>(null);
 
   // Filters
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterSearch, setFilterSearch] = useState('');
+
+  // Supplier bills filters
+  const [supBillSupplierSearch, setSupBillSupplierSearch] = useState('');
+  const [supBillDateFrom, setSupBillDateFrom] = useState('');
+  const [supBillDateTo, setSupBillDateTo] = useState('');
 
   useEffect(() => {
     const stored = localStorage.getItem('medhub_order_payments');
     if (stored) setSettlements(JSON.parse(stored));
     const storedLogs = localStorage.getItem('medhub_settle_logs');
     if (storedLogs) setSettleLogs(JSON.parse(storedLogs));
+
+    // Fetch wholesaler products catalog
+    fetch('/api/wholesaler/products')
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          setProducts(data.products || []);
+        }
+      })
+      .catch(err => console.error('Error fetching products for supplier bills:', err));
   }, []);
+
+  const getProductBuyingPrice = (productId: string): number => {
+    const prod = products.find(p => p.id === productId);
+    if (!prod?.batches?.length) return 0;
+    // Prefer the most recent batch that has a non-zero purchase price
+    const withPrice = prod.batches.filter((b: Batch) => b.purchasePricePerBox > 0);
+    if (withPrice.length > 0) return withPrice[withPrice.length - 1].purchasePricePerBox;
+    return prod.batches[prod.batches.length - 1]?.purchasePricePerBox || 0;
+  };
+
+  const printSupplierBillVoucher = (bill: SupplierBill, itemsArray: any[]) => {
+    const printWindow = window.open('', '_blank', 'width=800,height=600');
+    if (!printWindow) return;
+
+    const companyName = profile?.companyName || 'MedHub Wholesaler';
+    const companyTaxId = profile?.taxId || '';
+    const companyAddress = profile?.address || '';
+    const companyPhone = profile?.phone || '';
+
+    const billDateStr = new Date(bill.billDate).toLocaleDateString();
+    const itemsRows = itemsArray.map((item: any) => {
+      const prod = products.find(p => p.id === item.productId);
+      const cost = item.pricePerBox || getProductBuyingPrice(item.productId) || 0;
+      return `
+        <tr>
+          <td style="padding: 10px; border-bottom: 1px solid #E2E8F0;">\${prod?.name || 'Unknown Product'}</td>
+          <td style="padding: 10px; border-bottom: 1px solid #E2E8F0; text-align: center;">\${item.qtyBoxes}</td>
+          <td style="padding: 10px; border-bottom: 1px solid #E2E8F0; text-align: right;">Rs. \${cost.toLocaleString()}</td>
+          <td style="padding: 10px; border-bottom: 1px solid #E2E8F0; text-align: right; font-weight: bold;">Rs. \${(item.qtyBoxes * cost).toLocaleString()}</td>
+        </tr>
+      `;
+    }).join('');
+
+    const settlementRows = bill.settlements.map((settle: any) => `
+      <tr>
+        <td style="padding: 8px 10px; border-bottom: 1px dashed #E2E8F0;">\${new Date(settle.date).toLocaleString()}</td>
+        <td style="padding: 8px 10px; border-bottom: 1px dashed #E2E8F0;">\${settle.paymentMethod}</td>
+        <td style="padding: 8px 10px; border-bottom: 1px dashed #E2E8F0; color: #64748B;">\${settle.notes || 'N/A'}</td>
+        <td style="padding: 8px 10px; border-bottom: 1px dashed #E2E8F0; text-align: right; color: #059669; font-weight: bold;">Rs. \${settle.amount.toLocaleString()}</td>
+      </tr>
+    `).join('');
+
+    const htmlContent = `
+      <html>
+        <head>
+          <title>Supplier Bill Voucher - \${bill.billNumber}</title>
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #1E293B; margin: 0; padding: 40px; line-height: 1.5; }
+            .header-table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+            .title { font-size: 24px; font-weight: 800; text-transform: uppercase; color: #0F172A; }
+            .subtitle { font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: #64748B; font-weight: 700; margin-bottom: 4px; }
+            .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-bottom: 30px; }
+            .info-card { border: 1px solid #E2E8F0; padding: 16px; border-radius: 8px; background-color: #F8FAFC; }
+            .card-title { font-size: 10px; font-weight: 800; text-transform: uppercase; color: #64748B; margin-bottom: 8px; border-bottom: 1px solid #E2E8F0; padding-bottom: 4px; }
+            .data-table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+            .data-table th { padding: 12px 10px; text-align: left; background-color: #F1F5F9; border-bottom: 2px solid #CBD5E1; font-size: 11px; font-weight: bold; text-transform: uppercase; color: #475569; }
+            .totals-table { width: 40%; margin-left: auto; border-collapse: collapse; margin-bottom: 30px; }
+            .totals-table td { padding: 8px 10px; font-size: 13px; }
+            .footer { text-align: center; margin-top: 60px; font-size: 11px; color: #94A3B8; border-top: 1px solid #E2E8F0; padding-top: 20px; }
+            @media print {
+              body { padding: 0; }
+              button { display: none; }
+            }
+          </style>
+        </head>
+        <body>
+          <table class="header-table">
+            <tr>
+              <td>
+                <div class="subtitle">Purchase Voucher</div>
+                <div class="title">\${companyName}</div>
+                <div style="font-size: 13px; color: #64748B; margin-top: 4px;">
+                  \${companyAddress ? companyAddress + '<br>' : ''}
+                  \${companyPhone ? 'Phone: ' + companyPhone : ''}
+                  \${companyTaxId ? ' | Tax ID / PAN: ' + companyTaxId : ''}
+                </div>
+              </td>
+              <td style="text-align: right; vertical-align: top;">
+                <div style="font-size: 18px; font-weight: 800; color: #0F172A; text-transform: uppercase;">BILL DETAIL</div>
+                <div style="font-size: 13px; font-family: monospace; font-weight: bold; margin-top: 6px; color: #F97316;">NO: \${bill.billNumber}</div>
+                <div style="font-size: 12px; color: #64748B; margin-top: 4px;">Date: \${billDateStr}</div>
+              </td>
+            </tr>
+          </table>
+
+          <div class="info-grid">
+            <div class="info-card">
+              <div class="card-title">Supplier Information</div>
+              <div style="font-size: 14px; font-weight: bold; color: #0F172A;">\${bill.supplier.name}</div>
+              \${bill.supplier.phone ? \`<div style="font-size: 12px; color: #475569; margin-top: 4px;">Phone: \${bill.supplier.phone}</div>\` : ''}
+              <div style="font-size: 12px; color: #475569; margin-top: 2px;">Status: <span style="font-weight: bold; text-transform: uppercase;">\${bill.status}</span></div>
+            </div>
+            <div class="info-card">
+              <div class="card-title">Overview Memo</div>
+              <div style="font-size: 12px; color: #475569; line-height: 1.6;">\${bill.notes || 'No notes or memo recorded for this purchase.'}</div>
+            </div>
+          </div>
+
+          \${itemsRows ? \`
+            <div class="subtitle" style="margin-bottom: 8px;">Supplied Items List</div>
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th style="text-align: left;">Item / Medication</th>
+                  <th style="text-align: center; width: 100px;">Qty (Boxes)</th>
+                  <th style="text-align: right; width: 150px;">Cost per Box</th>
+                  <th style="text-align: right; width: 150px;">Subtotal</th>
+                </tr>
+              </thead>
+              <tbody>
+                \${itemsRows}
+              </tbody>
+            </table>
+          \` : ''}
+
+          \${settlementRows ? \`
+            <div class="subtitle" style="margin-bottom: 8px;">Settlement timeline ledger</div>
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th style="text-align: left;">Settlement Date</th>
+                  <th style="text-align: left; width: 150px;">Method</th>
+                  <th style="text-align: left;">Notes</th>
+                  <th style="text-align: right; width: 150px;">Amount Paid</th>
+                </tr>
+              </thead>
+              <tbody>
+                \${settlementRows}
+              </tbody>
+            </table>
+          \` : ''}
+
+          <table class="totals-table">
+            <tr>
+              <td style="color: #64748B;">Total Bill Amount:</td>
+              <td style="text-align: right; font-family: monospace; font-weight: bold;">Rs. \${bill.totalAmount.toLocaleString()}</td>
+            </tr>
+            <tr>
+              <td style="color: #64748B; border-bottom: 1px solid #E2E8F0;">Total Amount Paid:</td>
+              <td style="text-align: right; font-family: monospace; font-weight: bold; color: #059669; border-bottom: 1px solid #E2E8F0;">Rs. \${bill.paidAmount.toLocaleString()}</td>
+            </tr>
+            <tr>
+              <td style="font-weight: bold; font-size: 15px; padding-top: 12px;">Remaining Balance:</td>
+              <td style="text-align: right; font-family: monospace; font-weight: 800; font-size: 16px; color: \${bill.totalAmount - bill.paidAmount > 0 ? '#DC2626' : '#64748B'}; padding-top: 12px;">
+                Rs. \${Math.max(bill.totalAmount - bill.paidAmount, 0).toLocaleString()}
+              </td>
+            </tr>
+          </table>
+
+          <div class="footer">
+            Generated on \${new Date().toLocaleString()} · System voucher powered by MedHub
+          </div>
+
+          <script>
+            var printed = false;
+            function doPrint() {
+              if (printed) return;
+              printed = true;
+              window.print();
+              window.close();
+            }
+            window.onload = function() {
+              setTimeout(doPrint, 200);
+            };
+            setTimeout(doPrint, 2000);
+          </script>
+        </body>
+      </html>
+    `;
+
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+  };
 
   const handleSettleSubmit = (orderId: string, totalAmount: number) => {
     const currentPaid = settlements[orderId] || 0;
@@ -156,6 +388,34 @@ export default function BillingClient({ profileId, initialOrders, profile }: Bil
     logActivity('SETTLE_PAYMENT', `Recorded payment of Rs.${inputPaid} for Order ${orderId}`);
   };
 
+  const handleSupplierSettleSubmit = async (billId: string) => {
+    const amt = parseFloat(settleAmount);
+    if (!amt || amt <= 0) return;
+
+    try {
+      const res = await fetch('/api/wholesaler/supplier-bills', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: billId,
+          settlementAmount: amt,
+          paymentMethod: 'CASH',
+          settlementNotes: 'Payment settled from Billing Page'
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to settle supplier bill');
+
+      setSettleAmount('');
+      setSettlingBillId(null);
+      fetchSupplierBills();
+      setSuccessMsg(`Supplier payment of Rs. ${amt.toLocaleString()} recorded successfully.`);
+      setTimeout(() => setSuccessMsg(''), 3000);
+    } catch (err: any) {
+      setError(err.message || 'An error occurred.');
+    }
+  };
+
   const fetchOrders = async () => {
     setLoading(true);
     setError('');
@@ -171,12 +431,22 @@ export default function BillingClient({ profileId, initialOrders, profile }: Bil
     }
   };
 
+  const fetchSupplierBills = async () => {
+    try {
+      const res = await fetch(`/api/wholesaler/supplier-bills`);
+      const data = await res.json();
+      if (res.ok) setSupplierBills(data.bills);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   const fetchAnalytics = async (period: string) => {
     setAnalyticsLoading(true);
     try {
-      const res = await fetch(`/api/wholesaler/analytics?period=${period}`);
+      const res = await fetch(`/api/wholesaler/analytics?period=${period}&wholesalerId=${profileId}`);
       const data = await res.json();
-      if (res.ok && data.data) setAnalyticsData(data.data);
+      if (res.ok && data.chartData) setAnalyticsData(data.chartData);
     } catch (e) {}
     finally { setAnalyticsLoading(false); }
   };
@@ -188,8 +458,9 @@ export default function BillingClient({ profileId, initialOrders, profile }: Bil
   }, [activeTab]);
 
   useSSEListener(profileId, (type) => {
-    if (type === 'ORDER_CREATED' || type === 'ORDER_STATUS_CHANGED') {
+    if (type === 'ORDER_CREATED' || type === 'ORDER_STATUS_CHANGED' || type === 'INVENTORY_UPDATED' || type === 'SUPPLIER_UPDATED') {
       fetchOrders();
+      fetchSupplierBills();
     }
   });
 
@@ -221,6 +492,45 @@ export default function BillingClient({ profileId, initialOrders, profile }: Bil
     order.items.forEach(item => item.allocations.forEach(al => { cost += al.quantity * al.batch.manufacturingCost; }));
     return order.netAmount - cost;
   };
+  const downloadFiscalExcel = () => {
+    const headers = [
+      'Date',
+      'Invoice ID',
+      'Customer Pharmacy',
+      'Status',
+      'Gross Amount (Rs.)',
+      'Discount Amount (Rs.)',
+      'Net Amount (Rs.)',
+      'Estimated Profit (Rs.)',
+      'Purchased Items'
+    ];
+    
+    const rows = fiscalOrders.map(o => {
+      const itemsDetail = o.items.map(item => `${item.product.name} (${item.quantity} units)`).join('; ');
+      return [
+        new Date(o.createdAt).toLocaleDateString(),
+        `INV-${o.id.substring(0, 8).toUpperCase()}`,
+        o.retailer.pharmacyName === "Walk-in Customer (POS)" ? getWalkInName(o.overrideJustification) : o.retailer.pharmacyName,
+        o.status,
+        o.totalAmount,
+        o.discountAmount,
+        o.netAmount,
+        o.status === 'DELIVERED' ? getOrderProfit(o) : 0,
+        `"${itemsDetail}"`
+      ];
+    });
+
+    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `MedHub_Fiscal_Audit_${fiscalYear}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   const handleSendInvoice = async (order: Order) => {
     setError(''); setSuccessMsg('');
@@ -232,7 +542,184 @@ export default function BillingClient({ profileId, initialOrders, profile }: Bil
   const handlePrint = async () => {
     if (!selectedOrderForPrint) return;
     await logActivity('PRINT_INVOICE', `Printed custom invoice for order: ${selectedOrderForPrint.id}`);
-    window.print();
+    const order = selectedOrderForPrint;
+    const customerName = order.retailer.pharmacyName === 'Walk-in Customer (POS)'
+      ? getWalkInName(order.overrideJustification)
+      : order.retailer.pharmacyName;
+    const customerAddress = order.retailer.pharmacyName === 'Walk-in Customer (POS)'
+      ? 'POS Counter Walk-in Cash Sale'
+      : order.retailer.address;
+    const customerPhone = order.retailer.pharmacyName === 'Walk-in Customer (POS)'
+      ? getWalkInPhone(order.overrideJustification)
+      : order.retailer.phone;
+    const paidAmt = settlements[order.id] || 0;
+    const remaining = Math.max(order.netAmount - paidAmt, 0);
+    const itemRows = order.items.map(item => {
+      const totalPerBox = item.product.tabletsPerStrip * item.product.stripsPerBox;
+      const qtyBoxes = item.quantity / totalPerBox;
+      const pricePerBox = item.pricePerUnit * totalPerBox;
+      return `<tr>
+        <td style="padding:8px 4px;border-bottom:1px solid #E2E8F0;font-family:monospace;font-weight:700">${item.product.sku}</td>
+        <td style="padding:8px 4px;border-bottom:1px solid #E2E8F0;font-weight:600">${item.product.name} (${qtyBoxes} boxes)</td>
+        <td style="padding:8px 4px;border-bottom:1px solid #E2E8F0;text-align:right;font-family:monospace">${item.quantity} tabs</td>
+        <td style="padding:8px 4px;border-bottom:1px solid #E2E8F0;text-align:right;font-family:monospace">Rs. ${pricePerBox.toFixed(2)}/box</td>
+        <td style="padding:8px 4px;border-bottom:1px solid #E2E8F0;text-align:right;font-family:monospace;font-weight:800">Rs. ${(item.quantity * item.pricePerUnit).toFixed(2)}</td>
+      </tr>`;
+    }).join('');
+    const htmlContent = `<!DOCTYPE html>
+<html><head><title>${customInvoiceTitle} - INV-${order.id.substring(0, 12).toUpperCase()}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 12px; color: #1E293B; padding: 32px; background: white; }
+  h1 { font-size: 22px; font-weight: 900; text-transform: uppercase; }
+  h2 { font-size: 14px; font-weight: 900; text-transform: uppercase; }
+  .header { display: flex; justify-content: space-between; border-bottom: 2px solid #1E293B; padding-bottom: 16px; margin-bottom: 20px; }
+  .billing-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 16px; margin-bottom: 20px; }
+  .label { font-size: 9px; text-transform: uppercase; color: #94A3B8; font-weight: 800; margin-bottom: 4px; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+  thead tr { border-bottom: 2px solid #1E293B; }
+  th { padding: 8px 4px; text-align: left; font-size: 9px; text-transform: uppercase; letter-spacing: 0.08em; color: #475569; font-weight: 700; }
+  th:last-child, th:nth-child(3), th:nth-child(4) { text-align: right; }
+  .totals { display: flex; justify-content: flex-end; border-top: 2px solid #1E293B; padding-top: 16px; margin-bottom: 20px; }
+  .totals-inner { width: 50%; display: flex; flex-direction: column; gap: 6px; font-family: monospace; font-size: 11px; }
+  .totals-row { display: flex; justify-content: space-between; color: #64748B; }
+  .totals-net { display: flex; justify-content: space-between; font-weight: 900; font-size: 14px; color: #1E293B; border-top: 1px solid #1E293B; padding-top: 8px; margin-top: 4px; }
+  .footer { border-top: 1px dashed #CBD5E1; padding-top: 16px; display: flex; justify-content: space-between; align-items: center; font-size: 10px; font-weight: 700; color: #94A3B8; font-family: monospace; }
+  .sig-box { text-align: right; }
+  .sig-line { width: 140px; border-bottom: 1px solid #94A3B8; height: 40px; margin-left: auto; }
+  .terms { margin-top: 20px; padding: 12px; background: #F8FAFC; border-radius: 8px; font-size: 10px; color: #64748B; line-height: 1.6; }
+  @media print { body { padding: 16px; } }
+</style></head>
+<body>
+<div class="header">
+  <div>
+    <h1>${customInvoiceTitle}</h1>
+    <div style="font-family:monospace;font-weight:700;color:#475569;margin-top:4px">INV-${order.id.substring(0, 12).toUpperCase()}</div>
+    <div style="font-size:10px;color:#94A3B8;font-family:monospace;margin-top:2px">Date: ${new Date(order.createdAt).toLocaleDateString()}</div>
+  </div>
+  <div style="text-align:right">
+    <h2>${profile?.companyName || 'MedHub Distributor'}</h2>
+    <div style="font-size:10px;color:#475569;margin-top:2px">${profile?.address || 'Warehouse Location'}</div>
+    <div style="font-size:10px;color:#475569">Phone: ${profile?.phone || 'N/A'}</div>
+    <div style="font-size:11px;color:#475569;font-weight:800;margin-top:4px">VAT/PAN: ${profile?.taxId || profileId.substring(0, 8).toUpperCase()}</div>
+  </div>
+</div>
+<div class="billing-grid">
+  <div>
+    <div class="label">Billed To:</div>
+    <div style="font-size:13px;font-weight:900">${customerName}</div>
+    <div style="font-size:11px;color:#475569;margin-top:2px">${customerAddress}</div>
+    <div style="font-size:10px;color:#94A3B8;margin-top:1px">Phone: ${customerPhone}</div>
+  </div>
+  <div>
+    <div class="label">Payment Summary:</div>
+    <div style="font-size:13px;font-weight:900">Net Value: Rs. ${order.netAmount.toFixed(2)}</div>
+    <div style="font-size:11px;color:#059669;margin-top:2px">Paid: Rs. ${paidAmt.toLocaleString()}</div>
+    <div style="font-size:11px;color:#DC2626;margin-top:1px">Remaining: Rs. ${remaining.toLocaleString()}</div>
+  </div>
+</div>
+<table>
+  <thead><tr>
+    <th>SKU</th><th>Description</th><th style="text-align:right">Units</th>
+    <th style="text-align:right">Unit Price</th><th style="text-align:right">Subtotal</th>
+  </tr></thead>
+  <tbody>${itemRows}</tbody>
+</table>
+<div class="totals">
+  <div class="totals-inner">
+    <div class="totals-row"><span>Total:</span><span>Rs. ${order.totalAmount.toFixed(2)}</span></div>
+    <div class="totals-row"><span>Discount:</span><span>- Rs. ${order.discountAmount.toFixed(2)}</span></div>
+    <div class="totals-net"><span>NET DUE:</span><span>Rs. ${order.netAmount.toFixed(2)}</span></div>
+    <div class="totals-row" style="color:#059669;font-weight:700"><span>Paid:</span><span>Rs. ${paidAmt.toLocaleString()}</span></div>
+    <div class="totals-row" style="color:#DC2626;font-weight:700"><span>Remaining:</span><span>Rs. ${remaining.toLocaleString()}</span></div>
+  </div>
+</div>
+${customTerms ? `<div class="terms"><strong>Terms &amp; Conditions:</strong><br>${customTerms.replace(/\n/g, '<br>')}</div>` : ''}
+${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</strong><br>${customNotes.replace(/\n/g, '<br>')}</div>` : ''}
+<div class="footer">
+  <span>MEDHUB SECURE BILLING MATRIX</span>
+  <div class="sig-box"><div class="sig-line"></div><span style="font-size:9px;text-transform:uppercase;letter-spacing:0.06em;display:block;margin-top:4px">Authorized Signature</span></div>
+</div>
+</body></html>`;
+    const printWindow = window.open('', '_blank', 'width=900,height=700');
+    if (printWindow) {
+      printWindow.document.write(htmlContent);
+      printWindow.document.close();
+      setTimeout(() => { printWindow.focus(); printWindow.print(); }, 400);
+    }
+  };
+
+  const printFiscalAudit = () => {
+    const deliveredOrders = fiscalOrders.filter(o => o.status === 'DELIVERED');
+    const pendingOrders = fiscalOrders.filter(o => o.status !== 'DELIVERED');
+    const totalDiscount = fiscalOrders.reduce((s, o) => s + o.discountAmount, 0);
+    const grossRevenue = fiscalOrders.reduce((s, o) => s + o.totalAmount, 0);
+    const rowsHtml = fiscalOrders.map(o => {
+      const custName = o.retailer.pharmacyName === 'Walk-in Customer (POS)' ? getWalkInName(o.overrideJustification) : o.retailer.pharmacyName;
+      const profit = o.status === 'DELIVERED' ? getOrderProfit(o) : 0;
+      return `<tr>
+        <td>${new Date(o.createdAt).toLocaleDateString()}</td>
+        <td style="font-family:monospace;font-weight:700;color:#F97316">INV-${o.id.substring(0,8).toUpperCase()}</td>
+        <td style="font-weight:700">${custName}</td>
+        <td>${o.status}</td>
+        <td style="font-family:monospace;text-align:right">Rs. ${o.totalAmount.toFixed(2)}</td>
+        <td style="font-family:monospace;text-align:right;color:#EA580C">-Rs. ${o.discountAmount.toFixed(2)}</td>
+        <td style="font-family:monospace;text-align:right;font-weight:800">Rs. ${o.netAmount.toFixed(2)}</td>
+        <td style="font-family:monospace;text-align:right;color:${o.status==='DELIVERED'?'#059669':'#94A3B8'}">${o.status==='DELIVERED'?`Rs. ${profit.toFixed(2)}`:'—'}</td>
+      </tr>`;
+    }).join('');
+    const htmlContent = `<!DOCTYPE html>
+<html><head><title>Fiscal Audit Report ${fiscalYear}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 11px; color: #1E293B; padding: 24px; background: white; }
+  h1 { font-size: 18px; font-weight: 900; text-transform: uppercase; margin-bottom: 4px; }
+  .sub { font-size: 11px; color: #64748B; margin-bottom: 20px; }
+  .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+  .kpi { background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 12px; }
+  .kpi-label { font-size: 8px; font-weight: 800; text-transform: uppercase; color: #94A3B8; margin-bottom: 4px; }
+  .kpi-val { font-size: 16px; font-weight: 900; font-family: monospace; }
+  table { width: 100%; border-collapse: collapse; font-size: 10px; }
+  thead { background: #1E293B; color: white; }
+  th { padding: 8px 10px; text-align: left; font-size: 9px; text-transform: uppercase; letter-spacing: 0.06em; }
+  th:nth-child(5), th:nth-child(6), th:nth-child(7), th:nth-child(8) { text-align: right; }
+  tbody tr { border-bottom: 1px solid #F1F5F9; }
+  tbody tr:nth-child(even) { background: #F8FAFC; }
+  td { padding: 7px 10px; vertical-align: middle; }
+  .total-row { background: #1E293B !important; color: white; font-weight: 800; }
+  .total-row td { color: white; padding: 10px; }
+  @media print { body { padding: 12px; } }
+</style></head>
+<body>
+<h1>Fiscal Audit Report — ${fiscalYear}</h1>
+<div class="sub">Generated on ${new Date().toLocaleString()} &nbsp;|&nbsp; ${profile?.companyName || 'MedHub Distributor'}</div>
+<div class="kpi-grid">
+  <div class="kpi"><div class="kpi-label">Net Revenue</div><div class="kpi-val" style="color:#0369A1">Rs. ${fiscalRevenue.toLocaleString()}</div></div>
+  <div class="kpi"><div class="kpi-label">Gross Profit</div><div class="kpi-val" style="color:#047857">Rs. ${fiscalProfit.toLocaleString()}</div></div>
+  <div class="kpi"><div class="kpi-label">Total Invoices</div><div class="kpi-val" style="color:#C2410C">${fiscalOrders.length}</div></div>
+  <div class="kpi"><div class="kpi-label">Total Discount</div><div class="kpi-val" style="color:#7C3AED">Rs. ${totalDiscount.toFixed(2)}</div></div>
+  <div class="kpi"><div class="kpi-label">Delivered</div><div class="kpi-val" style="color:#059669">${deliveredOrders.length}</div></div>
+  <div class="kpi"><div class="kpi-label">Pending/Other</div><div class="kpi-val" style="color:#EA580C">${pendingOrders.length}</div></div>
+  <div class="kpi"><div class="kpi-label">Gross Billed</div><div class="kpi-val">Rs. ${grossRevenue.toFixed(2)}</div></div>
+  <div class="kpi"><div class="kpi-label">Profit Margin</div><div class="kpi-val" style="color:#0EA5E9">${fiscalRevenue>0?((fiscalProfit/fiscalRevenue)*100).toFixed(1):0}%</div></div>
+</div>
+<table>
+  <thead><tr><th>Date</th><th>Invoice</th><th>Customer</th><th>Status</th><th style="text-align:right">Gross</th><th style="text-align:right">Discount</th><th style="text-align:right">Net</th><th style="text-align:right">Profit</th></tr></thead>
+  <tbody>${rowsHtml}
+    <tr class="total-row"><td colspan="4">FISCAL YEAR TOTALS</td>
+    <td style="text-align:right;color:#FCD34D">Rs. ${grossRevenue.toFixed(2)}</td>
+    <td style="text-align:right;color:#FCA5A5">-Rs. ${totalDiscount.toFixed(2)}</td>
+    <td style="text-align:right;color:#6EE7B7">Rs. ${fiscalRevenue.toFixed(2)}</td>
+    <td style="text-align:right;color:#6EE7B7">Rs. ${fiscalProfit.toFixed(2)}</td></tr>
+  </tbody>
+</table>
+</body></html>`;
+    const printWindow = window.open('', '_blank', 'width=1100,height=750');
+    if (printWindow) {
+      printWindow.document.write(htmlContent);
+      printWindow.document.close();
+      setTimeout(() => { printWindow.focus(); printWindow.print(); }, 400);
+    }
   };
 
   const fiscalOrders = orders.filter(o => new Date(o.createdAt).getFullYear() === fiscalYear);
@@ -244,12 +731,14 @@ export default function BillingClient({ profileId, initialOrders, profile }: Bil
     const matchStatus = filterStatus === 'all' || o.status === filterStatus;
     const matchSearch = !filterSearch ||
       o.retailer.pharmacyName.toLowerCase().includes(filterSearch.toLowerCase()) ||
+      o.overrideJustification?.toLowerCase().includes(filterSearch.toLowerCase()) ||
       o.id.toLowerCase().includes(filterSearch.toLowerCase());
     return matchStatus && matchSearch;
   });
 
   const TABS: { key: TabType; label: string; icon: React.ReactNode }[] = [
     { key: 'transactions', label: 'Transactions', icon: <FileText style={{ width: 12, height: 12 }} /> },
+    { key: 'supplier_bills', label: 'Supplier Bills', icon: <Receipt style={{ width: 12, height: 12 }} /> },
     { key: 'daily', label: 'Daily', icon: <BarChart2 style={{ width: 12, height: 12 }} /> },
     { key: 'weekly', label: 'Weekly', icon: <BarChart2 style={{ width: 12, height: 12 }} /> },
     { key: 'monthly', label: 'Monthly', icon: <BarChart2 style={{ width: 12, height: 12 }} /> },
@@ -402,7 +891,15 @@ export default function BillingClient({ profileId, initialOrders, profile }: Bil
                             </button>
                           </td>
                         )}
-                        {visibleCols.customer && <td style={{ fontWeight: 700, color: '#1E293B' }}>{order.retailer.pharmacyName}</td>}
+                        {visibleCols.customer && (
+                          <td style={{ fontWeight: 700, color: '#1E293B' }}>
+                            {order.retailer.pharmacyName === "Walk-in Customer (POS)" ? (
+                              <span style={{ fontSize: 11, color: '#0284C7' }}>{getWalkInName(order.overrideJustification)}</span>
+                            ) : (
+                              order.retailer.pharmacyName
+                            )}
+                          </td>
+                        )}
                         {visibleCols.status && (
                           <td><span style={statusPillStyle(order.status)}>{order.status}</span></td>
                         )}
@@ -437,6 +934,154 @@ export default function BillingClient({ profileId, initialOrders, profile }: Bil
                     );
                   })
                 )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* SUPPLIER BILLS TAB */}
+      {activeTab === 'supplier_bills' && (
+        <div className="card" style={{ background: 'rgba(255,255,255,0.85)', padding: 24 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 12, borderBottom: '1px solid #F1F5F9', paddingBottom: 14, marginBottom: 16 }}>
+            <h3 style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#1E293B', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#0EA5E9', display: 'inline-block' }} /> Wholesaler Supplier Bills Ledger
+            </h3>
+            
+            {/* Filter controls */}
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <input
+                type="text"
+                placeholder="Search supplier / bill #..."
+                value={supBillSupplierSearch}
+                onChange={e => setSupBillSupplierSearch(e.target.value)}
+                className="input-crisp"
+                style={{ fontSize: 11, padding: '5px 10px', width: 180 }}
+              />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ fontSize: 10, color: '#64748B', fontWeight: 650 }}>Date:</span>
+                <input
+                  type="date"
+                  value={supBillDateFrom}
+                  onChange={e => setSupBillDateFrom(e.target.value)}
+                  className="input-crisp"
+                  style={{ fontSize: 11, padding: '4px 8px', width: 115 }}
+                />
+                <span style={{ fontSize: 10, color: '#64748B' }}>to</span>
+                <input
+                  type="date"
+                  value={supBillDateTo}
+                  onChange={e => setSupBillDateTo(e.target.value)}
+                  className="input-crisp"
+                  style={{ fontSize: 11, padding: '4px 8px', width: 115 }}
+                />
+              </div>
+              {(supBillSupplierSearch || supBillDateFrom || supBillDateTo) && (
+                <button
+                  onClick={() => {
+                    setSupBillSupplierSearch('');
+                    setSupBillDateFrom('');
+                    setSupBillDateTo('');
+                  }}
+                  className="btn-ghost"
+                  style={{ fontSize: 10, padding: '5px 10px', color: '#EF4444', borderColor: '#FECDD3', background: '#FEF2F2' }}
+                >
+                  Clear Filters
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="table-wrapper">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Bill Date</th>
+                  <th>Bill Reference</th>
+                  <th>Supplier</th>
+                  <th>Status</th>
+                  <th style={{ textAlign: 'right' }}>Total Bill Amount</th>
+                  <th style={{ textAlign: 'right' }}>Amount Paid</th>
+                  <th style={{ textAlign: 'right' }}>Remaining Due</th>
+                  <th style={{ textAlign: 'center' }}>Settle Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(() => {
+                  const filtered = supplierBills.filter(bill => {
+                    const matchText = bill.supplier.name.toLowerCase().includes(supBillSupplierSearch.toLowerCase()) ||
+                                      bill.billNumber.toLowerCase().includes(supBillSupplierSearch.toLowerCase());
+                    if (!matchText) return false;
+
+                    const billTime = new Date(bill.billDate).getTime();
+                    if (supBillDateFrom && billTime < new Date(supBillDateFrom).getTime()) return false;
+                    if (supBillDateTo && billTime > new Date(supBillDateTo).getTime()) return false;
+
+                    return true;
+                  });
+
+                  if (filtered.length === 0) {
+                    return <tr><td colSpan={8} style={{ padding: '32px', textAlign: 'center', color: '#94A3B8', fontStyle: 'italic', fontSize: 12 }}>No supplier bills found matching filters.</td></tr>;
+                  }
+
+                  return filtered.map((bill) => {
+                    const due = Math.max(bill.totalAmount - bill.paidAmount, 0);
+                    const isFullyPaid = bill.paidAmount >= bill.totalAmount;
+                    return (
+                      <tr key={bill.id} onClick={() => setDetailSupplierBill(bill)} style={{ cursor: 'pointer' }}>
+                        <td style={{ fontFamily: 'monospace', fontSize: 11, color: '#64748B' }}>{new Date(bill.billDate).toLocaleDateString()}</td>
+                        <td style={{ fontFamily: 'monospace', fontWeight: 800, color: '#F97316' }}>{bill.billNumber}</td>
+                        <td style={{ fontWeight: 700, color: '#1E293B' }}>{bill.supplier.name}</td>
+                        <td>
+                          <span className={`status-pill status-pill-${bill.status.toLowerCase()}`}>{bill.status}</span>
+                        </td>
+                        <td style={{ textAlign: 'right', fontFamily: 'monospace', fontWeight: 700 }}>Rs. {bill.totalAmount.toLocaleString()}</td>
+                        <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#059669', fontWeight: 700 }}>Rs. {bill.paidAmount.toLocaleString()}</td>
+                        <td style={{ textAlign: 'right', fontFamily: 'monospace', color: due > 0 ? '#DC2626' : '#94A3B8' }}>Rs. {due.toLocaleString()}</td>
+                        <td style={{ textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+                          {!isFullyPaid ? (
+                            <div style={{ display: 'flex', justifyContent: 'center', gap: 4 }}>
+                              {settlingBillId === bill.id ? (
+                                <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                                  <input 
+                                    type="number" 
+                                    placeholder="Amt" 
+                                    value={settleAmount} 
+                                    onChange={e => setSettleAmount(e.target.value)} 
+                                    className="input-crisp" 
+                                    style={{ width: 64, fontSize: 10, padding: 4 }} 
+                                  />
+                                  <button 
+                                    onClick={() => handleSupplierSettleSubmit(bill.id)}
+                                    style={{ padding: '4px 8px', fontSize: 9, background: '#10B981', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 700 }}
+                                  >
+                                    OK
+                                  </button>
+                                  <button 
+                                    onClick={() => setSettlingBillId(null)}
+                                    style={{ padding: '4px 6px', fontSize: 9, background: '#64748B', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer' }}
+                                  >
+                                    ✕
+                                  </button>
+                                </div>
+                              ) : (
+                                <button 
+                                  onClick={() => setSettlingBillId(bill.id)}
+                                  className="btn-ghost"
+                                  style={{ padding: '4px 8px', fontSize: 10, borderColor: '#BAE6FD', color: '#0EA5E9' }}
+                                >
+                                  Settle
+                                </button>
+                              )}
+                            </div>
+                          ) : (
+                            <span style={{ fontSize: 11, color: '#059669', fontWeight: 700 }}>✓ Settled</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  });
+                })()}
               </tbody>
             </table>
           </div>
@@ -481,25 +1126,72 @@ export default function BillingClient({ profileId, initialOrders, profile }: Bil
               <select value={fiscalYear} onChange={e => setFiscalYear(parseInt(e.target.value))} className="input-crisp" style={{ fontSize: 11, padding: '4px 10px', width: 'auto' }}>
                 {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
               </select>
-              <button onClick={() => window.print()} className="btn-ghost" style={{ fontSize: 10, padding: '5px 12px', gap: 4 }}>
+               <button onClick={downloadFiscalExcel} className="btn-primary animate-scaleIn" style={{ fontSize: 10, padding: '5px 12px', gap: 4, background: 'linear-gradient(135deg, #10B981, #059669)', border: 'none' }}>
+                <FileText style={{ width: 12, height: 12 }} /> Export Excel
+              </button>
+              <button onClick={printFiscalAudit} className="btn-ghost" style={{ fontSize: 10, padding: '5px 12px', gap: 4 }}>
                 <Printer style={{ width: 12, height: 12 }} /> Print Audit
               </button>
             </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 20 }}>
-            <div style={{ background: '#F0F9FF', border: '1px solid #BAE6FD', borderRadius: 12, padding: 14 }}>
-              <div style={{ fontSize: 9, fontWeight: 800, color: '#0284C7', textTransform: 'uppercase' }}>Fiscal Revenue</div>
-              <div style={{ fontSize: 20, fontWeight: 900, color: '#0369A1', fontFamily: 'monospace', marginTop: 4 }}>Rs. {fiscalRevenue.toLocaleString()}</div>
-            </div>
-            <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 12, padding: 14 }}>
-              <div style={{ fontSize: 9, fontWeight: 800, color: '#059669', textTransform: 'uppercase' }}>Fiscal Profit</div>
-              <div style={{ fontSize: 20, fontWeight: 900, color: '#047857', fontFamily: 'monospace', marginTop: 4 }}>Rs. {fiscalProfit.toLocaleString()}</div>
-            </div>
-            <div style={{ background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 12, padding: 14 }}>
-              <div style={{ fontSize: 9, fontWeight: 800, color: '#C2410C', textTransform: 'uppercase' }}>Total Invoices</div>
-              <div style={{ fontSize: 20, fontWeight: 900, color: '#C2410C', fontFamily: 'monospace', marginTop: 4 }}>{fiscalOrders.length}</div>
-            </div>
-          </div>
+          {/* ── Enhanced KPI Grid ── */}
+          {(() => {
+            const deliveredOrders = fiscalOrders.filter(o => o.status === 'DELIVERED');
+            const pendingOrders = fiscalOrders.filter(o => o.status !== 'DELIVERED');
+            const totalDiscount = fiscalOrders.reduce((s, o) => s + o.discountAmount, 0);
+            const grossBilled = fiscalOrders.reduce((s, o) => s + o.totalAmount, 0);
+            const profitMarginPct = fiscalRevenue > 0 ? ((fiscalProfit / fiscalRevenue) * 100).toFixed(1) : '0';
+            const kpis = [
+              { label: 'Net Revenue', val: `Rs. ${fiscalRevenue.toLocaleString()}`, bg: '#F0F9FF', border: '#BAE6FD', col: '#0369A1' },
+              { label: 'Gross Profit', val: `Rs. ${fiscalProfit.toLocaleString()}`, bg: '#ECFDF5', border: '#A7F3D0', col: '#047857' },
+              { label: 'Total Invoices', val: String(fiscalOrders.length), bg: '#FFF7ED', border: '#FED7AA', col: '#C2410C' },
+              { label: 'Total Discount', val: `Rs. ${totalDiscount.toFixed(2)}`, bg: '#FAF5FF', border: '#DDD6FE', col: '#7C3AED' },
+              { label: 'Delivered Orders', val: String(deliveredOrders.length), bg: '#ECFDF5', border: '#A7F3D0', col: '#059669' },
+              { label: 'Pending / Other', val: String(pendingOrders.length), bg: '#FFF7ED', border: '#FED7AA', col: '#EA580C' },
+              { label: 'Gross Billed', val: `Rs. ${grossBilled.toFixed(2)}`, bg: '#EFF6FF', border: '#BFDBFE', col: '#1D4ED8' },
+              { label: 'Profit Margin', val: `${profitMarginPct}%`, bg: '#F0F9FF', border: '#BAE6FD', col: '#0EA5E9' },
+            ];
+            return (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20 }}>
+                {kpis.map(k => (
+                  <div key={k.label} style={{ background: k.bg, border: `1.5px solid ${k.border}`, borderRadius: 12, padding: 14 }}>
+                    <div style={{ fontSize: 9, fontWeight: 800, color: k.col, textTransform: 'uppercase', opacity: 0.75, marginBottom: 4 }}>{k.label}</div>
+                    <div style={{ fontSize: 17, fontWeight: 900, color: k.col, fontFamily: 'monospace', lineHeight: 1.2 }}>{k.val}</div>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+
+          {/* ── Monthly Breakdown Chart ── */}
+          {fiscalOrders.length > 0 && (() => {
+            const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+            const monthlyData = MONTHS.map((label, idx) => {
+              const monthOrders = fiscalOrders.filter(o => new Date(o.createdAt).getMonth() === idx);
+              const revenue = monthOrders.filter(o => o.status === 'DELIVERED').reduce((s, o) => s + o.netAmount, 0);
+              const profit = monthOrders.filter(o => o.status === 'DELIVERED').reduce((s, o) => s + getOrderProfit(o), 0);
+              return { label, revenue, profit, count: monthOrders.length };
+            });
+            return (
+              <div style={{ marginBottom: 20, background: '#FAFCFF', border: '1.5px solid #E0F2FE', borderRadius: 14, padding: 18 }}>
+                <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: '#475569', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <BarChart2 style={{ width: 12, height: 12, color: '#0EA5E9' }} /> Monthly Revenue &amp; Profit Breakdown — {fiscalYear}
+                </div>
+                <ResponsiveContainer width="100%" height={200}>
+                  <ComposedChart data={monthlyData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
+                    <XAxis dataKey="label" tick={{ fontSize: 9, fill: '#94A3B8', fontWeight: 600 }} />
+                    <YAxis tick={{ fontSize: 9, fill: '#94A3B8' }} tickFormatter={(v) => `Rs.${(v/1000).toFixed(0)}k`} />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Legend wrapperStyle={{ fontSize: 10, fontWeight: 700 }} />
+                    <Bar dataKey="revenue" name="Revenue" fill="#0EA5E9" radius={[3, 3, 0, 0]} />
+                    <Bar dataKey="profit" name="Profit" fill="#10B981" radius={[3, 3, 0, 0]} />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+            );
+          })()}
+
           <div className="table-wrapper">
             <table className="data-table">
               <thead><tr>
@@ -515,7 +1207,13 @@ export default function BillingClient({ profileId, initialOrders, profile }: Bil
                       <tr key={o.id} style={{ cursor: 'pointer' }} onClick={() => setDetailOrder(o)}>
                         <td style={{ fontFamily: 'monospace', fontSize: 11 }}>{new Date(o.createdAt).toLocaleDateString()}</td>
                         <td style={{ fontFamily: 'monospace', fontWeight: 700, color: '#F97316' }}>INV-{o.id.substring(0, 8).toUpperCase()}</td>
-                        <td style={{ fontWeight: 700 }}>{o.retailer.pharmacyName}</td>
+                        <td style={{ fontWeight: 700 }}>
+                          {o.retailer.pharmacyName === "Walk-in Customer (POS)" ? (
+                            <span style={{ fontSize: 11, color: '#0284C7' }}>{getWalkInName(o.overrideJustification)}</span>
+                          ) : (
+                            o.retailer.pharmacyName
+                          )}
+                        </td>
                         <td><span style={statusPillStyle(o.status)}>{o.status}</span></td>
                         <td style={{ fontFamily: 'monospace' }}>Rs. {o.totalAmount.toFixed(2)}</td>
                         <td style={{ fontFamily: 'monospace', color: '#EA580C' }}>- Rs. {o.discountAmount.toFixed(2)}</td>
@@ -539,6 +1237,153 @@ export default function BillingClient({ profileId, initialOrders, profile }: Bil
       )}
 
       {/* ─────────────────────────────────────────────────────────────────
+          SUPPLIER BILL DETAIL MODAL
+      ───────────────────────────────────────────────────────────────── */}
+      {detailSupplierBill && (() => {
+        let itemsArray: any[] = [];
+        try {
+          itemsArray = JSON.parse(detailSupplierBill.itemsJson || '[]');
+        } catch(e) {}
+        
+        const due = Math.max(detailSupplierBill.totalAmount - detailSupplierBill.paidAmount, 0);
+
+        return (
+          <div className="modal-overlay animate-fadeIn" onClick={() => setDetailSupplierBill(null)} style={{ zIndex: 9999 }}>
+            <div className="modal-card animate-scaleIn" style={{ '--modal-max-width': '650px' } as React.CSSProperties} onClick={e => e.stopPropagation()}>
+              <div className="modal-header">
+                <div>
+                  <h3 style={{ fontSize: 14, fontWeight: 900, color: '#1E293B', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Receipt style={{ width: 18, height: 18, color: '#F97316' }} /> Supplier Bill Details
+                  </h3>
+                  <p style={{ fontSize: 11, color: '#64748B', marginTop: 4 }}>
+                    Bill No: {detailSupplierBill.billNumber} · Date: {new Date(detailSupplierBill.billDate).toLocaleDateString()}
+                  </p>
+                </div>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <span className={`status-pill status-pill-${detailSupplierBill.status.toLowerCase()}`}>{detailSupplierBill.status}</span>
+                  <button onClick={() => setDetailSupplierBill(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8', padding: 4, display: 'flex' }}>
+                    <X style={{ width: 20, height: 20 }} />
+                  </button>
+                </div>
+              </div>
+
+              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                {/* Supplier Info */}
+                <div style={{ background: '#FAFCFF', border: '1px solid #E0F2FE', borderRadius: 12, padding: 12, fontSize: 11, color: '#334155' }}>
+                  <div style={{ fontWeight: 800, color: '#0369A1', textTransform: 'uppercase', fontSize: 9, marginBottom: 4 }}>Supplier Details</div>
+                  <div style={{ fontWeight: 700, fontSize: 12 }}>{detailSupplierBill.supplier.name}</div>
+                  {detailSupplierBill.supplier.phone && <div style={{ color: '#64748B', marginTop: 2 }}>Phone: {detailSupplierBill.supplier.phone}</div>}
+                </div>
+
+                {/* Amounts Summary */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+                  {[
+                    { label: 'Total Amount', val: `Rs. ${detailSupplierBill.totalAmount.toLocaleString()}`, color: '#1E293B' },
+                    { label: 'Paid Amount', val: `Rs. ${detailSupplierBill.paidAmount.toLocaleString()}`, color: '#059669' },
+                    { label: 'Remaining Due', val: `Rs. ${due.toLocaleString()}`, color: due > 0 ? '#DC2626' : '#94A3B8' },
+                  ].map(({ label, val, color }) => (
+                    <div key={label} style={{ background: '#F8FAFC', borderRadius: 12, padding: '12px 14px', border: '1px solid #E2E8F0' }}>
+                      <div style={{ fontSize: 9, fontWeight: 800, color: '#94A3B8', textTransform: 'uppercase', marginBottom: 4 }}>{label}</div>
+                      <div style={{ fontSize: 13, fontWeight: 800, color, fontFamily: 'monospace' }}>{val}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Supplied Items */}
+                {itemsArray.length > 0 && (
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: '#475569', marginBottom: 8 }}>Medication Items</div>
+                    <div style={{ border: '1px solid #E2E8F0', borderRadius: 10, overflow: 'hidden' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+                        <thead style={{ background: '#F8FAFC' }}>
+                          <tr>
+                            <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 700, color: '#475569' }}>Item</th>
+                            <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 700, color: '#475569' }}>Boxes</th>
+                            <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, color: '#475569' }}>Cost / Box</th>
+                            <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, color: '#475569' }}>Subtotal</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {itemsArray.map((item: any, i: number) => {
+                            const prod = products.find(p => p.id === item.productId);
+                            // Resolve cost per box: prefer stored value, fall back to batch purchase price
+                            const costPerBox = (item.pricePerBox && item.pricePerBox > 0)
+                              ? item.pricePerBox
+                              : getProductBuyingPrice(item.productId);
+                            const subtotal = (item.qtyBoxes || 0) * costPerBox;
+                            return (
+                              <tr key={i} style={{ borderTop: '1px solid #E2E8F0' }}>
+                                <td style={{ padding: '8px 12px', fontWeight: 700 }}>{prod?.name || 'Unknown Product'}</td>
+                                <td style={{ padding: '8px 12px', textAlign: 'center', fontFamily: 'monospace' }}>{item.qtyBoxes}</td>
+                                <td style={{ padding: '8px 12px', textAlign: 'right', fontFamily: 'monospace' }}>
+                                  Rs. {costPerBox.toLocaleString()}
+                                  {(!item.pricePerBox || item.pricePerBox === 0) && costPerBox > 0 && (
+                                    <span style={{ fontSize: 9, color: '#94A3B8', marginLeft: 4 }}>(from batch)</span>
+                                  )}
+                                </td>
+                                <td style={{ padding: '8px 12px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 800 }}>Rs. {subtotal.toLocaleString()}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* Memo */}
+                {detailSupplierBill.notes && (
+                  <div style={{ background: '#FAFCFF', border: '1px solid #E0F2FE', borderRadius: 12, padding: 12, fontSize: 11, color: '#334155' }}>
+                    <strong>Note:</strong> {detailSupplierBill.notes}
+                  </div>
+                )}
+
+                {/* Settlement Timeline Ledger */}
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: '#475569', marginBottom: 8 }}>Settlement History Ledger</div>
+                  <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 12, padding: 12, maxHeight: 150, overflowY: 'auto' }}>
+                    {detailSupplierBill.settlements.length === 0 ? (
+                      <div style={{ textAlign: 'center', color: '#94A3B8', fontSize: 11, padding: 12, fontStyle: 'italic' }}>
+                        No settlements recorded yet.
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {detailSupplierBill.settlements.map((settle) => (
+                          <div key={settle.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, borderBottom: '1px solid #F1F5F9', paddingBottom: 6 }}>
+                            <div>
+                              <span style={{ color: '#64748B' }}>{new Date(settle.date).toLocaleString()}</span>
+                              {settle.notes && <div style={{ fontSize: 9, color: '#94A3B8', marginTop: 1 }}>{settle.notes}</div>}
+                            </div>
+                            <span style={{ fontWeight: 800, color: '#059669' }}>+ Rs. {settle.amount.toLocaleString()} ({settle.paymentMethod})</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="modal-footer" style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                <button
+                  onClick={() => printSupplierBillVoucher(detailSupplierBill, itemsArray)}
+                  className="btn-ghost"
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, borderColor: '#BAE6FD', color: '#0EA5E9' }}
+                >
+                  <Printer style={{ width: 14, height: 14 }} /> Print Voucher
+                </button>
+                <button
+                  onClick={() => setDetailSupplierBill(null)}
+                  className="btn-primary"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ─────────────────────────────────────────────────────────────────
           TRANSACTION DETAIL MODAL — Centered, 100vh, z-index 9999
       ───────────────────────────────────────────────────────────────── */}
       {detailOrder && (
@@ -551,7 +1396,14 @@ export default function BillingClient({ profileId, initialOrders, profile }: Bil
                   <Receipt style={{ width: 18, height: 18, color: '#F97316' }} />
                   Invoice: INV-{detailOrder.id.substring(0, 12).toUpperCase()}
                 </h3>
-                <p style={{ fontSize: 11, color: '#94A3B8', marginTop: 3 }}>{detailOrder.retailer.pharmacyName} · {new Date(detailOrder.createdAt).toLocaleString()}</p>
+                <p style={{ fontSize: 11, color: '#94A3B8', marginTop: 3 }}>
+                  {detailOrder.retailer.pharmacyName === "Walk-in Customer (POS)" ? (
+                    <span style={{ fontWeight: 'bold', color: '#0EA5E9' }}>{getWalkInName(detailOrder.overrideJustification)}</span>
+                  ) : (
+                    detailOrder.retailer.pharmacyName
+                  )}
+                  {' · '}{new Date(detailOrder.createdAt).toLocaleString()}
+                </p>
               </div>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 <span style={statusPillStyle(detailOrder.status)}>{detailOrder.status}</span>
@@ -709,9 +1561,9 @@ export default function BillingClient({ profileId, initialOrders, profile }: Bil
 
       {/* INVOICE PRINT MODAL */}
       {selectedOrderForPrint && (
-        <div className="modal-overlay no-print" onClick={() => setSelectedOrderForPrint(null)}>
+        <div className="modal-overlay" onClick={() => setSelectedOrderForPrint(null)}>
           <div className="modal-card animate-scaleIn" style={{ '--modal-max-width': '900px' } as React.CSSProperties} onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
+            <div className="modal-header no-print">
               <h3 style={{ fontSize: 13, fontWeight: 900, color: '#1E293B', display: 'flex', alignItems: 'center', gap: 6 }}>
                 <Receipt style={{ width: 16, height: 16, color: '#F97316' }} /> Invoice Print Preview
               </h3>
@@ -720,8 +1572,8 @@ export default function BillingClient({ profileId, initialOrders, profile }: Bil
               </button>
             </div>
             <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {/* Customizer row */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, background: '#F8FAFC', padding: 16, borderRadius: 12 }}>
+               {/* Customizer row */}
+              <div className="no-print" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, background: '#F8FAFC', padding: 16, borderRadius: 12 }}>
                 <div><label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', marginBottom: 6 }}>Invoice Title</label><input type="text" value={customInvoiceTitle} onChange={e => setCustomInvoiceTitle(e.target.value)} className="input-crisp" /></div>
                 <div><label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', marginBottom: 6 }}>Terms &amp; Conditions</label><textarea rows={2} value={customTerms} onChange={e => setCustomTerms(e.target.value)} className="input-crisp" style={{ resize: 'vertical' }} /></div>
                 <div><label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', marginBottom: 6 }}>Memo / Notes</label><textarea rows={2} value={customNotes} onChange={e => setCustomNotes(e.target.value)} className="input-crisp" style={{ resize: 'vertical' }} /></div>
@@ -744,9 +1596,21 @@ export default function BillingClient({ profileId, initialOrders, profile }: Bil
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 12, padding: 16, marginBottom: 20 }}>
                   <div>
                     <div style={{ fontSize: 9, textTransform: 'uppercase', color: '#94A3B8', fontWeight: 800, marginBottom: 6 }}>Billed To:</div>
-                    <div style={{ fontSize: 13, fontWeight: 900 }}>{selectedOrderForPrint.retailer.pharmacyName}</div>
-                    <div style={{ fontSize: 11, color: '#475569', marginTop: 2 }}>{selectedOrderForPrint.retailer.address}</div>
-                    <div style={{ fontSize: 10, color: '#94A3B8', marginTop: 1 }}>Phone: {selectedOrderForPrint.retailer.phone}</div>
+                    <div style={{ fontSize: 13, fontWeight: 900 }}>
+                      {selectedOrderForPrint.retailer.pharmacyName === "Walk-in Customer (POS)" ? (
+                        <span>{getWalkInName(selectedOrderForPrint.overrideJustification)}</span>
+                      ) : (
+                        selectedOrderForPrint.retailer.pharmacyName
+                      )}
+                    </div>
+                    <div style={{ fontSize: 11, color: '#475569', marginTop: 2 }}>
+                      {selectedOrderForPrint.retailer.pharmacyName === "Walk-in Customer (POS)" ? 'POS Counter Walk-in Cash Sale' : selectedOrderForPrint.retailer.address}
+                    </div>
+                    <div style={{ fontSize: 10, color: '#94A3B8', marginTop: 1 }}>
+                      {selectedOrderForPrint.retailer.pharmacyName === "Walk-in Customer (POS)" 
+                        ? `Phone: ${getWalkInPhone(selectedOrderForPrint.overrideJustification)}` 
+                        : `Phone: ${selectedOrderForPrint.retailer.phone}`}
+                    </div>
                   </div>
                   <div>
                     <div style={{ fontSize: 9, textTransform: 'uppercase', color: '#94A3B8', fontWeight: 800, marginBottom: 6 }}>Payment Summary:</div>
@@ -791,7 +1655,7 @@ export default function BillingClient({ profileId, initialOrders, profile }: Bil
                 </div>
               </div>
             </div>
-            <div className="modal-footer" style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <div className="modal-footer no-print" style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button onClick={handlePrint} className="btn-primary" style={{ background: 'linear-gradient(135deg, #F97316, #F59E0B)', gap: 6 }}>
                 <Printer style={{ width: 14, height: 14 }} /> Print Document
               </button>

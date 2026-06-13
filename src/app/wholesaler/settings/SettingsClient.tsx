@@ -196,7 +196,9 @@ export default function SettingsClient({
   // SECURITY TIMEOUT TAB STATE
   // ----------------------------------------------------
   const [inactivityTimeout, setInactivityTimeout] = useState("60");
-  const [lowStockThreshold, setLowStockThreshold] = useState<number>(10);
+  const [lowStockBoxes, setLowStockBoxes] = useState<number>(10);
+  const [lowStockStrips, setLowStockStrips] = useState<number>(0);
+  const [lowStockTablets, setLowStockTablets] = useState<number>(0);
   const [expiryAlertDays, setExpiryAlertDays] = useState<number>(30);
 
   useEffect(() => {
@@ -207,9 +209,22 @@ export default function SettingsClient({
       if (storedTimeout) {
         setInactivityTimeout(storedTimeout);
       }
-      const storedLowStock = localStorage.getItem("medhub_low_stock_threshold");
-      if (storedLowStock) {
-        setLowStockThreshold(parseInt(storedLowStock, 10));
+      const storedLowStockBoxes = localStorage.getItem("medhub_low_stock_threshold_boxes");
+      if (storedLowStockBoxes) {
+        setLowStockBoxes(parseInt(storedLowStockBoxes, 10));
+      } else {
+        const storedOld = localStorage.getItem("medhub_low_stock_threshold");
+        if (storedOld) {
+          setLowStockBoxes(parseInt(storedOld, 10));
+        }
+      }
+      const storedLowStockStrips = localStorage.getItem("medhub_low_stock_threshold_strips");
+      if (storedLowStockStrips) {
+        setLowStockStrips(parseInt(storedLowStockStrips, 10));
+      }
+      const storedLowStockTablets = localStorage.getItem("medhub_low_stock_threshold_tablets");
+      if (storedLowStockTablets) {
+        setLowStockTablets(parseInt(storedLowStockTablets, 10));
       }
       const storedExpiry = localStorage.getItem("medhub_expiry_alert_days");
       if (storedExpiry) {
@@ -232,18 +247,22 @@ export default function SettingsClient({
     }
   };
 
-  const handleSaveAlerts = (lowStock: number, expiryDays: number) => {
-    setLowStockThreshold(lowStock);
+  const handleSaveAlerts = (boxes: number, strips: number, tablets: number, expiryDays: number) => {
+    setLowStockBoxes(boxes);
+    setLowStockStrips(strips);
+    setLowStockTablets(tablets);
     setExpiryAlertDays(expiryDays);
     if (typeof window !== "undefined") {
-      localStorage.setItem("medhub_low_stock_threshold", lowStock.toString());
+      localStorage.setItem("medhub_low_stock_threshold_boxes", boxes.toString());
+      localStorage.setItem("medhub_low_stock_threshold_strips", strips.toString());
+      localStorage.setItem("medhub_low_stock_threshold_tablets", tablets.toString());
       localStorage.setItem("medhub_expiry_alert_days", expiryDays.toString());
       setSuccessMsg(
-        `Alert thresholds updated. Low stock threshold: ${lowStock} boxes, Expiry warnings: ${expiryDays} days.`,
+        `Alert thresholds updated. Low stock threshold: ${boxes} boxes, ${strips} strips, ${tablets} tablets. Expiry warnings: ${expiryDays} days.`,
       );
       logActivity(
         "UPDATE_ALERT_THRESHOLDS",
-        `Changed low stock threshold to ${lowStock} boxes and expiry warning to ${expiryDays} days`,
+        `Changed low stock thresholds to ${boxes} boxes, ${strips} strips, ${tablets} tablets and expiry warning to ${expiryDays} days`,
       );
     }
   };
@@ -2455,23 +2474,85 @@ export default function SettingsClient({
                     units) below which a medicine is considered low stock and
                     flagged on the dashboard.
                   </p>
-                  <input
-                    type="number"
-                    min="1"
-                    value={lowStockThreshold}
-                    onChange={(e) =>
-                      handleSaveAlerts(
-                        parseInt(e.target.value, 10) || 1,
-                        expiryAlertDays,
-                      )
-                    }
-                    className="input-crisp"
+                  <label
                     style={{
-                      maxWidth: 200,
+                      display: "block",
+                      fontSize: 10,
                       fontWeight: 700,
-                      fontFamily: "monospace",
+                      color: "#64748B",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.05em",
+                      marginBottom: 6,
                     }}
-                  />
+                  >
+                    Low Stock Threshold
+                  </label>
+                  <p
+                    style={{
+                      fontSize: 12,
+                      color: "#94A3B8",
+                      marginBottom: 10,
+                      lineHeight: 1.6,
+                    }}
+                  >
+                    Define the inventory count (boxes, strips, tablets) below which a medicine is considered low stock and flagged on the dashboard.
+                  </p>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, maxWidth: 350, background: "#F8FAFC", border: "1px solid #E2E8F0", padding: 12, borderRadius: 14 }}>
+                    <div>
+                      <label style={{ display: "block", fontSize: 9, fontWeight: 800, color: "#94A3B8", textAlign: "center", marginBottom: 4 }}>BOXES</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={lowStockBoxes}
+                        onChange={(e) =>
+                          handleSaveAlerts(
+                            parseInt(e.target.value, 10) || 0,
+                            lowStockStrips,
+                            lowStockTablets,
+                            expiryAlertDays,
+                          )
+                        }
+                        className="input-crisp"
+                        style={{ width: "100%", textAlign: "center", fontWeight: "bold", fontSize: 12, fontFamily: "monospace" }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: "block", fontSize: 9, fontWeight: 800, color: "#94A3B8", textAlign: "center", marginBottom: 4 }}>STRIPS</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={lowStockStrips}
+                        onChange={(e) =>
+                          handleSaveAlerts(
+                            lowStockBoxes,
+                            parseInt(e.target.value, 10) || 0,
+                            lowStockTablets,
+                            expiryAlertDays,
+                          )
+                        }
+                        className="input-crisp"
+                        style={{ width: "100%", textAlign: "center", fontWeight: "bold", fontSize: 12, fontFamily: "monospace" }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: "block", fontSize: 9, fontWeight: 800, color: "#94A3B8", textAlign: "center", marginBottom: 4 }}>TABLETS</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={lowStockTablets}
+                        onChange={(e) =>
+                          handleSaveAlerts(
+                            lowStockBoxes,
+                            lowStockStrips,
+                            parseInt(e.target.value, 10) || 0,
+                            expiryAlertDays,
+                          )
+                        }
+                        className="input-crisp"
+                        style={{ width: "100%", textAlign: "center", fontWeight: "bold", fontSize: 12, fontFamily: "monospace" }}
+                      />
+                    </div>
+                  </div>
                 </div>
 
                 <div>
@@ -2505,7 +2586,9 @@ export default function SettingsClient({
                     value={expiryAlertDays}
                     onChange={(e) =>
                       handleSaveAlerts(
-                        lowStockThreshold,
+                        lowStockBoxes,
+                        lowStockStrips,
+                        lowStockTablets,
                         parseInt(e.target.value, 10) || 1,
                       )
                     }
@@ -2570,20 +2653,26 @@ export default function SettingsClient({
                   >
                     Low Stock Flag
                   </div>
-                  <div
-                    style={{
-                      fontSize: 16,
-                      fontWeight: 900,
-                      color: "#1E293B",
-                      fontFamily: "monospace",
-                      marginTop: 2,
-                    }}
-                  >
-                    &lt; {lowStockThreshold} Boxes
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 4 }}>
+                    {lowStockBoxes > 0 && (
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "#1E293B", fontFamily: "monospace" }}>
+                        &lt; {lowStockBoxes} Boxes
+                      </div>
+                    )}
+                    {lowStockStrips > 0 && (
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "#1E293B", fontFamily: "monospace" }}>
+                        &lt; {lowStockStrips} Strips
+                      </div>
+                    )}
+                    {lowStockTablets > 0 && (
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "#1E293B", fontFamily: "monospace" }}>
+                        &lt; {lowStockTablets} Tablets
+                      </div>
+                    )}
+                    {lowStockBoxes === 0 && lowStockStrips === 0 && lowStockTablets === 0 && (
+                      <div style={{ fontSize: 12, color: "#94A3B8", fontStyle: "italic" }}>No threshold set</div>
+                    )}
                   </div>
-                  <p style={{ fontSize: 10, color: "#64748B", marginTop: 2 }}>
-                    ({lowStockThreshold * 20} base units)
-                  </p>
                 </div>
                 <div>
                   <div
