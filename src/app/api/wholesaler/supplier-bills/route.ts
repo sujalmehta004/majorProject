@@ -47,14 +47,18 @@ export async function POST(request: NextRequest) {
     }
 
     const bill = await db.$transaction(async (tx) => {
+      const parsedTotal = parseFloat(totalAmount);
+      const parsedPaid = parseFloat(paidAmount || 0);
+      const derivedStatus = status || (parsedPaid >= parsedTotal ? 'PAID' : parsedPaid > 0 ? 'PARTIAL' : 'PENDING');
+
       const createdBill = await tx.supplierBill.create({
         data: {
           supplierId,
           billNumber,
           billDate: new Date(billDate),
-          totalAmount: parseFloat(totalAmount),
-          paidAmount: parseFloat(paidAmount || 0),
-          status: status || 'PENDING',
+          totalAmount: parsedTotal,
+          paidAmount: parsedPaid,
+          status: derivedStatus,
           notes: notes || null,
           itemsJson: itemsJson ? JSON.stringify(itemsJson) : '[]',
         },

@@ -132,6 +132,42 @@ export default async function WholesalerDashboard() {
 
   const serializedLogs = JSON.parse(JSON.stringify(auditLogs));
 
+  // Fetch pending B2B settlement requests waiting for verification
+  const pendingSettlements = await db.order.findMany({
+    where: {
+      wholesalerId: profile.id,
+      settleStatus: 'PENDING_VERIFICATION',
+    },
+    include: {
+      retailer: true,
+      items: {
+        include: {
+          product: true,
+        },
+      },
+    },
+    orderBy: { updatedAt: 'desc' },
+  });
+
+  const rejectedSettlements = await db.order.findMany({
+    where: {
+      wholesalerId: profile.id,
+      settleStatus: 'REJECTED',
+    },
+    include: {
+      retailer: true,
+      items: {
+        include: {
+          product: true,
+        },
+      },
+    },
+    orderBy: { updatedAt: 'desc' },
+  });
+
+  const serializedSettlements = JSON.parse(JSON.stringify(pendingSettlements));
+  const serializedRejected = JSON.parse(JSON.stringify(rejectedSettlements));
+
   return (
     <WholesalerLayout
       user={{
@@ -163,6 +199,8 @@ export default async function WholesalerDashboard() {
           companyName: profile.companyName,
         }}
         auditLogs={serializedLogs}
+        pendingSettlements={serializedSettlements}
+        rejectedSettlements={serializedRejected}
       />
     </WholesalerLayout>
   );

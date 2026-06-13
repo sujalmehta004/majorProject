@@ -80,12 +80,12 @@ export async function POST(request: Request) {
     const tPerStrip = tabletsPerStrip ? parseInt(tabletsPerStrip) : 10;
     const sPerBox = stripsPerBox ? parseInt(stripsPerBox) : 10;
 
-    // Check SKU uniqueness
+    // Check SKU uniqueness within this wholesaler's catalog
     const existingSku = await db.product.findUnique({
-      where: { sku },
+      where: { wholesalerId_sku: { wholesalerId, sku } },
     });
     if (existingSku) {
-      return NextResponse.json({ error: 'Product SKU already exists' }, { status: 400 });
+      return NextResponse.json({ error: 'Product SKU already exists in your catalog' }, { status: 400 });
     }
 
     // Tier pricing validation and stringify

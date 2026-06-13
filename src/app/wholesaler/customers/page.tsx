@@ -7,6 +7,7 @@ import CustomerClient from "./CustomerClient";
 
 export const dynamic = "force-dynamic";
 
+// Force trigger reload
 export default async function WholesalerCustomers() {
   const user = await getSessionUser();
   if (
@@ -35,10 +36,13 @@ export default async function WholesalerCustomers() {
     redirect("/subscription-expired");
   }
 
-  // Load registered customer pharmacies belonging to this wholesaler
+  // Load registered customer pharmacies belonging to this wholesaler OR who have placed orders with this wholesaler
   const retailers = await db.retailerProfile.findMany({
     where: {
-      wholesalerId: profile.id,
+      OR: [
+        { wholesalerId: profile.id },
+        { orders: { some: { wholesalerId: profile.id } } }
+      ]
     },
     include: {
       user: true,
@@ -53,10 +57,23 @@ export default async function WholesalerCustomers() {
         },
         orderBy: { createdAt: "desc" },
       },
+      wholesalerRelations: {
+        where: { wholesalerId: profile.id }
+      }
     },
   });
 
-  const serializedRetailers = JSON.parse(JSON.stringify(retailers));
+  const formattedRetailers = retailers.map(c => {
+    const relation = c.wholesalerRelations?.[0];
+    return {
+      ...c,
+      creditLimit: relation ? relation.creditLimit : c.creditLimit,
+      advanceBalance: relation ? relation.advanceBalance : 0,
+      wholesalerRelations: undefined,
+    };
+  });
+
+  const serializedRetailers = JSON.parse(JSON.stringify(formattedRetailers));
 
   return (
     <WholesalerLayout

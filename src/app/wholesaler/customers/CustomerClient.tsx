@@ -26,8 +26,21 @@ interface Order {
   discountAmount: number;
   netAmount: number;
   createdAt: string;
+  overrideJustification?: string | null;
   items?: OrderItem[];
 }
+
+const getWalkInName = (justification?: string | null) => {
+  if (!justification) return 'Walk-in Customer';
+  const match = justification.match(/Walk-in Customer:\s*([^,]+)/);
+  return match ? match[1].trim() : justification;
+};
+
+const getWalkInPhone = (justification?: string | null) => {
+  if (!justification) return '';
+  const match = justification.match(/Phone:\s*(.+)$/);
+  return match ? match[1].trim() : '';
+};
 
 interface Customer {
   id: string;
@@ -37,6 +50,7 @@ interface Customer {
   phone: string;
   creditLimit: number;
   lifetimeSpend: number;
+  advanceBalance?: number;
   user: {
     email: string;
     fullName?: string | null;
@@ -60,6 +74,45 @@ export default function CustomerClient({ customers: initialCustomers, wholesaler
   const [sortOrder, setSortOrder] = useState<'alpha' | 'spend' | 'due'>('alpha');
 
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
+  const [editingCreditLimit, setEditingCreditLimit] = useState('');
+  const [savingCreditLimit, setSavingCreditLimit] = useState(false);
+
+  const handleSelectCustomer = (id: string | null) => {
+    setSelectedCustomerId(id);
+    if (id) {
+      const cust = customers.find(c => c.id === id);
+      if (cust) {
+        setEditingCreditLimit(cust.creditLimit.toString());
+      }
+    } else {
+      setEditingCreditLimit('');
+    }
+  };
+
+  const handleSaveCreditLimit = async () => {
+    if (!selectedCustomerId) return;
+    setSavingCreditLimit(true);
+    try {
+      const res = await fetch('/api/wholesaler/customers', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: selectedCustomerId,
+          creditLimit: parseFloat(editingCreditLimit),
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to save credit limit');
+      
+      // Update local customers state
+      setCustomers(customers.map(c => c.id === selectedCustomerId ? { ...c, creditLimit: parseFloat(editingCreditLimit) } : c));
+      alert('Credit limit updated successfully!');
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setSavingCreditLimit(false);
+    }
+  };
 
   // Add Customer Modal state
   const [showAddModal, setShowAddModal] = useState(false);
@@ -327,7 +380,7 @@ export default function CustomerClient({ customers: initialCustomers, wholesaler
                 return (
                   <button
                     key={c.id}
-                    onClick={() => setSelectedCustomerId(isSelected ? null : c.id)}
+                    onClick={() => handleSelectCustomer(isSelected ? null : c.id)}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
@@ -400,7 +453,7 @@ export default function CustomerClient({ customers: initialCustomers, wholesaler
               </div>
 
               {/* Financial KPI stats */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 12 }}>
                 <div className="card" style={{ padding: 14, background: '#ECFDF5', border: '1px solid #A7F3D0' }}>
                   <div style={{ fontSize: 9, fontWeight: 800, color: '#065F46', textTransform: 'uppercase' }}>Lifetime Spend</div>
                   <div style={{ fontSize: 16, fontWeight: 900, color: '#047857', fontFamily: 'monospace', marginTop: 4 }}>Rs. {selectedCustomer.lifetimeSpend.toLocaleString()}</div>
@@ -410,9 +463,37 @@ export default function CustomerClient({ customers: initialCustomers, wholesaler
                   <div style={{ fontSize: 16, fontWeight: 900, color: '#C2410C', fontFamily: 'monospace', marginTop: 4 }}>Rs. {totalPending.toLocaleString()}</div>
                 </div>
                 <div className="card" style={{ padding: 14, background: '#F0F9FF', border: '1px solid #BAE6FD' }}>
-                  <div style={{ fontSize: 9, fontWeight: 800, color: '#075985', textTransform: 'uppercase' }}>B2B Credit Limit</div>
-                  <div style={{ fontSize: 16, fontWeight: 900, color: '#0369A1', fontFamily: 'monospace', marginTop: 4 }}>Rs. {selectedCustomer.creditLimit.toLocaleString()}</div>
+                  <div style={{ fontSize: 9, fontWeight: 800, color: '#0369A1', textTransform: 'uppercase' }}>B2B Credit Limit</div>
+                  <div style={{ fontSize: 16, fontWeight: 900, color: '#0284C7', fontFamily: 'monospace', marginTop: 4 }}>Rs. {selectedCustomer.creditLimit.toLocaleString()}</div>
                 </div>
+                <div className="card" style={{ padding: 14, background: '#F5F3FF', border: '1px solid #DDD6FE' }}>
+                  <div style={{ fontSize: 9, fontWeight: 800, color: '#6D28D9', textTransform: 'uppercase' }}>Advance Balance</div>
+                  <div style={{ fontSize: 16, fontWeight: 900, color: '#7C3AED', fontFamily: 'monospace', marginTop: 4 }}>Rs. {(selectedCustomer.advanceBalance || 0).toLocaleString()}</div>
+                </div>
+              </div>
+
+              {/* B2B Credit Controls */}
+              <div style={{ border: '1.5px solid #BAE6FD', background: '#F0F9FF', borderRadius: 16, padding: 18, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <h4 style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: '#0369A1', letterSpacing: '0.05em' }}>B2B Credit Controls</h4>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 12 }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 9, fontWeight: 850, color: '#0284C7', textTransform: 'uppercase', marginBottom: 4 }}>Credit Limit (Rs.)</label>
+                    <input 
+                      type="number" 
+                      value={editingCreditLimit} 
+                      onChange={e => setEditingCreditLimit(e.target.value)} 
+                      style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #BAE6FD', fontSize: 12, width: '100%', outline: 'none', background: 'white', color: '#1E293B' }}
+                    />
+                  </div>
+                </div>
+                <button 
+                  onClick={handleSaveCreditLimit} 
+                  disabled={savingCreditLimit}
+                  className="btn-primary" 
+                  style={{ alignSelf: 'flex-end', padding: '6px 12px', fontSize: 10, background: '#0EA5E9' }}
+                >
+                  {savingCreditLimit ? 'Saving...' : 'Save Credit Limit'}
+                </button>
               </div>
 
               {/* Order ledger statement */}
@@ -424,6 +505,7 @@ export default function CustomerClient({ customers: initialCustomers, wholesaler
                       <tr>
                         <th>Date</th>
                         <th>Invoice Ref</th>
+                        {selectedCustomer.pharmacyName === "Walk-in Customer (POS)" && <th>Walk-in Patient</th>}
                         <th>Invoice status</th>
                         <th style={{ textAlign: 'right' }}>Net Amount</th>
                         <th style={{ textAlign: 'right' }}>Paid Amt</th>
@@ -433,7 +515,7 @@ export default function CustomerClient({ customers: initialCustomers, wholesaler
                     <tbody>
                       {selectedCustomer.orders.length === 0 ? (
                         <tr>
-                          <td colSpan={6} style={{ padding: 24, textAlign: 'center', color: '#94A3B8', fontStyle: 'italic' }}>No billing orders registered for this customer.</td>
+                          <td colSpan={selectedCustomer.pharmacyName === "Walk-in Customer (POS)" ? 7 : 6} style={{ padding: 24, textAlign: 'center', color: '#94A3B8', fontStyle: 'italic' }}>No billing orders registered for this customer.</td>
                         </tr>
                       ) : (
                         selectedCustomer.orders.map(o => {
@@ -447,6 +529,11 @@ export default function CustomerClient({ customers: initialCustomers, wholesaler
                                   ORD-{o.id.substring(0, 8).toUpperCase()}
                                 </button>
                               </td>
+                              {selectedCustomer.pharmacyName === "Walk-in Customer (POS)" && (
+                                <td style={{ fontSize: 11, color: '#0EA5E9', fontWeight: 700 }}>
+                                  {getWalkInName(o.overrideJustification)}
+                                </td>
+                              )}
                               <td>
                                 <span className={`status-pill status-pill-${o.status.toLowerCase()}`}>{o.status}</span>
                               </td>
@@ -584,11 +671,19 @@ export default function CustomerClient({ customers: initialCustomers, wholesaler
               </div>
 
               <div className="modal-body space-y-6">
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, background: '#F8FAFC', padding: 16, borderRadius: 16, border: '1px solid #E2E8F0' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: selectedCustomer?.pharmacyName === "Walk-in Customer (POS)" ? '1fr 1fr 1fr' : '1fr 1fr', gap: 12, background: '#F8FAFC', padding: 16, borderRadius: 16, border: '1px solid #E2E8F0' }}>
                   <div>
                     <div style={{ fontSize: 9, fontWeight: 800, color: '#94A3B8', textTransform: 'uppercase' }}>Invoice ID</div>
                     <div style={{ fontSize: 12, fontWeight: 700, color: '#1E293B', fontFamily: 'monospace' }}>ORD-{activeInvoice.id.toUpperCase()}</div>
                   </div>
+                  {selectedCustomer?.pharmacyName === "Walk-in Customer (POS)" && (
+                    <div>
+                      <div style={{ fontSize: 9, fontWeight: 800, color: '#94A3B8', textTransform: 'uppercase' }}>Walk-in Patient</div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: '#0EA5E9' }}>
+                        {getWalkInName(activeInvoice.overrideJustification)} {getWalkInPhone(activeInvoice.overrideJustification) && `(${getWalkInPhone(activeInvoice.overrideJustification)})`}
+                      </div>
+                    </div>
+                  )}
                   <div>
                     <div style={{ fontSize: 9, fontWeight: 800, color: '#94A3B8', textTransform: 'uppercase' }}>Status</div>
                     <span className={`status-pill status-pill-${activeInvoice.status.toLowerCase()}`} style={{ marginTop: 2, display: 'inline-block' }}>

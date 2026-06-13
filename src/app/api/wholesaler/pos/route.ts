@@ -29,9 +29,11 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { items, customerName, customerPhone, retailerId, paidAmount: paidAmountRaw, paymentMethod: paymentMethodRaw } = body; // items: [{ productId, qtyBoxes }]
+    const { items, customerName, customerPhone, retailerId, paidAmount: paidAmountRaw, paymentMethod: paymentMethodRaw, discountAmount: discountAmountRaw, netAmount: netAmountRaw } = body; // items: [{ productId, qtyBoxes }]
     const paidAmount = parseFloat(paidAmountRaw) || 0;
     const paymentMethod = paymentMethodRaw || 'CASH';
+    const bodyDiscountAmount = parseFloat(discountAmountRaw) || 0;
+    const bodyNetAmount = parseFloat(netAmountRaw) || 0;
 
     if (!items || !items.length) {
       return NextResponse.json({ error: 'No items in checkout basket' }, { status: 400 });
@@ -147,8 +149,15 @@ export async function POST(request: Request) {
       });
     }
 
-    // POS sales are cash-based physical customer sales, so no loyalty discounts are pre-loaded
-    const netAmount = totalAmount;
+    // Apply discount from client if provided; otherwise use totalAmount as net
+    // bodyNetAmount takes priority if passed, else compute from bodyDiscountAmount
+    let discountAmount = bodyDiscountAmount;
+    let netAmount = bodyNetAmount > 0 ? bodyNetAmount : Math.max(totalAmount - discountAmount, 0);
+    // Safety: re-derive if mismatch is huge (e.g. client sent 0 for bodyNetAmount)
+    if (netAmount <= 0 && totalAmount > 0) {
+      discountAmount = 0;
+      netAmount = totalAmount;
+    }
     const effectivePaidAmount = Math.min(paidAmount, netAmount); // clamp to bill total
     const dueAmount = Math.max(netAmount - effectivePaidAmount, 0);
     const customerInfoStr = `Walk-in Customer: ${customerName || 'N/A'}, Phone: ${customerPhone || 'N/A'} | Paid: Rs.${effectivePaidAmount.toFixed(2)} | Method: ${paymentMethod} | Due: Rs.${dueAmount.toFixed(2)}`;
@@ -159,10 +168,10 @@ export async function POST(request: Request) {
       const newOrder = await tx.order.create({
         data: {
           wholesalerId: wholesalerProfileId,
-          retailerId: retailerProfile.id,
+          retailerId: retailerProfile!.id,
           status: OrderStatus.DELIVERED,
           totalAmount,
-          discountAmount: 0,
+          discountAmount,
           netAmount,
           overrideJustification: customerInfoStr,
         },

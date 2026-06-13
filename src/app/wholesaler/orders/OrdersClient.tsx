@@ -112,9 +112,11 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
 
   // Return flow state
   const [returnOrderId, setReturnOrderId] = useState<string | null>(null);
-  const [returnItems, setReturnItems] = useState<Array<{ orderItemId: string; quantity: number; maxQty: number; name: string }>>([]);
+  const [returnOrder, setReturnOrder] = useState<Order | null>(null);
+  const [returnItems, setReturnItems] = useState<Array<{ orderItemId: string; quantity: number; maxQty: number; name: string; pricePerUnit: number; tabletsPerBox: number }>>([]);
   const [returnReason, setReturnReason] = useState('Wrong item delivered');
   const [returnLoading, setReturnLoading] = useState(false);
+  const [adjustBilling, setAdjustBilling] = useState(false);
 
   // Order detail modal (click order ID)
   const [detailOrder, setDetailOrder] = useState<Order | null>(null);
@@ -460,16 +462,31 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
     logActivity('PRINT_PREVIEW_OPEN', `Opened dispatch label print preview for Order ${order.id.substring(0, 8)}`);
   };
 
-  // Open return modal
   const openReturnModal = (order: Order) => {
     setReturnOrderId(order.id);
+    setReturnOrder(order);
     setReturnItems(order.items.map(i => ({
       orderItemId: i.id,
       quantity: 0,
       maxQty: i.quantity,
-      name: i.product.name
+      name: i.product.name,
+      pricePerUnit: i.pricePerUnit,
+      tabletsPerBox: i.product.tabletsPerStrip * i.product.stripsPerBox,
     })));
     setReturnReason('Wrong item delivered');
+    setAdjustBilling(false);
+  };
+
+  // Compute estimated refund in Rs. based on entered quantities
+  const computeRefundPreview = () => {
+    let refund = 0;
+    for (const ri of returnItems) {
+      if (ri.quantity > 0) {
+        const tabletsToReturn = ri.quantity * ri.tabletsPerBox;
+        refund += Math.min(tabletsToReturn, ri.maxQty) * ri.pricePerUnit;
+      }
+    }
+    return refund;
   };
 
   const handleReturn = async () => {
@@ -479,12 +496,20 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
     try {
       const itemsToReturn = returnItems.filter(i => i.quantity > 0).map(i => ({ orderItemId: i.orderItemId, quantity: i.quantity, reason: returnReason }));
       if (itemsToReturn.length === 0) { setError('Please enter a return quantity for at least one item.'); setReturnLoading(false); return; }
-      const res = await fetch(`/api/orders/${returnOrderId}/return`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items: itemsToReturn, reason: returnReason }) });
+      const res = await fetch(`/api/orders/${returnOrderId}/return`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: itemsToReturn, reason: returnReason, adjustBilling })
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Return failed');
-      setSuccessMsg('Products returned to inventory successfully. Stock has been restored.');
+      const advanceNote = data.advanceBalanceCredited
+        ? ` Rs. ${parseFloat(data.refundValue).toFixed(2)} credited as advance balance.`
+        : '';
+      setSuccessMsg(`Products returned to inventory successfully. Stock has been restored.${advanceNote}`);
       logActivity('PRODUCT_RETURN', `Returned items from order ${returnOrderId.substring(0, 8)} — Reason: ${returnReason}`);
       setReturnOrderId(null);
+      setReturnOrder(null);
       setReturnItems([]);
       fetchOrdersAndProducts();
     } catch (err: any) {
@@ -1389,53 +1414,102 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
       )}
 
       {/* Return Products Modal */}
-      {returnOrderId && (
-        <div className="modal-overlay" onClick={() => setReturnOrderId(null)}>
-          <div className="modal-card animate-scaleIn" style={{ '--modal-max-width': '480px', border: '1.5px solid rgba(252,165,165,0.5)' } as React.CSSProperties} onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <div>
-                <h3 style={{ fontSize: 15, fontWeight: 900, color: '#DC2626', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <RotateCcw style={{ width: 18, height: 18 }} /> Process Product Return
-                </h3>
-                <p style={{ fontSize: 11, color: '#94A3B8', marginTop: 4 }}>Returned stock will be restored to original batches</p>
+      {returnOrderId && (() => {
+        const refundPreview = computeRefundPreview();
+        return (
+          <div className="modal-overlay" onClick={() => { setReturnOrderId(null); setReturnOrder(null); }}>
+            <div className="modal-card animate-scaleIn" style={{ '--modal-max-width': '520px', border: '1.5px solid rgba(252,165,165,0.5)' } as React.CSSProperties} onClick={e => e.stopPropagation()}>
+              <div className="modal-header">
+                <div>
+                  <h3 style={{ fontSize: 15, fontWeight: 900, color: '#DC2626', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <RotateCcw style={{ width: 18, height: 18 }} /> Process Product Return
+                  </h3>
+                  <p style={{ fontSize: 11, color: '#94A3B8', marginTop: 4 }}>Returned stock will be restored to original batches</p>
+                </div>
+                <button onClick={() => { setReturnOrderId(null); setReturnOrder(null); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8' }}>
+                  <X style={{ width: 18, height: 18 }} />
+                </button>
               </div>
-              <button onClick={() => setReturnOrderId(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8' }}>
-                <X style={{ width: 18, height: 18 }} />
+
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ display: 'block', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#64748B', letterSpacing: '0.05em', marginBottom: 6 }}>Return Reason</label>
+                <select value={returnReason} onChange={e => setReturnReason(e.target.value)} className="input-crisp" style={{ width: '100%' }}>
+                  <option>Wrong item delivered</option>
+                  <option>Delivery failed / returned to sender</option>
+                  <option>Defective / damaged goods</option>
+                  <option>Order cancelled by customer</option>
+                  <option>Quantity mismatch</option>
+                </select>
+              </div>
+
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: '#64748B', marginBottom: 10 }}>Return Quantities (in Boxes)</div>
+                {returnItems.map((item, idx) => {
+                  const maxBoxes = item.tabletsPerBox > 0 ? Math.floor(item.maxQty / item.tabletsPerBox) : item.maxQty;
+                  return (
+                    <div key={item.orderItemId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #F1F5F9' }}>
+                      <div>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: '#1E293B' }}>{item.name}</div>
+                        <div style={{ fontSize: 10, color: '#94A3B8' }}>Max: {maxBoxes} boxes | Rs. {(item.pricePerUnit * item.tabletsPerBox).toFixed(2)}/box</div>
+                      </div>
+                      <input type="number" min={0} max={maxBoxes} value={item.quantity}
+                        onChange={e => setReturnItems(returnItems.map((r, i) => i === idx ? { ...r, quantity: parseInt(e.target.value) || 0 } : r))}
+                        style={{ width: 70, textAlign: 'center', fontFamily: 'monospace', fontWeight: 700, fontSize: 14, border: '1.5px solid #FCA5A5', borderRadius: 8, padding: '6px', background: '#FEF2F2', color: '#DC2626', outline: 'none' }} />
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Billing Adjustment Panel */}
+              <div style={{ background: refundPreview > 0 ? '#FFF7ED' : '#F8FAFC', border: `1.5px solid ${refundPreview > 0 ? '#FED7AA' : '#E2E8F0'}`, borderRadius: 12, padding: '14px 16px', marginBottom: 16, transition: 'all 0.2s' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: refundPreview > 0 ? 12 : 0 }}>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: '#1E293B', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <DollarSign style={{ width: 14, height: 14, color: '#F97316' }} /> Adjust Billing
+                    </div>
+                    <div style={{ fontSize: 10, color: '#64748B', marginTop: 2 }}>Credit refund value as advance balance for next order</div>
+                  </div>
+                  {/* Toggle switch */}
+                  <button
+                    type="button"
+                    onClick={() => setAdjustBilling(v => !v)}
+                    style={{
+                      width: 46, height: 26, borderRadius: 13, border: 'none', cursor: 'pointer',
+                      background: adjustBilling ? '#F97316' : '#CBD5E1', transition: 'background 0.2s',
+                      position: 'relative', flexShrink: 0
+                    }}
+                  >
+                    <span style={{
+                      position: 'absolute', top: 3, left: adjustBilling ? 22 : 3,
+                      width: 20, height: 20, borderRadius: '50%', background: 'white',
+                      transition: 'left 0.2s', boxShadow: '0 1px 4px rgba(0,0,0,0.2)'
+                    }} />
+                  </button>
+                </div>
+                {adjustBilling && refundPreview > 0 && (
+                  <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 8, padding: '10px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: '#065F46', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Advance Balance to Credit</div>
+                      <div style={{ fontSize: 10, color: '#059669', marginTop: 2 }}>Will be auto-applied on customer's next order</div>
+                    </div>
+                    <div style={{ fontSize: 18, fontWeight: 900, color: '#059669', fontFamily: 'monospace' }}>
+                      Rs. {refundPreview.toFixed(2)}
+                    </div>
+                  </div>
+                )}
+                {adjustBilling && refundPreview === 0 && (
+                  <div style={{ fontSize: 10, color: '#94A3B8', marginTop: 8 }}>Enter return quantities above to calculate refund amount.</div>
+                )}
+              </div>
+
+              <button onClick={handleReturn} disabled={returnLoading} className="btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '13px', background: 'linear-gradient(135deg, #EF4444, #DC2626)', fontSize: 12, opacity: returnLoading ? 0.7 : 1 }}>
+                {returnLoading ? 'Processing...' : `Confirm Return & Restore Stock${adjustBilling && refundPreview > 0 ? ` + Credit Rs.${refundPreview.toFixed(2)}` : ''}`}
               </button>
             </div>
-
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ display: 'block', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#64748B', letterSpacing: '0.05em', marginBottom: 6 }}>Return Reason</label>
-              <select value={returnReason} onChange={e => setReturnReason(e.target.value)} className="input-crisp" style={{ width: '100%' }}>
-                <option>Wrong item delivered</option>
-                <option>Delivery failed / returned to sender</option>
-                <option>Defective / damaged goods</option>
-                <option>Order cancelled by customer</option>
-                <option>Quantity mismatch</option>
-              </select>
-            </div>
-
-            <div style={{ marginBottom: 20 }}>
-              <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: '#64748B', marginBottom: 10 }}>Return Quantities</div>
-              {returnItems.map((item, idx) => (
-                <div key={item.orderItemId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #F1F5F9' }}>
-                  <div>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: '#1E293B' }}>{item.name}</div>
-                    <div style={{ fontSize: 10, color: '#94A3B8' }}>Max returnable: {item.maxQty} units</div>
-                  </div>
-                  <input type="number" min={0} max={item.maxQty} value={item.quantity}
-                    onChange={e => setReturnItems(returnItems.map((r, i) => i === idx ? { ...r, quantity: parseInt(e.target.value) || 0 } : r))}
-                    style={{ width: 70, textAlign: 'center', fontFamily: 'monospace', fontWeight: 700, fontSize: 14, border: '1.5px solid #FCA5A5', borderRadius: 8, padding: '6px', background: '#FEF2F2', color: '#DC2626', outline: 'none' }} />
-                </div>
-              ))}
-            </div>
-
-            <button onClick={handleReturn} disabled={returnLoading} className="btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '13px', background: 'linear-gradient(135deg, #EF4444, #DC2626)', fontSize: 12, opacity: returnLoading ? 0.7 : 1 }}>
-              {returnLoading ? 'Processing...' : 'Confirm Return & Restore Stock'}
-            </button>
           </div>
-        </div>
-      )}
+        );
+      })()}
+
 
       {/* Inline Add Customer Modal */}
       {showAddCustomerModal && (

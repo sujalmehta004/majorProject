@@ -14,6 +14,9 @@ import {
   Square,
   AlertTriangle,
   Users,
+  CreditCard,
+  CheckCircle2,
+  XCircle,
   MapPin,
   Truck,
   LayoutDashboard,
@@ -62,6 +65,8 @@ interface DashboardClientProps {
     companyName: string;
   };
   auditLogs: AuditLog[];
+  pendingSettlements?: any[];
+  rejectedSettlements?: any[];
 }
 
 const CustomTooltip = ({ active, payload, label }: any) => {
@@ -120,7 +125,28 @@ export default function DashboardClient({
   profileId,
   metrics,
   auditLogs,
+  pendingSettlements = [],
+  rejectedSettlements = [],
 }: DashboardClientProps) {
+  const handleVerifySettlement = async (orderId: string, approve: boolean) => {
+    try {
+      const res = await fetch('/api/wholesaler/verify-settlement', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId, approve }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        alert(approve ? 'Settlement verified and approved!' : 'Settlement request rejected.');
+        window.location.reload();
+      } else {
+        alert(data.error || 'Failed to verify settlement');
+      }
+    } catch (e) {
+      alert('Error verifying settlement');
+    }
+  };
+
   const [widgets, setWidgets] = useState({
     medicinesRegistered: true,
     activeBatches: true,
@@ -476,6 +502,207 @@ export default function DashboardClient({
           )}
         </div>
       </div>
+
+      {/* ── Rejected Settlement Alerts Panel ── */}
+      {rejectedSettlements.length > 0 && (
+        <div
+          style={{
+            background: 'linear-gradient(135deg, rgba(239,68,68,0.07), rgba(244,63,94,0.04))',
+            border: '1.5px solid rgba(239,68,68,0.4)',
+            borderRadius: 16,
+            overflow: 'hidden',
+            marginBottom: 20,
+          }}
+        >
+          {/* Header */}
+          <div style={{ padding: '14px 20px', background: 'rgba(239,68,68,0.1)', borderBottom: '1px solid rgba(239,68,68,0.15)', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(239,68,68,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <AlertTriangle style={{ width: 16, height: 16, color: '#DC2626' }} />
+            </div>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 900, color: '#991B1B' }}>
+                Rejected Payment Settlements (Action Required)
+              </div>
+              <div style={{ fontSize: 11, color: '#DC2626', marginTop: 1 }}>
+                {rejectedSettlements.length} transaction{rejectedSettlements.length !== 1 ? 's' : ''} rejected and awaiting manual settlement or retailer action
+              </div>
+            </div>
+            <div style={{ marginLeft: 'auto', background: '#DC2626', color: 'white', fontSize: 11, fontWeight: 900, borderRadius: 20, padding: '2px 10px' }}>
+              {rejectedSettlements.length} rejected
+            </div>
+          </div>
+
+          {/* Settlement Items */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+            {rejectedSettlements.map((s: any, idx: number) => (
+              <div
+                key={s.id}
+                style={{
+                  padding: '16px 20px',
+                  borderBottom: idx < rejectedSettlements.length - 1 ? '1px solid rgba(239,68,68,0.1)' : 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 16,
+                  flexWrap: 'wrap',
+                }}
+              >
+                {/* Retailer Info */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 180 }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(239,68,68,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Users style={{ width: 16, height: 16, color: '#DC2626' }} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: '#1E293B' }}>
+                      {s.retailer?.pharmacyName || 'Retailer'}
+                    </div>
+                    <div style={{ fontSize: 10, color: '#94A3B8', marginTop: 1 }}>
+                      Order #{s.id.substring(0, 8).toUpperCase()}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Amount & Method */}
+                <div style={{ display: 'flex', gap: 16, alignItems: 'center', flex: 1 }}>
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase' }}>Rejected Settle Amount</div>
+                    <div style={{ fontSize: 16, fontWeight: 900, color: '#DC2626', fontFamily: 'monospace', marginTop: 2 }}>
+                      Rs. {s.settleAmount?.toLocaleString()}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase' }}>Method</div>
+                    <div style={{ marginTop: 3 }}>
+                      <span style={{ fontSize: 11, fontWeight: 800, color: '#E11D48', background: 'rgba(225,29,72,0.1)', padding: '3px 10px', borderRadius: 20, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                        <CreditCard style={{ width: 10, height: 10 }} />
+                        {s.settleMethod || 'CASH'}
+                      </span>
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase' }}>Remaining Due</div>
+                    <div style={{ fontSize: 13, fontWeight: 800, color: '#991B1B', marginTop: 2 }}>Rs. {s.netAmount?.toLocaleString()}</div>
+                  </div>
+                </div>
+
+                {/* Settle manually button */}
+                <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                  <button
+                    onClick={() => handleVerifySettlement(s.id, true)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg, #10B981, #059669)', color: 'white', fontSize: 11, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}
+                  >
+                    <CheckCircle2 style={{ width: 13, height: 13 }} /> Mark Settled Manually
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Settlement Verification Panel ── */}
+      {pendingSettlements.length > 0 && (
+        <div
+          style={{
+            background: 'linear-gradient(135deg, rgba(139,92,246,0.07), rgba(99,102,241,0.04))',
+            border: '1.5px solid rgba(139,92,246,0.3)',
+            borderRadius: 16,
+            overflow: 'hidden',
+          }}
+        >
+          {/* Header */}
+          <div style={{ padding: '14px 20px', background: 'rgba(139,92,246,0.1)', borderBottom: '1px solid rgba(139,92,246,0.15)', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(139,92,246,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Bell style={{ width: 16, height: 16, color: '#8B5CF6' }} />
+            </div>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 900, color: '#5B21B6' }}>
+                Payment Settlement Verification Requests
+              </div>
+              <div style={{ fontSize: 11, color: '#7C3AED', marginTop: 1 }}>
+                {pendingSettlements.length} retailer{pendingSettlements.length !== 1 ? 's' : ''} awaiting your approval to confirm payment
+              </div>
+            </div>
+            <div style={{ marginLeft: 'auto', background: '#8B5CF6', color: 'white', fontSize: 11, fontWeight: 900, borderRadius: 20, padding: '2px 10px' }}>
+              {pendingSettlements.length} pending
+            </div>
+          </div>
+
+          {/* Settlement Items */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+            {pendingSettlements.map((s: any, idx: number) => (
+              <div
+                key={s.id}
+                style={{
+                  padding: '16px 20px',
+                  borderBottom: idx < pendingSettlements.length - 1 ? '1px solid rgba(139,92,246,0.1)' : 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 16,
+                  flexWrap: 'wrap',
+                }}
+              >
+                {/* Retailer Info */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 180 }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(139,92,246,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Users style={{ width: 16, height: 16, color: '#8B5CF6' }} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: '#1E293B' }}>
+                      {s.retailer?.pharmacyName || 'Retailer'}
+                    </div>
+                    <div style={{ fontSize: 10, color: '#94A3B8', marginTop: 1 }}>
+                      Order #{s.id.substring(0, 8).toUpperCase()}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Amount & Method */}
+                <div style={{ display: 'flex', gap: 16, alignItems: 'center', flex: 1 }}>
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase' }}>Settlement Amount</div>
+                    <div style={{ fontSize: 16, fontWeight: 900, color: '#7C3AED', fontFamily: 'monospace', marginTop: 2 }}>
+                      Rs. {s.settleAmount?.toLocaleString()}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase' }}>Method</div>
+                    <div style={{ marginTop: 3 }}>
+                      <span style={{ fontSize: 11, fontWeight: 800, color: '#059669', background: 'rgba(5,150,105,0.1)', padding: '3px 10px', borderRadius: 20, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                        <CreditCard style={{ width: 10, height: 10 }} />
+                        {s.settleMethod || 'CASH'}
+                      </span>
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase' }}>Order Total</div>
+                    <div style={{ fontSize: 13, fontWeight: 800, color: '#475569', marginTop: 2 }}>Rs. {s.netAmount?.toLocaleString()}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase' }}>Items</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#475569', marginTop: 2 }}>{s.items?.length || 0} medicines</div>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                  <button
+                    onClick={() => handleVerifySettlement(s.id, false)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: '1.5px solid rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.07)', color: '#DC2626', fontSize: 11, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}
+                  >
+                    <XCircle style={{ width: 13, height: 13 }} /> Reject
+                  </button>
+                  <button
+                    onClick={() => handleVerifySettlement(s.id, true)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg, #7C3AED, #8B5CF6)', color: 'white', fontSize: 11, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}
+                  >
+                    <CheckCircle2 style={{ width: 13, height: 13 }} /> Verify & Approve
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Near-Expiry & Low-Stock Alerts Section */}
       {widgets.nearExpiryAlerts && (

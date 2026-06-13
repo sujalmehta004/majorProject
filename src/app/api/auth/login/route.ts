@@ -77,7 +77,7 @@ export async function POST(request: Request) {
     // Determine dashboard redirect
     let redirectUrl = '/';
     if (user.role === 'WHOLESALER' || user.role === 'WHOLESALER_STAFF') redirectUrl = '/wholesaler/dashboard';
-    else if (user.role === 'RETAILER') redirectUrl = '/retailer/dashboard';
+    else if (user.role === 'RETAILER' || user.role === 'RETAILER_STAFF') redirectUrl = '/retailer/dashboard';
     else if (user.role === 'SUPERADMIN') redirectUrl = '/superadmin/matrix-dashboard';
     else if (user.role === 'CLINIC') redirectUrl = '/'; // CLINIC has no functional dashboard in Sprint 1
 

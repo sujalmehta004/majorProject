@@ -1,11 +1,21 @@
 import { NextRequest } from 'next/server';
 
-// SSE broadcast registry - maps wholesalerId → set of writer functions
+// SSE broadcast registry - maps targetId (wholesalerId or retailerId) → set of writer functions
 const subscribers = new Map<string, Set<(data: string) => void>>();
 
-// Called by any mutation API to push updates to all connected clients
+// Called by any mutation API to push updates to all connected wholesaler clients
 export function broadcastToWholesaler(wholesalerId: string, eventType: string, payload?: object) {
   const subs = subscribers.get(wholesalerId);
+  if (!subs || subs.size === 0) return;
+  const message = `data: ${JSON.stringify({ type: eventType, payload, ts: Date.now() })}\n\n`;
+  subs.forEach(send => {
+    try { send(message); } catch {}
+  });
+}
+
+// Called by any mutation API to push updates to all connected retailer clients
+export function broadcastToRetailer(retailerId: string, eventType: string, payload?: object) {
+  const subs = subscribers.get(retailerId);
   if (!subs || subs.size === 0) return;
   const message = `data: ${JSON.stringify({ type: eventType, payload, ts: Date.now() })}\n\n`;
   subs.forEach(send => {
@@ -16,9 +26,11 @@ export function broadcastToWholesaler(wholesalerId: string, eventType: string, p
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const wholesalerId = searchParams.get('wholesalerId');
+  const retailerId = searchParams.get('retailerId');
+  const targetId = wholesalerId || retailerId;
 
-  if (!wholesalerId) {
-    return new Response('Missing wholesalerId', { status: 400 });
+  if (!targetId) {
+    return new Response('Missing targetId (wholesalerId or retailerId)', { status: 400 });
   }
 
   let send: (data: string) => void;
@@ -33,10 +45,10 @@ export async function GET(request: NextRequest) {
       };
 
       // Register subscriber
-      if (!subscribers.has(wholesalerId)) {
-        subscribers.set(wholesalerId, new Set());
+      if (!subscribers.has(targetId)) {
+        subscribers.set(targetId, new Set());
       }
-      subscribers.get(wholesalerId)!.add(send);
+      subscribers.get(targetId)!.add(send);
 
       // Send initial connection event
       send(`data: ${JSON.stringify({ type: 'CONNECTED', ts: Date.now() })}\n\n`);
@@ -51,9 +63,9 @@ export async function GET(request: NextRequest) {
       request.signal.addEventListener('abort', () => {
         closed = true;
         clearInterval(heartbeat);
-        subscribers.get(wholesalerId)?.delete(send);
-        if (subscribers.get(wholesalerId)?.size === 0) {
-          subscribers.delete(wholesalerId);
+        subscribers.get(targetId)?.delete(send);
+        if (subscribers.get(targetId)?.size === 0) {
+          subscribers.delete(targetId);
         }
         try { controller.close(); } catch {}
       });
@@ -69,3 +81,4 @@ export async function GET(request: NextRequest) {
     },
   });
 }
+

@@ -349,6 +349,25 @@ body {
   color: #DC2626;
 }
 
+/* Collapsed Sidebar Centering overrides */
+.sidebar.collapsed .sidebar-nav-item {
+  justify-content: center;
+  padding: 9px 0;
+  gap: 0;
+}
+
+.sidebar.collapsed .sidebar-user {
+  justify-content: center;
+  padding: 8px 0;
+  gap: 0;
+}
+
+.sidebar.collapsed .sidebar-logout {
+  justify-content: center;
+  padding: 8px 0;
+  gap: 0;
+}
+
 /* Main content offset */
 .main-content {
   margin-left: var(--sidebar-width);

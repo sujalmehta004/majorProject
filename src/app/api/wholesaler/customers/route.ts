@@ -31,12 +31,40 @@ export async function GET(request: NextRequest) {
 
     const customers = await db.retailerProfile.findMany({
       where: {
-        wholesalerId: wholesalerProfileId
+        OR: [
+          { wholesalerId: wholesalerProfileId },
+          { orders: { some: { wholesalerId: wholesalerProfileId } } }
+        ]
       },
-      include: { user: true }
+      include: {
+        user: true,
+        orders: {
+          where: { wholesalerId: wholesalerProfileId },
+          include: {
+            items: {
+              include: {
+                product: true
+              }
+            }
+          }
+        },
+        wholesalerRelations: {
+          where: { wholesalerId: wholesalerProfileId }
+        }
+      }
     });
 
-    return NextResponse.json({ success: true, customers });
+    const formattedCustomers = customers.map(c => {
+      const relation = c.wholesalerRelations?.[0];
+      return {
+        ...c,
+        creditLimit: relation ? relation.creditLimit : c.creditLimit,
+        advanceBalance: relation ? relation.advanceBalance : 0,
+        wholesalerRelations: undefined
+      };
+    });
+
+    return NextResponse.json({ success: true, customers: formattedCustomers });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
@@ -124,18 +152,42 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Missing customer ID' }, { status: 400 });
     }
 
-    // Verify ownership
-    const customer = await db.retailerProfile.findUnique({
-      where: { id }
+    // Verify ownership or relationship (direct customer OR has placed orders)
+    const customer = await db.retailerProfile.findFirst({
+      where: {
+        id,
+        OR: [
+          { wholesalerId: wholesalerProfileId },
+          { orders: { some: { wholesalerId: wholesalerProfileId } } }
+        ]
+      }
     });
-    if (!customer || customer.wholesalerId !== wholesalerProfileId) {
+    if (!customer) {
       return NextResponse.json({ error: 'Access denied or customer not found' }, { status: 403 });
+    }
+
+    if (creditLimit !== undefined) {
+      await db.wholesalerRetailerRelation.upsert({
+        where: {
+          wholesalerId_retailerId: {
+            wholesalerId: wholesalerProfileId,
+            retailerId: id,
+          }
+        },
+        update: {
+          creditLimit: parseFloat(creditLimit),
+        },
+        create: {
+          wholesalerId: wholesalerProfileId,
+          retailerId: id,
+          creditLimit: parseFloat(creditLimit),
+        }
+      });
     }
 
     const updatedCustomer = await db.retailerProfile.update({
       where: { id },
       data: {
-        creditLimit: creditLimit !== undefined ? parseFloat(creditLimit) : undefined,
         lifetimeSpend: lifetimeSpend !== undefined ? parseFloat(lifetimeSpend) : undefined,
         phone: phone !== undefined ? phone : undefined,
         address: address !== undefined ? address : undefined,
@@ -143,10 +195,21 @@ export async function PUT(request: NextRequest) {
       },
       include: {
         user: true,
+        wholesalerRelations: {
+          where: { wholesalerId: wholesalerProfileId }
+        }
       }
     });
 
-    return NextResponse.json({ success: true, customer: updatedCustomer });
+    const relation = updatedCustomer.wholesalerRelations?.[0];
+    const formattedCustomer = {
+      ...updatedCustomer,
+      creditLimit: relation ? relation.creditLimit : updatedCustomer.creditLimit,
+      advanceBalance: relation ? relation.advanceBalance : 0,
+      wholesalerRelations: undefined,
+    };
+
+    return NextResponse.json({ success: true, customer: formattedCustomer });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

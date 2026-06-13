@@ -12,6 +12,7 @@ enum Role {
   WHOLESALER
   WHOLESALER_STAFF
   RETAILER
+  RETAILER_STAFF
   CLINIC
   CONSUMER
 }
@@ -50,6 +51,8 @@ model User {
   // Staff association
   wholesalerId      String?
   wholesaler        WholesalerProfile? @relation("WholesalerStaff", fields: [wholesalerId], references: [id], onDelete: Cascade)
+  retailerId        String?
+  retailer          RetailerProfile?   @relation("RetailerStaff", fields: [retailerId], references: [id], onDelete: Cascade)
   fullName          String?
   plainPassword     String?
   allowedFeatures   String             @default("Dashboard,Medicines,Orders,Billing,POS,Profile,Logs")
@@ -81,6 +84,7 @@ model WholesalerProfile {
   staff              User[]   @relation("WholesalerStaff")
   suppliers          Supplier[]
   customers          RetailerProfile[]
+  retailerRelations  WholesalerRetailerRelation[]
 }
 
 model RetailerProfile {
@@ -102,6 +106,10 @@ model RetailerProfile {
 
   orders             Order[]
   inventories        RetailerInventory[]
+  products           Product[]
+  suppliers          Supplier[]
+  staff              User[]              @relation("RetailerStaff")
+  wholesalerRelations WholesalerRetailerRelation[]
 }
 
 model ClinicProfile {
@@ -117,26 +125,31 @@ model ClinicProfile {
 }
 
 model Product {
-  id             String            @id @default(uuid())
-  wholesalerId   String
-  wholesaler     WholesalerProfile @relation(fields: [wholesalerId], references: [id], onDelete: Cascade)
-  name           String
-  sku            String            @unique
-  tabletsPerStrip Int              @default(10)
-  stripsPerBox   Int               @default(10)
+  id              String             @id @default(uuid())
+  wholesalerId    String?
+  wholesaler      WholesalerProfile? @relation(fields: [wholesalerId], references: [id], onDelete: Cascade)
+  retailerId      String?
+  retailer        RetailerProfile?   @relation(fields: [retailerId], references: [id], onDelete: Cascade)
+  name            String
+  sku             String
+  tabletsPerStrip Int                @default(10)
+  stripsPerBox    Int                @default(10)
   
   // Pricing tiers (stored as JSON, e.g., [{minQty: 1, maxQty: 49, pricePerBox: 10}, {minQty: 50, maxQty: 9999, pricePerBox: 9}])
-  tierPricingJson String           @default("[]") 
+  tierPricingJson String             @default("[]") 
   
-  category       String            @default("Uncategorized")
+  category        String             @default("Uncategorized")
   
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
 
-  batches        InventoryBatch[]
-  orderItems     OrderItem[]
-  retailStock    RetailerInventory[]
-  inTransitLogs  InTransitLog[]
+  batches         InventoryBatch[]
+  orderItems      OrderItem[]
+  retailStock     RetailerInventory[]
+  inTransitLogs   InTransitLog[]
+
+  @@unique([wholesalerId, sku])
+  @@unique([retailerId, sku])
 }
 
 model InventoryBatch {
@@ -180,6 +193,10 @@ model Order {
   overrideJustification String?           // Log justification if credit guard is bypassed
   createdAt             DateTime          @default(now())
   updatedAt             DateTime          @updatedAt
+  advanceApplied        Float             @default(0)
+  settleStatus          String            @default("UNPAID") // UNPAID, PENDING_VERIFICATION, VERIFIED
+  settleAmount          Float             @default(0)
+  settleMethod          String?           @default("CASH")
 
   items                 OrderItem[]
   inTransitLogs         InTransitLog[]
@@ -231,6 +248,8 @@ model RetailerInventory {
   batchNumber  String
   quantity     Int             // quantity in base units
   expiryDate   DateTime
+  buyingPrice  Float           @default(0)
+  sellingPrice Float           @default(0)
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt
 
@@ -247,16 +266,18 @@ model SystemAuditLog {
 }
 
 model Supplier {
-  id            String            @id @default(uuid())
-  wholesalerId  String
-  wholesaler    WholesalerProfile @relation(fields: [wholesalerId], references: [id], onDelete: Cascade)
+  id            String             @id @default(uuid())
+  wholesalerId  String?
+  wholesaler    WholesalerProfile? @relation(fields: [wholesalerId], references: [id], onDelete: Cascade)
+  retailerId    String?
+  retailer      RetailerProfile?   @relation(fields: [retailerId], references: [id], onDelete: Cascade)
   name          String
   contactPerson String?
   phone         String?
   email         String?
   address       String?
-  createdAt     DateTime          @default(now())
-  updatedAt     DateTime          @updatedAt
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
 
   batches       InventoryBatch[]
   bills         SupplierBill[]
@@ -290,3 +311,16 @@ model SupplierSettlement {
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt
 }
+
+model WholesalerRetailerRelation {
+  id             String            @id @default(uuid())
+  wholesalerId   String
+  wholesaler     WholesalerProfile @relation(fields: [wholesalerId], references: [id], onDelete: Cascade)
+  retailerId     String
+  retailer       RetailerProfile   @relation(fields: [retailerId], references: [id], onDelete: Cascade)
+  creditLimit    Float             @default(200000)
+  advanceBalance Float             @default(0)
+
+  @@unique([wholesalerId, retailerId])
+}
+

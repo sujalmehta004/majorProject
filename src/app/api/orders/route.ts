@@ -62,6 +62,21 @@ export async function POST(request: Request) {
       // tierPricingJson example: [{"minQty": 1, "maxQty": 49, "pricePerBox": 10}, {"minQty": 50, "maxQty": 999, "pricePerBox": 9}]
       let pricePerBox = 100; // default backup price if no tiers defined
       try {
+        const activeBatch = await db.inventoryBatch.findFirst({
+          where: {
+            productId: product.id,
+            expiryDate: { gt: new Date() },
+            availableBaseUnits: { gt: 0 },
+          },
+          orderBy: { expiryDate: 'asc' },
+        });
+        if (activeBatch) {
+          pricePerBox = activeBatch.sellingPricePerBox;
+        }
+      } catch (e) {
+        console.error('Failed to retrieve active batch price:', e);
+      }
+      try {
         const tiers = JSON.parse(product.tierPricingJson || '[]');
         const matchingTier = tiers.find(
           (t: any) => item.qtyBoxes >= t.minQty && item.qtyBoxes <= (t.maxQty || 999999)
@@ -103,6 +118,19 @@ export async function POST(request: Request) {
     const discountAmount = totalAmount * discountPercent;
     const netAmount = totalAmount - discountAmount;
 
+    // Fetch wholesaler relation details (credit limit & advance balance)
+    const relation = await db.wholesalerRetailerRelation.findUnique({
+      where: {
+        wholesalerId_retailerId: {
+          wholesalerId: wholesaler.id,
+          retailerId: retailer.id,
+        }
+      }
+    });
+
+    const activeCreditLimit = relation ? relation.creditLimit : retailer.creditLimit;
+    const advanceBalance = relation ? relation.advanceBalance : 0;
+
     // 3. Credit Guard Safeguards
     // Check overdue invoices older than 30 days (unpaid / non-delivered status)
     const thirtyDaysAgo = new Date();
@@ -116,7 +144,7 @@ export async function POST(request: Request) {
       },
     });
 
-    const isCreditLimitExceeded = netAmount > retailer.creditLimit;
+    const isCreditLimitExceeded = netAmount > activeCreditLimit;
     const hasOverdueInvoices = overdueOrdersCount > 0;
 
     if ((isCreditLimitExceeded || hasOverdueInvoices) && !overrideJustification) {
@@ -124,7 +152,7 @@ export async function POST(request: Request) {
         {
           error: 'CREDIT_BLOCKED',
           reason: isCreditLimitExceeded
-            ? `Order amount (Rs. ${netAmount.toFixed(2)}) exceeds retailer credit limit (Rs. ${retailer.creditLimit.toFixed(2)}).`
+            ? `Order amount (Rs. ${netAmount.toFixed(2)}) exceeds retailer credit limit (Rs. ${activeCreditLimit.toFixed(2)}).`
             : `Retailer has unpaid invoices older than 30 days.`,
           isCreditLimitExceeded,
           hasOverdueInvoices,
@@ -134,7 +162,7 @@ export async function POST(request: Request) {
     }
 
     // 4. Isolated Transaction Block for Order Creation and FIFO Allocation
-    const resultOrder = await db.$transaction(async (tx) => {
+    const result = await db.$transaction(async (tx) => {
       // If override justification is provided, check and log it
       if (overrideJustification && (isCreditLimitExceeded || hasOverdueInvoices)) {
         await tx.systemAuditLog.create({
@@ -143,6 +171,26 @@ export async function POST(request: Request) {
             userId: user.userId,
             details: `Wholesaler overrode credit block for Retailer ${retailer.pharmacyName}. Justification: "${overrideJustification}". Order Net Amount: Rs. ${netAmount.toFixed(2)}`,
           },
+        });
+      }
+
+      let appliedAdvance = 0;
+      if (advanceBalance > 0) {
+        appliedAdvance = Math.min(advanceBalance, netAmount);
+        
+        // Deduct advance balance in the relation
+        await tx.wholesalerRetailerRelation.update({
+          where: {
+            wholesalerId_retailerId: {
+              wholesalerId: wholesaler.id,
+              retailerId: retailer.id,
+            }
+          },
+          data: {
+            advanceBalance: {
+              decrement: appliedAdvance,
+            }
+          }
         });
       }
 
@@ -156,6 +204,7 @@ export async function POST(request: Request) {
           discountAmount,
           netAmount,
           overrideJustification: overrideJustification || null,
+          advanceApplied: appliedAdvance,
         },
       });
 
@@ -228,10 +277,10 @@ export async function POST(request: Request) {
         },
       });
 
-      return newOrder;
+      return { newOrder, appliedAdvance };
     });
 
-    return NextResponse.json({ success: true, order: resultOrder });
+    return NextResponse.json({ success: true, order: result.newOrder, appliedAdvance: result.appliedAdvance });
   } catch (error: any) {
     console.error('Order checkout transaction rolled back:', error);
     return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });

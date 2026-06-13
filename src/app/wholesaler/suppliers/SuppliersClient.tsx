@@ -118,8 +118,21 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
   const [activeBill, setActiveBill] = useState<SupplierBill | null>(null);
 
   // SSE Real-time Updates
+  const fetchSuppliers = async () => {
+    try {
+      const res = await fetch('/api/wholesaler/suppliers');
+      const data = await res.json();
+      if (res.ok && data.suppliers) {
+        setSuppliers(data.suppliers);
+      }
+    } catch (err) {
+      console.error('Failed to fetch suppliers:', err);
+    }
+  };
+
   useSSEListener(wholesalerId, (type) => {
     if (type === 'INVENTORY_UPDATED' || type === 'SUPPLIER_UPDATED') {
+      fetchSuppliers();
       router.refresh();
     }
   });
@@ -127,6 +140,13 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
   useEffect(() => {
     setSuppliers(initialSuppliers);
   }, [initialSuppliers]);
+
+  // General Supplier Settlement Modal State
+  const [showSupplierSettleModal, setShowSupplierSettleModal] = useState(false);
+  const [supplierSettleAmount, setSupplierSettleAmount] = useState('');
+  const [supplierSettleMethod, setSupplierSettleMethod] = useState('CASH');
+  const [supplierSettleNotes, setSupplierSettleNotes] = useState('');
+  const [supplierSettleLoading, setSupplierSettleLoading] = useState(false);
 
   // Helper to retrieve the purchase price per box (buying price) from any existing batch of this medicine
   const getProductBuyingPrice = (productId: string): number => {
@@ -176,6 +196,7 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
       if (!res.ok) throw new Error(data.error || 'Failed to submit supplier details');
 
       setSupSuccess(`Supplier "${supName}" saved successfully!`);
+      fetchSuppliers();
       setTimeout(() => {
         setShowAddModal(false);
         setEditingSupplier(null);
@@ -229,6 +250,7 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
       if (!res.ok) throw new Error(data.error || 'Failed to log supplier bill');
 
       setBillSuccess('Purchase bill registered successfully!');
+      fetchSuppliers();
       setTimeout(() => {
         setShowBillModal(false);
         setBillSuccess('');
@@ -268,9 +290,64 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
       setSettleAmount('');
       setSettleNotes('');
       setSettlingBillId(null);
+      fetchSuppliers();
       router.refresh();
     } catch (err: any) {
       alert(err.message);
+    }
+  };
+
+  // Record FIFO Supplier General Settlement
+  const handleSupplierSettleSubmit = async () => {
+    if (!selectedSupplier) return;
+    const totalAmt = parseFloat(supplierSettleAmount);
+    if (!totalAmt || totalAmt <= 0) return;
+
+    setSupplierSettleLoading(true);
+    try {
+      // Find all unpaid or partially paid bills, sorted by date asc (oldest first)
+      const outstandingBills = [...selectedSupplier.bills]
+        .filter(b => b.paidAmount < b.totalAmount)
+        .sort((a, b) => new Date(a.billDate).getTime() - new Date(b.billDate).getTime());
+
+      let remainingSettleAmount = totalAmt;
+
+      for (const bill of outstandingBills) {
+        if (remainingSettleAmount <= 0) break;
+
+        const billDue = bill.totalAmount - bill.paidAmount;
+        const settleForThisBill = Math.min(billDue, remainingSettleAmount);
+
+        // Call PUT API for this bill
+        const res = await fetch('/api/wholesaler/supplier-bills', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: bill.id,
+            settlementAmount: settleForThisBill,
+            paymentMethod: supplierSettleMethod,
+            settlementNotes: supplierSettleNotes || 'Bulk supplier settlement allocation'
+          })
+        });
+
+        if (!res.ok) {
+          const data = await res.ok ? {} : await res.json();
+          throw new Error(data.error || 'Failed to settle one of the bills');
+        }
+
+        remainingSettleAmount -= settleForThisBill;
+      }
+
+      setSupplierSettleAmount('');
+      setSupplierSettleNotes('');
+      setShowSupplierSettleModal(false);
+      await fetchSuppliers();
+      router.refresh();
+      alert('Supplier balance settled successfully!');
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setSupplierSettleLoading(false);
     }
   };
 
@@ -279,26 +356,46 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
     let totalPurchased = 0;
     let totalPaid = 0;
     let totalOutstanding = 0;
+    let totalBoxesSupplied = 0;
 
     sup.bills.forEach(b => {
       totalPurchased += b.totalAmount;
       totalPaid += b.paidAmount;
       totalOutstanding += Math.max(b.totalAmount - b.paidAmount, 0);
+      try {
+        const items = JSON.parse(b.itemsJson || '[]');
+        items.forEach((it: any) => {
+          totalBoxesSupplied += it.qtyBoxes || 0;
+        });
+      } catch (e) {}
     });
 
-    return { totalPurchased, totalPaid, totalOutstanding };
+    return { totalPurchased, totalPaid, totalOutstanding, totalBoxesSupplied };
   };
 
   // Filtering
   let filteredSuppliers = suppliers.filter(s => {
     const query = searchTerm.toLowerCase();
-    return s.name.toLowerCase().includes(query) ||
+    const infoMatch = s.name.toLowerCase().includes(query) ||
       s.contactPerson?.toLowerCase().includes(query) ||
       s.phone?.includes(query);
+    const productMatch = s.batches?.some(b => 
+      b.product?.name?.toLowerCase().includes(query) ||
+      b.product?.sku?.toLowerCase().includes(query) ||
+      b.batchNumber?.toLowerCase().includes(query)
+    );
+    return infoMatch || productMatch;
   });
 
   // Sorting
   filteredSuppliers = [...filteredSuppliers].sort((a, b) => {
+    if (searchTerm) {
+      const q = searchTerm.toLowerCase();
+      const aNameMatch = a.name.toLowerCase().includes(q);
+      const bNameMatch = b.name.toLowerCase().includes(q);
+      if (aNameMatch && !bNameMatch) return -1;
+      if (!aNameMatch && bNameMatch) return 1;
+    }
     if (sortOrder === 'orders') {
       return b.batches.length - a.batches.length;
     }
@@ -311,7 +408,7 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
   });
 
   const selectedSupplier = suppliers.find(s => s.id === selectedSupplierId);
-  const stats = selectedSupplier ? calculateSupplierStats(selectedSupplier) : { totalPurchased: 0, totalPaid: 0, totalOutstanding: 0 };
+  const stats = selectedSupplier ? calculateSupplierStats(selectedSupplier) : { totalPurchased: 0, totalPaid: 0, totalOutstanding: 0, totalBoxesSupplied: 0 };
 
   return (
     <div className="space-y-6 animate-fadeIn">
@@ -471,14 +568,29 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
                 <div className="card" style={{ padding: 14, background: '#ECFDF5', border: '1px solid #A7F3D0' }}>
                   <div style={{ fontSize: 9, fontWeight: 800, color: '#065F46', textTransform: 'uppercase' }}>Total Purchases</div>
                   <div style={{ fontSize: 16, fontWeight: 900, color: '#047857', fontFamily: 'monospace', marginTop: 4 }}>Rs. {stats.totalPurchased.toLocaleString()}</div>
+                  <div style={{ fontSize: 10, color: '#047857', fontWeight: 700, marginTop: 2 }}>{stats.totalBoxesSupplied} Boxes purchased</div>
                 </div>
                 <div className="card" style={{ padding: 14, background: '#FFF7ED', border: '1px solid #FED7AA' }}>
                   <div style={{ fontSize: 9, fontWeight: 800, color: '#854D0E', textTransform: 'uppercase' }}>Total Settled / Paid</div>
                   <div style={{ fontSize: 16, fontWeight: 900, color: '#C2410C', fontFamily: 'monospace', marginTop: 4 }}>Rs. {stats.totalPaid.toLocaleString()}</div>
                 </div>
-                <div className="card" style={{ padding: 14, background: '#FEF2F2', border: '1px solid #FCA5A5' }}>
-                  <div style={{ fontSize: 9, fontWeight: 800, color: '#991B1B', textTransform: 'uppercase' }}>Outstanding Due Balance</div>
-                  <div style={{ fontSize: 16, fontWeight: 900, color: '#DC2626', fontFamily: 'monospace', marginTop: 4 }}>Rs. {stats.totalOutstanding.toLocaleString()}</div>
+                <div className="card" style={{ padding: 14, background: '#FEF2F2', border: '1px solid #FCA5A5', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                  <div>
+                    <div style={{ fontSize: 9, fontWeight: 800, color: '#991B1B', textTransform: 'uppercase' }}>Outstanding Due Balance</div>
+                    <div style={{ fontSize: 16, fontWeight: 900, color: '#DC2626', fontFamily: 'monospace', marginTop: 4 }}>Rs. {stats.totalOutstanding.toLocaleString()}</div>
+                  </div>
+                  {stats.totalOutstanding > 0 && (
+                    <button 
+                      onClick={() => {
+                        setSupplierSettleAmount(stats.totalOutstanding.toString());
+                        setShowSupplierSettleModal(true);
+                      }} 
+                      className="btn-primary" 
+                      style={{ padding: '4px 8px', fontSize: 10, background: '#EF4444', borderColor: '#EF4444', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 700, marginTop: 8 }}
+                    >
+                      Settle Due Balance
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -565,18 +677,25 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
                           );
                         }
 
-                        return filtered.map(b => (
-                          <tr key={b.id} onClick={() => setSelectedBatchDetails(b)} style={{ cursor: 'pointer' }} className="hover:bg-slate-50">
-                            <td style={{ fontFamily: 'monospace', fontWeight: 700, color: '#0EA5E9' }}>{b.batchNumber}</td>
-                            <td>
-                              <div style={{ fontWeight: 700 }}>{b.product.name}</div>
-                              <div style={{ fontSize: 10, color: '#64748B' }}>SKU: {b.product.sku}</div>
-                            </td>
-                            <td>{new Date(b.expiryDate).toLocaleDateString()}</td>
-                            <td style={{ textAlign: 'right', fontFamily: 'monospace' }}>{b.availableBaseUnits} units</td>
-                            <td style={{ textAlign: 'right', fontFamily: 'monospace', fontWeight: 700 }}>Rs. {b.purchasePricePerBox.toFixed(2)}</td>
-                          </tr>
-                        ));
+                        return filtered.map(b => {
+                          const unitsPerBox = (b.product.tabletsPerStrip * b.product.stripsPerBox) || 1;
+                          const boxes = Math.floor(b.availableBaseUnits / unitsPerBox);
+                          const remUnits = b.availableBaseUnits % unitsPerBox;
+                          return (
+                            <tr key={b.id} onClick={() => setSelectedBatchDetails(b)} style={{ cursor: 'pointer' }} className="hover:bg-slate-50">
+                              <td style={{ fontFamily: 'monospace', fontWeight: 700, color: '#0EA5E9' }}>{b.batchNumber}</td>
+                              <td>
+                                <div style={{ fontWeight: 700 }}>{b.product.name}</div>
+                                <div style={{ fontSize: 10, color: '#64748B' }}>SKU: {b.product.sku}</div>
+                              </td>
+                              <td>{new Date(b.expiryDate).toLocaleDateString()}</td>
+                              <td style={{ textAlign: 'right', fontFamily: 'monospace' }}>
+                                {boxes} Box{boxes !== 1 ? 'es' : ''} {remUnits > 0 ? `(${remUnits} units)` : ''}
+                              </td>
+                              <td style={{ textAlign: 'right', fontFamily: 'monospace', fontWeight: 700 }}>Rs. {b.purchasePricePerBox.toFixed(2)}</td>
+                            </tr>
+                          );
+                        });
                       })()}
                     </tbody>
                   </table>
@@ -654,6 +773,45 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
                       )}
                     </tbody>
                   </table>
+                </div>
+              </div>
+
+              {/* Consolidated Supplier Payment Settlements History */}
+              <div>
+                <h4 style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: '#475569', letterSpacing: '0.05em', marginBottom: 10 }}>Payment Settlements History</h4>
+                <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 12, padding: 12, maxHeight: 200, overflowY: 'auto' }}>
+                  {(() => {
+                    const allSettle = selectedSupplier.bills.flatMap(b => 
+                      (b.settlements || []).map(s => ({
+                        ...s,
+                        billNumber: b.billNumber,
+                        billId: b.id
+                      }))
+                    ).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+                    if (allSettle.length === 0) {
+                      return (
+                        <div style={{ textAlign: 'center', color: '#94A3B8', fontSize: 11, padding: 12, fontStyle: 'italic' }}>
+                          No settlements recorded yet.
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {allSettle.map((settle: any) => (
+                          <div key={settle.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, borderBottom: '1px solid #F1F5F9', paddingBottom: 6 }}>
+                            <div>
+                              <span style={{ fontWeight: 700, color: '#1E293B' }}>Bill: {settle.billNumber}</span>
+                              <span style={{ color: '#64748B', marginLeft: 8 }}>{new Date(settle.date).toLocaleString()}</span>
+                              {settle.notes && <div style={{ fontSize: 9, color: '#94A3B8', marginTop: 1 }}>{settle.notes}</div>}
+                            </div>
+                            <span style={{ fontWeight: 800, color: '#059669' }}>+ Rs. {settle.amount.toLocaleString()} ({settle.paymentMethod})</span>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             </div>
@@ -758,10 +916,20 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', marginBottom: 6 }}>Item Lines purchased (Optional listing)</label>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', marginBottom: 8 }}>Item Lines Purchased (Optional)</label>
+
+                  {/* Column Headers */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 80px 24px', gap: 6, padding: '4px 6px', background: '#F1F5F9', borderRadius: 8, marginBottom: 6 }}>
+                    <span style={{ fontSize: 9, fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Medicine / Product</span>
+                    <span style={{ fontSize: 9, fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: 'center' }}>Boxes (Qty)</span>
+                    <span style={{ fontSize: 9, fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: 'center' }}>Cost / Box (Rs.)</span>
+                    <span style={{ fontSize: 9, fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: 'right' }}>Subtotal</span>
+                    <span />
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {billItems.map((item, idx) => (
-                      <div key={idx} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <div key={idx} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 80px 24px', gap: 6, alignItems: 'center' }}>
                         <select 
                           value={item.productId}
                           onChange={e => {
@@ -772,7 +940,7 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
                             setBillItems(updated);
                           }}
                           className="select-crisp"
-                          style={{ flex: 2, fontSize: 11 }}
+                          style={{ fontSize: 11, width: '100%' }}
                         >
                           <option value="">-- Choose Medication --</option>
                           {products.map(p => (
@@ -781,7 +949,8 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
                         </select>
                         <input 
                           type="number" 
-                          placeholder="Boxes"
+                          min={1}
+                          placeholder="e.g. 10"
                           value={item.qtyBoxes}
                           onChange={e => {
                             const updated = [...billItems];
@@ -789,37 +958,53 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
                             setBillItems(updated);
                           }}
                           className="input-crisp"
-                          style={{ flex: 1, fontSize: 11, textAlign: 'center' }}
+                          style={{ fontSize: 11, textAlign: 'center', width: '100%' }}
                         />
                         <input 
                           type="number" 
-                          placeholder="Cost/Box"
-                          value={item.pricePerBox}
+                          step="any"
+                          min={0}
+                          placeholder="e.g. 500"
+                          value={item.pricePerBox || ''}
                           onChange={e => {
                             const updated = [...billItems];
                             updated[idx].pricePerBox = parseFloat(e.target.value) || 0;
                             setBillItems(updated);
                           }}
                           className="input-crisp"
-                          style={{ flex: 1, fontSize: 11, textAlign: 'center' }}
+                          style={{ fontSize: 11, textAlign: 'center', width: '100%' }}
                         />
+                        <div style={{ fontSize: 11, fontWeight: 700, color: '#1E293B', fontFamily: 'monospace', textAlign: 'right', padding: '0 4px' }}>
+                          Rs. {(item.qtyBoxes * item.pricePerBox).toLocaleString()}
+                        </div>
                         <button 
                           type="button" 
                           onClick={() => setBillItems(billItems.filter((_, i) => i !== idx))}
-                          style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer' }}
+                          style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer', padding: 0, fontSize: 14, lineHeight: 1 }}
                         >
                           ✕
                         </button>
                       </div>
                     ))}
+
                     <button 
                       type="button" 
                       onClick={() => setBillItems([...billItems, { productId: '', qtyBoxes: 1, pricePerBox: 0 }])}
-                      style={{ border: '1.5px dashed #BAE6FD', color: '#0EA5E9', background: 'transparent', borderRadius: 8, padding: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+                      style={{ border: '1.5px dashed #BAE6FD', color: '#0EA5E9', background: 'transparent', borderRadius: 8, padding: '6px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer', marginTop: 4 }}
                     >
                       ＋ Add Item Line
                     </button>
                   </div>
+
+                  {/* Running Total */}
+                  {billItems.some(item => item.qtyBoxes > 0 && item.pricePerBox > 0) && (
+                    <div style={{ marginTop: 10, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 10, padding: '8px 12px', background: 'linear-gradient(135deg, #F0F9FF, #E0F2FE)', border: '1px solid #BAE6FD', borderRadius: 10 }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: '#0369A1' }}>Calculated Total:</span>
+                      <span style={{ fontSize: 14, fontWeight: 900, color: '#0284C7', fontFamily: 'monospace' }}>
+                        Rs. {billItems.reduce((s, i) => s + i.qtyBoxes * i.pricePerBox, 0).toLocaleString()}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -970,6 +1155,47 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
               </div>
               <button onClick={() => handleSettleBillSubmit(settlingBillId)} className="btn-primary" style={{ width: '100%', padding: 12, fontSize: 12, marginTop: 8 }}>
                 Confirm Settlement
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* General Supplier Settlement Modal */}
+      {showSupplierSettleModal && selectedSupplier && (
+        <div className="modal-overlay" onClick={() => setShowSupplierSettleModal(false)}>
+          <div className="modal-card animate-scaleIn" style={{ '--modal-max-width': '400px', padding: 28 } as React.CSSProperties} onClick={e => e.stopPropagation()}>
+            <div className="modal-header" style={{ padding: 0, border: 'none', marginBottom: 16 }}>
+              <h3 style={{ fontSize: 14, fontWeight: 900, color: '#1E293B', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <CreditCard style={{ width: 16, height: 16, color: '#EF4444' }} /> Record Supplier Settlement
+              </h3>
+              <button onClick={() => setShowSupplierSettleModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8' }}>
+                <X style={{ width: 18, height: 18 }} />
+              </button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div>
+                <span style={{ fontSize: 11, color: '#64748B' }}>Settlement will be applied to outstanding bills starting from the oldest (FIFO).</span>
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', marginBottom: 6 }}>Amount to Settle (Rs.) *</label>
+                <input type="number" required placeholder="Enter amount..." value={supplierSettleAmount} onChange={e => setSupplierSettleAmount(e.target.value)} className="input-crisp" style={{ fontSize: 12 }} />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', marginBottom: 6 }}>Payment Method</label>
+                <select value={supplierSettleMethod} onChange={e => setSupplierSettleMethod(e.target.value)} className="select-crisp" style={{ fontSize: 12 }}>
+                  <option value="CASH">💵 CASH</option>
+                  <option value="BANK_TRANSFER">🏦 BANK TRANSFER</option>
+                  <option value="MOBILE_BANKING">📱 MOBILE BANKING / FONEPAY</option>
+                  <option value="CARD">💳 CARD</option>
+                </select>
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', marginBottom: 6 }}>Notes / Remarks</label>
+                <input type="text" placeholder="Transaction ID or payment ref..." value={supplierSettleNotes} onChange={e => setSupplierSettleNotes(e.target.value)} className="input-crisp" style={{ fontSize: 12 }} />
+              </div>
+              <button onClick={handleSupplierSettleSubmit} disabled={supplierSettleLoading} className="btn-primary" style={{ width: '100%', padding: 12, fontSize: 12, marginTop: 8, background: '#EF4444', borderColor: '#EF4444' }}>
+                {supplierSettleLoading ? 'Processing Settlement...' : 'Confirm Supplier Settlement'}
               </button>
             </div>
           </div>

@@ -390,8 +390,19 @@ export default function POSClient({ profile, products }: POSClientProps) {
       if (!res.ok) throw new Error(data.error || 'Failed to complete sale.');
 
       setSuccessMsg('POS Counter transaction completed successfully.');
+      const effectivePaid = data.paidAmount ?? data.order.netAmount;
+      const effectiveDue = data.dueAmount ?? 0;
       // Merge payment info (returned separately from API, not on the Order model) into the order object
-      setFinalizedOrder({ ...data.order, paidAmount: data.paidAmount ?? data.order.netAmount, dueAmount: data.dueAmount ?? 0, paymentMethod: data.paymentMethod ?? 'CASH' });
+      setFinalizedOrder({ ...data.order, paidAmount: effectivePaid, dueAmount: effectiveDue, paymentMethod: data.paymentMethod ?? 'CASH' });
+
+      // Persist paid amount to localStorage so the B2B orders log shows correct due balance
+      try {
+        const storedPayments = JSON.parse(localStorage.getItem('medhub_order_payments') || '{}');
+        storedPayments[data.order.id] = effectivePaid;
+        localStorage.setItem('medhub_order_payments', JSON.stringify(storedPayments));
+      } catch (e) {
+        console.warn('Could not persist POS payment to localStorage:', e);
+      }
 
       setCart([]);
       setCustomerName('');

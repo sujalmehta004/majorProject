@@ -164,6 +164,12 @@ export default function BillingClient({ profileId, initialOrders, initialSupplie
   const [settleAmount, setSettleAmount] = useState('');
   const [settlingOrderId, setSettlingOrderId] = useState<string | null>(null);
   const [settlingBillId, setSettlingBillId] = useState<string | null>(null);
+  // Supplier bill settlement method state
+  const [supplierBillSettleMethod, setSupplierBillSettleMethod] = useState('CASH');
+  // For settlement inside the detail modal
+  const [detailBillSettleAmount, setDetailBillSettleAmount] = useState('');
+  const [detailBillSettleMethod, setDetailBillSettleMethod] = useState('CASH');
+  const [detailBillSettleLoading, setDetailBillSettleLoading] = useState(false);
 
   // Filters
   const [filterStatus, setFilterStatus] = useState<string>('all');
@@ -175,8 +181,20 @@ export default function BillingClient({ profileId, initialOrders, initialSupplie
   const [supBillDateTo, setSupBillDateTo] = useState('');
 
   useEffect(() => {
+    const dbSettlements: Record<string, number> = {};
+    initialOrders.forEach((order: any) => {
+      if (order.settleStatus === 'VERIFIED') {
+        dbSettlements[order.id] = order.settleAmount || 0;
+      }
+    });
+
     const stored = localStorage.getItem('medhub_order_payments');
-    if (stored) setSettlements(JSON.parse(stored));
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      Object.assign(dbSettlements, parsed);
+    }
+    setSettlements(dbSettlements);
+
     const storedLogs = localStorage.getItem('medhub_settle_logs');
     if (storedLogs) setSettleLogs(JSON.parse(storedLogs));
 
@@ -364,31 +382,45 @@ export default function BillingClient({ profileId, initialOrders, initialSupplie
     printWindow.document.close();
   };
 
-  const handleSettleSubmit = (orderId: string, totalAmount: number) => {
+  const handleSettleSubmit = async (orderId: string, totalAmount: number) => {
     const currentPaid = settlements[orderId] || 0;
     const inputPaid = parseFloat(settleAmount) || 0;
     if (inputPaid <= 0) return;
     const finalPaid = Math.min(currentPaid + inputPaid, totalAmount);
 
-    const updatedSettlements = { ...settlements, [orderId]: finalPaid };
-    setSettlements(updatedSettlements);
-    localStorage.setItem('medhub_order_payments', JSON.stringify(updatedSettlements));
+    try {
+      const res = await fetch('/api/wholesaler/verify-settlement', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId, approve: true, settleAmount: finalPaid }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to update database');
+      }
 
-    // Log this payment entry with date
-    const newEntry: SettleEntry = { amount: inputPaid, date: new Date().toISOString() };
-    const existingLog = settleLogs[orderId] || [];
-    const updatedLogs = { ...settleLogs, [orderId]: [...existingLog, newEntry] };
-    setSettleLogs(updatedLogs);
-    localStorage.setItem('medhub_settle_logs', JSON.stringify(updatedLogs));
+      const updatedSettlements = { ...settlements, [orderId]: finalPaid };
+      setSettlements(updatedSettlements);
+      localStorage.setItem('medhub_order_payments', JSON.stringify(updatedSettlements));
 
-    setSettleAmount('');
-    setSettlingOrderId(null);
-    setSuccessMsg(`Payment of Rs. ${inputPaid.toLocaleString()} recorded.`);
-    setTimeout(() => setSuccessMsg(''), 3000);
-    logActivity('SETTLE_PAYMENT', `Recorded payment of Rs.${inputPaid} for Order ${orderId}`);
+      // Log this payment entry with date
+      const newEntry: SettleEntry = { amount: inputPaid, date: new Date().toISOString() };
+      const existingLog = settleLogs[orderId] || [];
+      const updatedLogs = { ...settleLogs, [orderId]: [...existingLog, newEntry] };
+      setSettleLogs(updatedLogs);
+      localStorage.setItem('medhub_settle_logs', JSON.stringify(updatedLogs));
+
+      setSettleAmount('');
+      setSettlingOrderId(null);
+      setSuccessMsg(`Payment of Rs. ${inputPaid.toLocaleString()} recorded.`);
+      setTimeout(() => setSuccessMsg(''), 3000);
+      logActivity('SETTLE_PAYMENT', `Recorded payment of Rs.${inputPaid} for Order ${orderId}`);
+    } catch (err: any) {
+      alert(err.message || 'Error recording payment settlement in database');
+    }
   };
 
-  const handleSupplierSettleSubmit = async (billId: string) => {
+  const handleSupplierSettleSubmit = async (billId: string, method = 'CASH') => {
     const amt = parseFloat(settleAmount);
     if (!amt || amt <= 0) return;
 
@@ -399,8 +431,8 @@ export default function BillingClient({ profileId, initialOrders, initialSupplie
         body: JSON.stringify({
           id: billId,
           settlementAmount: amt,
-          paymentMethod: 'CASH',
-          settlementNotes: 'Payment settled from Billing Page'
+          paymentMethod: method,
+          settlementNotes: `Payment settled via Billing Page (${method})`
         })
       });
       const data = await res.json();
@@ -408,11 +440,45 @@ export default function BillingClient({ profileId, initialOrders, initialSupplie
 
       setSettleAmount('');
       setSettlingBillId(null);
+      setSupplierBillSettleMethod('CASH');
       fetchSupplierBills();
       setSuccessMsg(`Supplier payment of Rs. ${amt.toLocaleString()} recorded successfully.`);
       setTimeout(() => setSuccessMsg(''), 3000);
     } catch (err: any) {
       setError(err.message || 'An error occurred.');
+    }
+  };
+
+  const handleDetailBillSettle = async () => {
+    if (!detailSupplierBill) return;
+    const amt = parseFloat(detailBillSettleAmount);
+    if (!amt || amt <= 0) return;
+    setDetailBillSettleLoading(true);
+    try {
+      const res = await fetch('/api/wholesaler/supplier-bills', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: detailSupplierBill.id,
+          settlementAmount: amt,
+          paymentMethod: detailBillSettleMethod,
+          settlementNotes: `Payment settled via Billing Page (${detailBillSettleMethod})`
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to settle supplier bill');
+
+      setDetailBillSettleAmount('');
+      await fetchSupplierBills();
+      // Refresh the detail view with updated data
+      const updatedBill = data.bill;
+      if (updatedBill) setDetailSupplierBill(updatedBill);
+      setSuccessMsg(`Payment of Rs. ${amt.toLocaleString()} recorded for bill ${detailSupplierBill.billNumber}.`);
+      setTimeout(() => setSuccessMsg(''), 3000);
+    } catch (err: any) {
+      setError(err.message || 'An error occurred.');
+    } finally {
+      setDetailBillSettleLoading(false);
     }
   };
 
@@ -1042,20 +1108,31 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
                           {!isFullyPaid ? (
                             <div style={{ display: 'flex', justifyContent: 'center', gap: 4 }}>
                               {settlingBillId === bill.id ? (
-                                <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                                <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center' }}>
                                   <input 
                                     type="number" 
-                                    placeholder="Amt" 
+                                    placeholder="Amount"
                                     value={settleAmount} 
                                     onChange={e => setSettleAmount(e.target.value)} 
                                     className="input-crisp" 
-                                    style={{ width: 64, fontSize: 10, padding: 4 }} 
+                                    style={{ width: 80, fontSize: 10, padding: 4 }} 
                                   />
+                                  <select
+                                    value={supplierBillSettleMethod}
+                                    onChange={e => setSupplierBillSettleMethod(e.target.value)}
+                                    className="select-crisp"
+                                    style={{ fontSize: 10, padding: '4px 6px', width: 90 }}
+                                  >
+                                    <option value="CASH">💵 Cash</option>
+                                    <option value="BANK_TRANSFER">🏦 Bank</option>
+                                    <option value="MOBILE_BANKING">📱 Mobile</option>
+                                    <option value="CARD">💳 Card</option>
+                                  </select>
                                   <button 
-                                    onClick={() => handleSupplierSettleSubmit(bill.id)}
+                                    onClick={() => handleSupplierSettleSubmit(bill.id, supplierBillSettleMethod)}
                                     style={{ padding: '4px 8px', fontSize: 9, background: '#10B981', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 700 }}
                                   >
-                                    OK
+                                    ✓ OK
                                   </button>
                                   <button 
                                     onClick={() => setSettlingBillId(null)}
@@ -1066,7 +1143,7 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
                                 </div>
                               ) : (
                                 <button 
-                                  onClick={() => setSettlingBillId(bill.id)}
+                                  onClick={() => { setSettlingBillId(bill.id); setSettleAmount(due.toString()); }}
                                   className="btn-ghost"
                                   style={{ padding: '4px 8px', fontSize: 10, borderColor: '#BAE6FD', color: '#0EA5E9' }}
                                 >
@@ -1361,6 +1438,48 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
                     )}
                   </div>
                 </div>
+
+                {/* Inline Settle Section */}
+                {due > 0 && (
+                  <div style={{ background: 'linear-gradient(135deg, #FFF7ED, #FEF2F2)', border: '1.5px solid #FED7AA', borderRadius: 14, padding: 16 }}>
+                    <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: '#C2410C', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <CreditCard style={{ width: 12, height: 12 }} /> Record Settlement Payment
+                    </div>
+                    <div style={{ fontSize: 11, color: '#7C2D12', marginBottom: 8 }}>
+                      Outstanding Due: <strong style={{ fontFamily: 'monospace', fontSize: 13 }}>Rs. {due.toLocaleString()}</strong>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 8, alignItems: 'center' }}>
+                      <input
+                        type="number"
+                        step="any"
+                        placeholder={`Max Rs. ${due}`}
+                        value={detailBillSettleAmount}
+                        onChange={e => setDetailBillSettleAmount(e.target.value)}
+                        className="input-crisp"
+                        style={{ fontSize: 12, padding: '8px 10px' }}
+                      />
+                      <select
+                        value={detailBillSettleMethod}
+                        onChange={e => setDetailBillSettleMethod(e.target.value)}
+                        className="select-crisp"
+                        style={{ fontSize: 12, padding: '8px 10px' }}
+                      >
+                        <option value="CASH">💵 CASH</option>
+                        <option value="BANK_TRANSFER">🏦 BANK TRANSFER</option>
+                        <option value="MOBILE_BANKING">📱 MOBILE / FONEPAY</option>
+                        <option value="CARD">💳 CARD</option>
+                      </select>
+                      <button
+                        onClick={handleDetailBillSettle}
+                        disabled={detailBillSettleLoading || !detailBillSettleAmount}
+                        className="btn-primary"
+                        style={{ padding: '8px 14px', fontSize: 11, background: '#10B981', whiteSpace: 'nowrap', opacity: detailBillSettleLoading ? 0.7 : 1 }}
+                      >
+                        {detailBillSettleLoading ? 'Processing...' : 'Confirm'}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="modal-footer" style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
