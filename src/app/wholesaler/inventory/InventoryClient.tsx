@@ -53,7 +53,7 @@ export default function InventoryClient({ profileId }: InventoryClientProps) {
   const [searchQuery, setSearchQuery] = useState('');
   
   // Dual-view states
-  const [viewMode, setViewMode] = useState<'simple' | 'detail'>('simple');
+  const [viewMode, setViewMode] = useState<'simple' | 'detail'>('detail');
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
   const [showColumnPicker, setShowColumnPicker] = useState(false);
   const [visibleColumns, setVisibleColumns] = useState({
@@ -839,13 +839,13 @@ export default function InventoryClient({ profileId }: InventoryClientProps) {
       {/* Page Header */}
       <div style={{
         display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 16,
-        background: 'rgba(255,255,255,0.82)', backdropFilter: 'blur(16px)',
-        border: '1.5px solid rgba(251,146,60,0.2)', borderRadius: 20,
-        padding: '20px 24px', boxShadow: '0 2px 12px rgba(249,115,22,0.07)'
+        background: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(16px)',
+        border: '1.5px solid rgba(14,165,233,0.2)', borderRadius: 20,
+        padding: '20px 24px', boxShadow: '0 2px 12px rgba(14,165,233,0.07)'
       }}>
         <div>
           <h1 style={{ fontSize: 20, fontWeight: 800, color: '#1E293B', display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-            <Package style={{ width: 22, height: 22, color: '#F97316' }} />
+            <Package style={{ width: 22, height: 22, color: '#0EA5E9' }} />
             Medications Catalog & Registry
           </h1>
           <p style={{ fontSize: 12, color: '#64748B' }}>Register medicines, manage warehouse stock batches, and print barcode thermal labels.</p>
@@ -858,7 +858,7 @@ export default function InventoryClient({ profileId }: InventoryClientProps) {
               style={{
                 padding: '6px 12px', border: 'none', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer',
                 background: viewMode === 'simple' ? 'white' : 'transparent',
-                color: viewMode === 'simple' ? '#F97316' : '#64748B',
+                color: viewMode === 'simple' ? '#0EA5E9' : '#64748B',
                 boxShadow: viewMode === 'simple' ? '0 1px 3px rgba(0,0,0,0.06)' : 'none'
               }}
             >
@@ -870,7 +870,7 @@ export default function InventoryClient({ profileId }: InventoryClientProps) {
               style={{
                 padding: '6px 12px', border: 'none', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer',
                 background: viewMode === 'detail' ? 'white' : 'transparent',
-                color: viewMode === 'detail' ? '#F97316' : '#64748B',
+                color: viewMode === 'detail' ? '#0EA5E9' : '#64748B',
                 boxShadow: viewMode === 'detail' ? '0 1px 3px rgba(0,0,0,0.06)' : 'none'
               }}
             >
@@ -882,7 +882,7 @@ export default function InventoryClient({ profileId }: InventoryClientProps) {
           <button
             onClick={() => { setEditingProduct(null); setPricingTiers([]); setShowProductModal(true); }}
             className="btn-primary"
-            style={{ background: 'linear-gradient(135deg, #F97316, #F59E0B)' }}
+            style={{ background: 'linear-gradient(135deg, #0EA5E9, #6366F1)', border: 'none', color: '#white' }}
           >
             <Plus style={{ width: 14, height: 14 }} />
             Add New Medicine
@@ -892,7 +892,7 @@ export default function InventoryClient({ profileId }: InventoryClientProps) {
             className="btn-ghost"
             style={{ display: 'flex', alignItems: 'center', gap: 6 }}
           >
-            <Printer style={{ width: 14, height: 14, color: '#F97316' }} />
+            <Printer style={{ width: 14, height: 14, color: '#0EA5E9' }} />
             Print Batch Labels
           </button>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.25)', borderRadius: 10, fontSize: 11, fontWeight: 700, color: '#059669', cursor: 'default' }}>
@@ -917,7 +917,7 @@ export default function InventoryClient({ profileId }: InventoryClientProps) {
           {/* Search */}
           <div className="filter-field" style={{ minWidth: 200, flex: '1 1 200px' }}>
             <label className="filter-label" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, fontWeight: 700, color: '#475569', textTransform: 'uppercase', marginBottom: 6 }}>
-              <Search style={{ width: 12, height: 12, color: '#F97316' }} />Search Catalog
+              <Search style={{ width: 12, height: 12, color: '#0EA5E9' }} />Search Catalog
             </label>
             <input
               type="text"
@@ -935,7 +935,7 @@ export default function InventoryClient({ profileId }: InventoryClientProps) {
           {/* Batch Search */}
           <div className="filter-field" style={{ minWidth: 150, flex: '1 1 150px', position: 'relative' }}>
             <label className="filter-label" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, fontWeight: 700, color: '#475569', textTransform: 'uppercase', marginBottom: 6 }}>
-              <Barcode style={{ width: 12, height: 12, color: '#F97316' }} />Batch Number
+              <Barcode style={{ width: 12, height: 12, color: '#0EA5E9' }} />Batch Number
             </label>
             <input
               type="text"
@@ -1073,7 +1073,7 @@ export default function InventoryClient({ profileId }: InventoryClientProps) {
                   border: '1.5px solid #E2E8F0', borderRadius: 10, background: 'white', fontWeight: 600, color: '#475569'
                 }}
               >
-                <SlidersHorizontal style={{ width: 14, height: 14, color: '#F97316' }} />
+                <SlidersHorizontal style={{ width: 14, height: 14, color: '#0EA5E9' }} />
                 Columns
               </button>
               {showColumnPicker && (
@@ -1093,7 +1093,7 @@ export default function InventoryClient({ profileId }: InventoryClientProps) {
                           type="checkbox"
                           checked={val}
                           onChange={() => setVisibleColumns({ ...visibleColumns, [col]: !val })}
-                          style={{ accentColor: '#F97316' }}
+                          style={{ accentColor: '#0EA5E9' }}
                         />
                         {col.replace(/([A-Z])/g, ' $1').toUpperCase()}
                       </label>
@@ -1108,7 +1108,7 @@ export default function InventoryClient({ profileId }: InventoryClientProps) {
       {/* Main List Rendering */}
       {loading ? (
         <div style={{ padding: '48px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, background: 'rgba(255,255,255,0.7)', borderRadius: 16, border: '1.5px solid #F1F5F9' }}>
-          <RefreshCw style={{ width: 24, height: 24, color: '#F97316' }} className="animate-spin" />
+          <RefreshCw style={{ width: 24, height: 24, color: '#0EA5E9' }} className="animate-spin" />
           <span style={{ fontSize: 12, color: '#64748B', fontWeight: 600 }}>Synchronizing medicine library...</span>
         </div>
       ) : filteredProducts.length === 0 ? (
@@ -1130,7 +1130,7 @@ export default function InventoryClient({ profileId }: InventoryClientProps) {
               <div
                 key={product.id}
                 style={{
-                  background: 'rgba(255,255,255,0.88)', border: isExpanded ? '1.5px solid #FB923C' : '1.5px solid #E2E8F0',
+                  background: 'rgba(255,255,255,0.88)', border: isExpanded ? '1.5px solid #0EA5E9' : '1.5px solid #E2E8F0',
                   borderRadius: 16, overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
                 }}
               >
@@ -1139,8 +1139,8 @@ export default function InventoryClient({ profileId }: InventoryClientProps) {
                   style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', cursor: 'pointer' }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <div style={{ width: 36, height: 36, borderRadius: 10, background: isLowStock ? '#FEF2F2' : '#FFF7ED', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <Database style={{ width: 16, height: 16, color: isLowStock ? '#EF4444' : '#F97316' }} />
+                    <div style={{ width: 36, height: 36, borderRadius: 10, background: isLowStock ? '#FEF2F2' : '#F0F9FF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <Database style={{ width: 16, height: 16, color: isLowStock ? '#EF4444' : '#0EA5E9' }} />
                     </div>
                     <div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1211,13 +1211,13 @@ export default function InventoryClient({ profileId }: InventoryClientProps) {
 
                   return (
                     <React.Fragment key={product.id}>
-                      <tr style={{ background: isExpanded ? 'rgba(249,115,22,0.02)' : 'transparent' }}>
+                      <tr style={{ background: isExpanded ? 'rgba(14,165,233,0.02)' : 'transparent' }}>
                         <td>
                           <button
                             onClick={() => setExpandedProduct(isExpanded ? null : product.id)}
                             style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 800, color: '#1E293B', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit' }}
                           >
-                            <Database style={{ width: 13, height: 13, color: '#F97316' }} />
+                            <Database style={{ width: 13, height: 13, color: '#0EA5E9' }} />
                             {product.name}
                           </button>
                         </td>
@@ -1234,7 +1234,7 @@ export default function InventoryClient({ profileId }: InventoryClientProps) {
                           <td style={{ fontFamily: 'monospace', fontSize: 11, color: '#64748B' }}>{buyStr}</td>
                         )}
                         {visibleColumns.sellingPrice && (
-                          <td style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 700, color: '#F97316' }}>{sellStr}</td>
+                          <td style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 700, color: '#0EA5E9' }}>{sellStr}</td>
                         )}
                         {visibleColumns.actions && (
                           <td className="text-right">
@@ -1370,7 +1370,7 @@ export default function InventoryClient({ profileId }: InventoryClientProps) {
 
               <button
                 type="submit" className="btn-primary"
-                style={{ width: '100%', justifyContent: 'center', padding: '13px', background: 'linear-gradient(135deg, #F97316, #F59E0B)', marginTop: 8, fontSize: 12 }}
+                style={{ width: '100%', justifyContent: 'center', padding: '13px', background: 'linear-gradient(135deg, #0EA5E9, #6366F1)', marginTop: 8, fontSize: 12, border: 'none', color: '#white' }}
               >
                 {editingProduct ? 'Save Modifications' : 'Register Medication'}
               </button>
@@ -1382,7 +1382,7 @@ export default function InventoryClient({ profileId }: InventoryClientProps) {
       {/* MODAL 2: Ingest/Edit Stock Batch */}
       {showBatchModal && (
         <div className="modal-overlay" onClick={() => { setShowBatchModal(false); setEditingBatch(null); }}>
-          <div className="modal-card animate-scaleIn" style={{ '--modal-max-width': '560px', border: '1.5px solid rgba(251,146,60,0.25)', boxShadow: '0 25px 50px -12px rgba(249,115,22,0.18)', padding: 28, gap: 20 } as React.CSSProperties} onClick={e => e.stopPropagation()}>
+          <div className="modal-card animate-scaleIn" style={{ '--modal-max-width': '560px', border: '1.5px solid rgba(14,165,233,0.25)', boxShadow: '0 25px 50px -12px rgba(14,165,233,0.18)', padding: 28, gap: 20 } as React.CSSProperties} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #F1F5F9', paddingBottom: 14 }}>
               <div>
                 <h3 style={{ fontSize: 15, fontWeight: 900, color: '#1E293B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
@@ -1568,7 +1568,7 @@ export default function InventoryClient({ profileId }: InventoryClientProps) {
 
               <button
                 type="submit" className="btn-primary"
-                style={{ width: '100%', justifyContent: 'center', padding: '13px', background: 'linear-gradient(135deg, #F97316, #F59E0B)', marginTop: 8, fontSize: 12 }}
+                style={{ width: '100%', justifyContent: 'center', padding: '13px', background: 'linear-gradient(135deg, #0EA5E9, #6366F1)', marginTop: 8, fontSize: 12, border: 'none', color: '#white' }}
               >
                 {editingBatch ? 'Save Batch Modifications' : 'Confirm Batch Ingestion'}
               </button>
@@ -1582,11 +1582,11 @@ export default function InventoryClient({ profileId }: InventoryClientProps) {
         <div className="modal-overlay no-print" onClick={() => setPrintingBatch(null)}>
           <div
             className="animate-scaleIn"
-            style={{ background: 'rgba(255,255,255,0.98)', border: '1.5px solid #FED7AA', borderRadius: 24, padding: 28, width: '100%', maxWidth: 400, boxShadow: '0 20px 50px rgba(249,115,22,0.15)', display: 'flex', flexDirection: 'column', gap: 16 }}
+            style={{ background: 'rgba(255,255,255,0.98)', border: '1.5px solid #BAE6FD', borderRadius: 24, padding: 28, width: '100%', maxWidth: 400, boxShadow: '0 20px 50px rgba(14,165,233,0.15)', display: 'flex', flexDirection: 'column', gap: 16 }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #F1F5F9', paddingBottom: 14 }}>
               <h3 style={{ fontSize: 14, fontWeight: 800, color: '#1E293B', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Printer style={{ width: 16, height: 16, color: '#F97316' }} />
+                <Printer style={{ width: 16, height: 16, color: '#0EA5E9' }} />
                 Print Label Options
               </h3>
               <button onClick={() => setPrintingBatch(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8', padding: 4 }}>
@@ -1605,7 +1605,7 @@ export default function InventoryClient({ profileId }: InventoryClientProps) {
                   }
                   setPrintingBatch(null);
                 }}
-                className="btn-primary" style={{ justifyContent: 'center', width: '100%', padding: 12, background: 'linear-gradient(135deg, #F97316, #F59E0B)' }}
+                className="btn-primary" style={{ justifyContent: 'center', width: '100%', padding: 12, background: 'linear-gradient(135deg, #0EA5E9, #6366F1)', border: 'none', color: '#white' }}
               >
                 Single Thermal Label
               </button>
@@ -1648,14 +1648,14 @@ export default function InventoryClient({ profileId }: InventoryClientProps) {
             className="animate-scaleIn"
             style={{
               background: 'rgba(255,255,255,0.98)',
-              border: '1.5px solid #FED7AA',
+              border: '1.5px solid #BAE6FD',
               borderRadius: 24,
               padding: 24,
               width: '100%',
               maxWidth: 420,
               maxHeight: '90vh',
               overflowY: 'auto',
-              boxShadow: '0 20px 50px rgba(249,115,22,0.15)',
+              boxShadow: '0 20px 50px rgba(14,165,233,0.15)',
               display: 'flex',
               flexDirection: 'column',
               gap: 16
@@ -1777,7 +1777,7 @@ export default function InventoryClient({ profileId }: InventoryClientProps) {
                   logActivity('PRINT_THERMAL_BARCODE', `Printed barcode labels for batch: ${batch.batchNumber}`);
                 }}
                 className="btn-primary" 
-                style={{ flex: 1, padding: '12px', justifyContent: 'center', background: 'linear-gradient(135deg, #F97316, #F59E0B)' }}
+                style={{ flex: 1, padding: '12px', justifyContent: 'center', background: 'linear-gradient(135deg, #0EA5E9, #6366F1)', border: 'none', color: '#white' }}
               >
                 Print Label
               </button>
@@ -1800,14 +1800,14 @@ export default function InventoryClient({ profileId }: InventoryClientProps) {
             className="animate-scaleIn"
             style={{
               background: 'rgba(255,255,255,0.98)',
-              border: '1.5px solid #FED7AA',
+              border: '1.5px solid #BAE6FD',
               borderRadius: 24,
               padding: 24,
               width: '100%',
               maxWidth: 480,
               maxHeight: '90vh',
               overflowY: 'auto',
-              boxShadow: '0 20px 50px rgba(249,115,22,0.15)',
+              boxShadow: '0 20px 50px rgba(14,165,233,0.15)',
               display: 'flex',
               flexDirection: 'column',
               gap: 16

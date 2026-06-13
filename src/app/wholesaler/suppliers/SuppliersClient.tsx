@@ -416,7 +416,7 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.80)', backdropFilter: 'blur(16px)', border: '1.5px solid rgba(14,165,233,0.5)', borderRadius: 20, padding: '20px 24px', boxShadow: '0 2px 12px rgba(14,165,233,0.07)' }}>
         <div>
           <h1 style={{ fontSize: 20, fontWeight: 800, color: '#1E293B', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Users style={{ width: 22, height: 22, color: '#F97316' }} />
+            <Users style={{ width: 22, height: 22, color: '#0EA5E9' }} />
             Supplier Registry
           </h1>
           <p style={{ fontSize: 13, color: '#64748B', marginTop: 4 }}>
@@ -536,7 +536,7 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #F1F5F9', paddingBottom: 12 }}>
                 <div>
                   <h3 style={{ fontSize: 15, fontWeight: 900, color: '#1E293B', display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <Users style={{ width: 18, height: 18, color: '#F97316' }} />
+                    <Users style={{ width: 18, height: 18, color: '#0EA5E9' }} />
                     Supplier Account: {selectedSupplier.name}
                   </h3>
                   <p style={{ fontSize: 11, color: '#64748B', marginTop: 4 }}>Review delivery logs, invoice balances, and settlements history</p>
@@ -570,9 +570,9 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
                   <div style={{ fontSize: 16, fontWeight: 900, color: '#047857', fontFamily: 'monospace', marginTop: 4 }}>Rs. {stats.totalPurchased.toLocaleString()}</div>
                   <div style={{ fontSize: 10, color: '#047857', fontWeight: 700, marginTop: 2 }}>{stats.totalBoxesSupplied} Boxes purchased</div>
                 </div>
-                <div className="card" style={{ padding: 14, background: '#FFF7ED', border: '1px solid #FED7AA' }}>
+                <div className="card" style={{ padding: 14, background: '#F0F9FF', border: '1px solid #BAE6FD' }}>
                   <div style={{ fontSize: 9, fontWeight: 800, color: '#854D0E', textTransform: 'uppercase' }}>Total Settled / Paid</div>
-                  <div style={{ fontSize: 16, fontWeight: 900, color: '#C2410C', fontFamily: 'monospace', marginTop: 4 }}>Rs. {stats.totalPaid.toLocaleString()}</div>
+                  <div style={{ fontSize: 16, fontWeight: 900, color: '#0369A1', fontFamily: 'monospace', marginTop: 4 }}>Rs. {stats.totalPaid.toLocaleString()}</div>
                 </div>
                 <div className="card" style={{ padding: 14, background: '#FEF2F2', border: '1px solid #FCA5A5', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                   <div>
@@ -1055,7 +1055,7 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
                   </div>
                   <div>
                     <div style={{ fontSize: 9, fontWeight: 800, color: '#94A3B8', textTransform: 'uppercase' }}>Remaining Balance</div>
-                    <div style={{ fontSize: 14, fontWeight: 900, color: '#D97706', fontFamily: 'monospace', marginTop: 3 }}>Rs. {Math.max(activeBill.totalAmount - activeBill.paidAmount, 0).toLocaleString()}</div>
+                    <div style={{ fontSize: 14, fontWeight: 900, color: '#0284C7', fontFamily: 'monospace', marginTop: 3 }}>Rs. {Math.max(activeBill.totalAmount - activeBill.paidAmount, 0).toLocaleString()}</div>
                   </div>
                 </div>
 
@@ -1208,7 +1208,7 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
           <div className="modal-card animate-scaleIn" style={{ '--modal-max-width': '460px', padding: 28 } as React.CSSProperties} onClick={e => e.stopPropagation()}>
             <div className="modal-header" style={{ padding: 0, border: 'none', marginBottom: 16 }}>
               <h3 style={{ fontSize: 14, fontWeight: 900, color: '#1E293B', display: 'flex', alignItems: 'center', gap: 6 }}>
-                <Database style={{ width: 16, height: 16, color: '#F97316' }} /> Supplied Batch Details
+                <Database style={{ width: 16, height: 16, color: '#0EA5E9' }} /> Supplied Batch Details
               </h3>
               <button onClick={() => setSelectedBatchDetails(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8' }}>
                 <X style={{ width: 18, height: 18 }} />
@@ -1237,7 +1237,7 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
                 </div>
                 <div>
                   <div style={{ color: '#94A3B8', fontSize: 9, fontWeight: 800, textTransform: 'uppercase' }}>Selling Price / Box</div>
-                  <div style={{ color: '#EA580C', fontWeight: 700, marginTop: 2, fontFamily: 'monospace' }}>Rs. {selectedBatchDetails.sellingPricePerBox.toFixed(2)}</div>
+                  <div style={{ color: '#0284C7', fontWeight: 700, marginTop: 2, fontFamily: 'monospace' }}>Rs. {selectedBatchDetails.sellingPricePerBox.toFixed(2)}</div>
                 </div>
               </div>
 

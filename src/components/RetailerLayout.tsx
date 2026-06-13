@@ -214,6 +214,14 @@ export default function RetailerLayout({ children, user, profile }: RetailerLayo
           return next;
         });
       }
+      if ((e.ctrlKey || e.metaKey) && e.key?.toLowerCase() === 'f') {
+        e.preventDefault();
+        if (!document.fullscreenElement) {
+          document.documentElement.requestFullscreen().catch(() => {});
+        } else {
+          document.exitFullscreen().catch(() => {});
+        }
+      }
       if (e.key === 'Escape') {
         setShowSearch(false);
         setSearchQuery('');
@@ -401,7 +409,8 @@ export default function RetailerLayout({ children, user, profile }: RetailerLayo
                     key={item.href}
                     href={item.href}
                     className={`sidebar-nav-item ${isActive ? 'active' : ''}`}
-                    style={isActive ? { borderLeft: '3px solid #F59E0B' } : {}}
+                    style={isActive && !collapsed ? { borderLeft: '3px solid #F59E0B' } : {}}
+                    data-label={item.name}
                   >
                     <Icon className="nav-icon" style={isActive ? { color: '#F59E0B' } : {}} />
                     <span className="sidebar-nav-label">{item.name}</span>
@@ -420,15 +429,16 @@ export default function RetailerLayout({ children, user, profile }: RetailerLayo
               style={{
                 marginBottom: 12,
                 borderRadius: 8,
-                ...(pathname === '/retailer/settings' ? { borderLeft: '3px solid #F59E0B' } : {})
+                ...(pathname === '/retailer/settings' && !collapsed ? { borderLeft: '3px solid #F59E0B' } : {})
               }}
+              data-label="Settings"
             >
               <Settings className="nav-icon" style={pathname === '/retailer/settings' ? { color: '#F59E0B' } : {}} />
               <span className="sidebar-nav-label">Settings</span>
             </Link>
           )}
 
-          <div className="sidebar-user">
+          <div className="sidebar-user" data-label={user.fullName || user.email.split('@')[0]}>
             <div className="sidebar-user-avatar" style={{ background: '#F59E0B' }}>{userInitials}</div>
             <div className="sidebar-user-info">
               <div className="sidebar-user-name">{user.fullName || user.email.split('@')[0]}</div>
@@ -436,7 +446,7 @@ export default function RetailerLayout({ children, user, profile }: RetailerLayo
             </div>
           </div>
           <form onSubmit={handleLogout}>
-            <button type="submit" className="sidebar-logout">
+            <button type="submit" className="sidebar-logout" data-label="Sign Out">
               <LogOut style={{ width: 16, height: 16 }} />
               <span className="sidebar-nav-label">Sign Out</span>
             </button>

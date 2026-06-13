@@ -608,7 +608,7 @@ export default function SettingsClient({
                 gap: 8,
               }}
             >
-              <Building style={{ width: 22, height: 22, color: "#F97316" }} />
+              <Building style={{ width: 22, height: 22, color: "#0EA5E9" }} />
               Registry Console &amp; Settings
             </h1>
             <p style={{ fontSize: 13, color: "#64748B", marginTop: 4 }}>
@@ -622,14 +622,14 @@ export default function SettingsClient({
               display: "flex",
               alignItems: "center",
               gap: 10,
-              background: "#FFF7ED",
-              border: "1px solid #FED7AA",
+              background: "#F0F9FF",
+              border: "1px solid #BAE6FD",
               borderRadius: 12,
               padding: "8px 14px",
             }}
           >
             <Calendar
-              style={{ width: 16, height: 16, color: "#F97316", flexShrink: 0 }}
+              style={{ width: 16, height: 16, color: "#0EA5E9", flexShrink: 0 }}
             />
             <div>
               <div
@@ -690,7 +690,7 @@ export default function SettingsClient({
                 transition: "all 0.2s",
                 background:
                   activeTab === "profile"
-                    ? "linear-gradient(135deg, #F97316, #F59E0B)"
+                    ? "linear-gradient(135deg, #0EA5E9, #38BDF8)"
                     : "transparent",
                 color: activeTab === "profile" ? "white" : "#64748B",
                 boxShadow:
@@ -722,7 +722,7 @@ export default function SettingsClient({
                 transition: "all 0.2s",
                 background:
                   activeTab === "staff"
-                    ? "linear-gradient(135deg, #F97316, #F59E0B)"
+                    ? "linear-gradient(135deg, #0EA5E9, #38BDF8)"
                     : "transparent",
                 color: activeTab === "staff" ? "white" : "#64748B",
                 boxShadow:
@@ -754,7 +754,7 @@ export default function SettingsClient({
                 transition: "all 0.2s",
                 background:
                   activeTab === "logs"
-                    ? "linear-gradient(135deg, #F97316, #F59E0B)"
+                    ? "linear-gradient(135deg, #0EA5E9, #38BDF8)"
                     : "transparent",
                 color: activeTab === "logs" ? "white" : "#64748B",
                 boxShadow:
@@ -785,7 +785,7 @@ export default function SettingsClient({
               transition: "all 0.2s",
               background:
                 activeTab === "security"
-                  ? "linear-gradient(135deg, #F97316, #F59E0B)"
+                  ? "linear-gradient(135deg, #0EA5E9, #38BDF8)"
                   : "transparent",
               color: activeTab === "security" ? "white" : "#64748B",
               boxShadow:
@@ -815,7 +815,7 @@ export default function SettingsClient({
               transition: "all 0.2s",
               background:
                 activeTab === "alerts"
-                  ? "linear-gradient(135deg, #F97316, #F59E0B)"
+                  ? "linear-gradient(135deg, #0EA5E9, #38BDF8)"
                   : "transparent",
               color: activeTab === "alerts" ? "white" : "#64748B",
               boxShadow:
@@ -870,7 +870,7 @@ export default function SettingsClient({
                       width: 32,
                       height: 32,
                       borderRadius: 10,
-                      background: "linear-gradient(135deg,#F97316,#F59E0B)",
+                      background: "linear-gradient(135deg,#0EA5E9,#38BDF8)",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
@@ -1024,7 +1024,7 @@ export default function SettingsClient({
                         className="btn-primary"
                         style={{
                           background:
-                            "linear-gradient(135deg, #F97316, #EA580C)",
+                            "linear-gradient(135deg, #0EA5E9, #0284C7)",
                           fontSize: 10,
                           padding: "6px 12px",
                           display: "flex",
@@ -1096,7 +1096,7 @@ export default function SettingsClient({
                         className="btn-primary"
                         style={{
                           background:
-                            "linear-gradient(135deg, #F97316, #EA580C)",
+                            "linear-gradient(135deg, #0EA5E9, #0284C7)",
                           fontSize: 10,
                           padding: "6px 12px",
                           display: "flex",
@@ -1200,7 +1200,7 @@ export default function SettingsClient({
                                 padding: "8px 16px",
                                 fontSize: 11,
                                 background:
-                                  "linear-gradient(135deg, #F97316, #F59E0B)",
+                                  "linear-gradient(135deg, #0EA5E9, #38BDF8)",
                               }}
                             >
                               Confirm
@@ -1269,7 +1269,7 @@ export default function SettingsClient({
                   <button
                     type="submit"
                     disabled={loading}
-                    className="w-full btn-primary bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-md hover:shadow-lg py-4 font-black uppercase text-xs tracking-wider"
+                    className="w-full btn-primary bg-gradient-to-r from-sky-500 to-cyan-400 text-white shadow-md hover:shadow-lg py-4 font-black uppercase text-xs tracking-wider"
                   >
                     {loading ? (
                       <RefreshCw className="w-4 h-4 animate-spin shrink-0" />
@@ -1412,7 +1412,7 @@ export default function SettingsClient({
                       }}
                     >
                       <MapPin
-                        style={{ width: 14, height: 14, color: "#F97316" }}
+                        style={{ width: 14, height: 14, color: "#0EA5E9" }}
                       />{" "}
                       View Location on Google Maps
                     </a>
@@ -1447,7 +1447,7 @@ export default function SettingsClient({
                     width: 32,
                     height: 32,
                     borderRadius: 10,
-                    background: "linear-gradient(135deg,#F97316,#F59E0B)",
+                    background: "linear-gradient(135deg,#0EA5E9,#38BDF8)",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
@@ -1576,7 +1576,7 @@ export default function SettingsClient({
                                 height: 14,
                                 borderRadius: 4,
                                 background: isChecked
-                                  ? "linear-gradient(135deg,#F97316,#F59E0B)"
+                                  ? "linear-gradient(135deg,#0EA5E9,#38BDF8)"
                                   : "white",
                                 border: `1.5px solid ${isChecked ? "transparent" : "rgba(0,0,0,0.12)"}`,
                                 display: "flex",
@@ -1630,7 +1630,7 @@ export default function SettingsClient({
                     disabled={loading}
                     className="btn-primary"
                     style={{
-                      background: "linear-gradient(135deg, #F97316, #F59E0B)",
+                      background: "linear-gradient(135deg, #0EA5E9, #38BDF8)",
                       padding: "12px 32px",
                       fontSize: 11,
                       fontWeight: 800,
@@ -1712,7 +1712,7 @@ export default function SettingsClient({
                     style={{ display: "flex", alignItems: "center", gap: 4 }}
                   >
                     <Search
-                      style={{ width: 11, height: 11, color: "#F97316" }}
+                      style={{ width: 11, height: 11, color: "#0EA5E9" }}
                     />{" "}
                     Search Staff Roster
                   </label>
@@ -1730,7 +1730,7 @@ export default function SettingsClient({
                     style={{ display: "flex", alignItems: "center", gap: 4 }}
                   >
                     <Filter
-                      style={{ width: 11, height: 11, color: "#F97316" }}
+                      style={{ width: 11, height: 11, color: "#0EA5E9" }}
                     />{" "}
                     Employment Status
                   </label>
@@ -1843,7 +1843,7 @@ export default function SettingsClient({
                             style={{
                               width: 13,
                               height: 13,
-                              color: "#F97316",
+                              color: "#0EA5E9",
                               flexShrink: 0,
                             }}
                           />
@@ -1872,7 +1872,7 @@ export default function SettingsClient({
                                   style={{
                                     padding: "2px 8px",
                                     background: "rgba(249,115,22,0.08)",
-                                    color: "#C2410C",
+                                    color: "#0369A1",
                                     borderRadius: 6,
                                     fontSize: 9,
                                     fontWeight: 800,
@@ -1911,7 +1911,7 @@ export default function SettingsClient({
                             borderRadius: 10,
                             border: "none",
                             background: "rgba(249,115,22,0.08)",
-                            color: "#C2410C",
+                            color: "#0369A1",
                             fontSize: 10,
                             fontWeight: 800,
                             cursor: "pointer",
@@ -2044,7 +2044,7 @@ export default function SettingsClient({
                   className="block text-zinc-500 uppercase text-[9px] font-black tracking-wider mb-1.5"
                   style={{ display: "flex", alignItems: "center", gap: 4 }}
                 >
-                  <Search style={{ width: 11, height: 11, color: "#F97316" }} />{" "}
+                  <Search style={{ width: 11, height: 11, color: "#0EA5E9" }} />{" "}
                   Search Logs
                 </label>
                 <input
@@ -2061,7 +2061,7 @@ export default function SettingsClient({
                   className="block text-zinc-500 uppercase text-[9px] font-black tracking-wider mb-1.5"
                   style={{ display: "flex", alignItems: "center", gap: 4 }}
                 >
-                  <Filter style={{ width: 11, height: 11, color: "#F97316" }} />{" "}
+                  <Filter style={{ width: 11, height: 11, color: "#0EA5E9" }} />{" "}
                   Action Type
                 </label>
                 <select
@@ -2083,7 +2083,7 @@ export default function SettingsClient({
                   className="block text-zinc-500 uppercase text-[9px] font-black tracking-wider mb-1.5"
                   style={{ display: "flex", alignItems: "center", gap: 4 }}
                 >
-                  <User style={{ width: 11, height: 11, color: "#F97316" }} />{" "}
+                  <User style={{ width: 11, height: 11, color: "#0EA5E9" }} />{" "}
                   Operator
                 </label>
                 <select
@@ -2164,7 +2164,7 @@ export default function SettingsClient({
                             {timestampStr}
                           </td>
                           <td>
-                            <span className="text-orange-700 font-bold uppercase text-[9px] bg-orange-50 px-2 py-1 rounded-lg font-mono">
+                            <span className="text-sky-700 font-bold uppercase text-[9px] bg-sky-50 px-2 py-1 rounded-lg font-mono">
                               {log.action}
                             </span>
                           </td>
@@ -2186,7 +2186,7 @@ export default function SettingsClient({
                               className={`px-2 py-1 rounded-full text-[8.5px] font-bold uppercase tracking-wider font-mono ${
                                 isStaff
                                   ? "bg-pink-50 text-pink-650"
-                                  : "bg-orange-50 text-orange-650"
+                                  : "bg-sky-50 text-sky-650"
                               }`}
                             >
                               {isStaff ? "STAFF" : "OWNER"}
@@ -2227,7 +2227,7 @@ export default function SettingsClient({
                   marginBottom: 20,
                 }}
               >
-                <Lock style={{ width: 14, height: 14, color: "#F97316" }} />
+                <Lock style={{ width: 14, height: 14, color: "#0EA5E9" }} />
                 <h3
                   style={{
                     fontSize: 11,
@@ -2300,7 +2300,7 @@ export default function SettingsClient({
                     style={{
                       width: 20,
                       height: 20,
-                      color: "#F97316",
+                      color: "#0EA5E9",
                       flexShrink: 0,
                     }}
                     className="animate-pulse"
@@ -2352,7 +2352,7 @@ export default function SettingsClient({
                   }}
                 >
                   <ShieldAlert
-                    style={{ width: 14, height: 14, color: "#FB923C" }}
+                    style={{ width: 14, height: 14, color: "#38BDF8" }}
                   />
                   Guard Details
                 </h3>
@@ -2432,7 +2432,7 @@ export default function SettingsClient({
                   marginBottom: 20,
                 }}
               >
-                <Bell style={{ width: 14, height: 14, color: "#F97316" }} />
+                <Bell style={{ width: 14, height: 14, color: "#0EA5E9" }} />
                 <h3
                   style={{
                     fontSize: 11,
@@ -2625,7 +2625,7 @@ export default function SettingsClient({
                 }}
               >
                 <AlertTriangle
-                  style={{ width: 16, height: 16, color: "#F97316" }}
+                  style={{ width: 16, height: 16, color: "#0EA5E9" }}
                 />
                 <h4
                   style={{
@@ -2728,7 +2728,7 @@ export default function SettingsClient({
                   gap: 8,
                 }}
               >
-                <Edit style={{ width: 16, height: 16, color: "#F97316" }} />
+                <Edit style={{ width: 16, height: 16, color: "#0EA5E9" }} />
                 Modify Staff Permissions
               </h3>
               <button
@@ -2944,7 +2944,7 @@ export default function SettingsClient({
                               height: 14,
                               borderRadius: 4,
                               background: isChecked
-                                ? "linear-gradient(135deg,#F97316,#F59E0B)"
+                                ? "linear-gradient(135deg,#0EA5E9,#38BDF8)"
                                 : "white",
                               border: `1.5px solid ${isChecked ? "transparent" : "rgba(0,0,0,0.12)"}`,
                               display: "flex",
@@ -3001,7 +3001,7 @@ export default function SettingsClient({
                       flex: 1,
                       justifyContent: "center",
                       padding: "12px",
-                      background: "linear-gradient(135deg, #F97316, #F59E0B)",
+                      background: "linear-gradient(135deg, #0EA5E9, #38BDF8)",
                     }}
                   >
                     Save Changes

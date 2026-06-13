@@ -150,8 +150,10 @@ export default function BillingClient({ profileId, initialOrders, initialSupplie
   const [analyticsData, setAnalyticsData] = useState<any[]>([]);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
 
-  // Transaction detail modal (replaces old side panel)
+  // Side panel selected row
   const [detailOrder, setDetailOrder] = useState<Order | null>(null);
+  // Full invoice detail modal (opened by clicking Invoice ID)
+  const [invoiceModalOrder, setInvoiceModalOrder] = useState<Order | null>(null);
 
   // Supplier bill detail modal
   const [detailSupplierBill, setDetailSupplierBill] = useState<SupplierBill | null>(null);
@@ -826,10 +828,10 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
   return (
     <div className="space-y-6 animate-fadeIn">
       {/* Page Header */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 16, background: 'rgba(255,255,255,0.80)', backdropFilter: 'blur(16px)', border: '1.5px solid rgba(249,115,22,0.18)', borderRadius: 20, padding: '20px 24px', boxShadow: '0 2px 16px rgba(249,115,22,0.07)' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 16, background: 'rgba(255,255,255,0.80)', backdropFilter: 'blur(16px)', border: '1.5px solid rgba(14,165,233,0.18)', borderRadius: 20, padding: '20px 24px', boxShadow: '0 2px 16px rgba(14,165,233,0.07)' }}>
         <div>
           <h1 style={{ fontSize: 20, fontWeight: 800, color: '#1E293B', letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Receipt style={{ width: 22, height: 22, color: '#F97316' }} />
+            <Receipt style={{ width: 22, height: 22, color: '#0EA5E9' }} />
             Billing &amp; Profit Analyzer
           </h1>
           <p style={{ fontSize: 13, color: '#64748B', marginTop: 4 }}>Track distributor revenue, gross profits, margins, and print custom tax invoices.</p>
@@ -849,9 +851,9 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 20 }}>
         {[
           { label: 'Completed Sales', value: `Rs. ${totalSales.toLocaleString()}`, badge: 'PAID', icon: <DollarSign style={{ width: 20, height: 20 }} />, badgeBg: '#ECFDF5', badgeColor: '#059669', badgeBorder: '#A7F3D0', iconBg: '#ECFDF5', shadow: '0 4px 20px rgba(16,185,129,0.12)' },
-          { label: 'Unpaid Due', value: `Rs. ${pendingSales.toLocaleString()}`, badge: 'UNPAID', icon: <Clock style={{ width: 20, height: 20 }} />, badgeBg: '#FFF7ED', badgeColor: '#C2410C', badgeBorder: '#FED7AA', iconBg: '#FFF7ED', shadow: '0 4px 20px rgba(249,115,22,0.1)' },
+          { label: 'Unpaid Due', value: `Rs. ${pendingSales.toLocaleString()}`, badge: 'UNPAID', icon: <Clock style={{ width: 20, height: 20 }} />, badgeBg: '#F0F9FF', badgeColor: '#0EA5E9', badgeBorder: '#BAE6FD', iconBg: '#F0F9FF', shadow: '0 4px 20px rgba(14,165,233,0.1)' },
           { label: 'Profit Margin', value: `${profitMargin.toFixed(1)}%`, badge: 'MARGIN', icon: <TrendingUp style={{ width: 20, height: 20 }} />, badgeBg: '#F0F9FF', badgeColor: '#0284C7', badgeBorder: '#BAE6FD', iconBg: '#F0F9FF', shadow: '0 4px 20px rgba(14,165,233,0.1)' },
-          { label: 'Gross Profit', value: `Rs. ${grossProfit.toLocaleString()}`, badge: 'PROFIT', icon: <ArrowUpRight style={{ width: 20, height: 20 }} />, badgeBg: '#FFF7ED', badgeColor: '#C2410C', badgeBorder: '#FED7AA', iconBg: '#FFF7ED', shadow: '0 4px 20px rgba(249,115,22,0.1)' },
+          { label: 'Gross Profit', value: `Rs. ${grossProfit.toLocaleString()}`, badge: 'PROFIT', icon: <ArrowUpRight style={{ width: 20, height: 20 }} />, badgeBg: '#F0F9FF', badgeColor: '#0EA5E9', badgeBorder: '#BAE6FD', iconBg: '#F0F9FF', shadow: '0 4px 20px rgba(14,165,233,0.1)' },
         ].map((card) => (
           <div key={card.label} className="stat-card" style={{ boxShadow: card.shadow, gap: 14 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -868,11 +870,11 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
         <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 24 }}>
           <div style={{ flex: 1 }}>
             <h3 style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'rgba(255,255,255,0.7)', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 20 }}>
-              <TrendingUp style={{ width: 14, height: 14, color: '#FB923C' }} /> Profitability Ledger
+              <TrendingUp style={{ width: 14, height: 14, color: '#38BDF8' }} /> Profitability Ledger
             </h3>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 24 }}>
               <div><div style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Gross Profits</div><div style={{ fontSize: 24, fontWeight: 900, color: 'white', fontFamily: 'monospace', marginTop: 4 }}>Rs. {grossProfit.toLocaleString()}</div></div>
-              <div><div style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Profit Margin</div><div style={{ fontSize: 24, fontWeight: 900, color: '#FB923C', fontFamily: 'monospace', marginTop: 4 }}>{profitMargin.toFixed(1)}%</div></div>
+              <div><div style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Profit Margin</div><div style={{ fontSize: 24, fontWeight: 900, color: '#38BDF8', fontFamily: 'monospace', marginTop: 4 }}>{profitMargin.toFixed(1)}%</div></div>
               <div><div style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Cost of Goods</div><div style={{ fontSize: 24, fontWeight: 900, color: '#FCD34D', fontFamily: 'monospace', marginTop: 4 }}>Rs. {totalCogs.toLocaleString()}</div></div>
             </div>
           </div>
@@ -880,128 +882,272 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
         </div>
       </div>
 
-      {/* TAB BAR */}
-      <div style={{ display: 'flex', gap: 4, background: '#F1F5F9', padding: 4, borderRadius: 14, overflowX: 'auto' }}>
+      {/* Tab Navigation Bar */}
+      <div style={{ display: 'flex', gap: 4, background: 'rgba(255,255,255,0.85)', border: '1.5px solid rgba(14,165,233,0.15)', borderRadius: 14, padding: '6px 8px', boxShadow: '0 2px 8px rgba(14,165,233,0.06)', flexWrap: 'wrap' }}>
         {TABS.map(tab => (
-          <button key={tab.key} onClick={() => setActiveTab(tab.key)}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', border: 'none', borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700, fontSize: 11, whiteSpace: 'nowrap', transition: 'all 0.15s',
-              background: activeTab === tab.key ? 'white' : 'transparent',
-              color: activeTab === tab.key ? '#F97316' : '#64748B',
-              boxShadow: activeTab === tab.key ? '0 1px 4px rgba(0,0,0,0.08)' : 'none'
-            }}>
-            {tab.icon}{tab.label}
+          <button
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 5,
+              padding: '7px 14px', borderRadius: 10, border: 'none', cursor: 'pointer',
+              fontSize: 11, fontWeight: 700, fontFamily: 'inherit',
+              transition: 'all 0.18s ease',
+              background: activeTab === tab.key ? 'linear-gradient(135deg, #0EA5E9, #38BDF8)' : 'transparent',
+              color: activeTab === tab.key ? 'white' : '#64748B',
+              boxShadow: activeTab === tab.key ? '0 2px 10px rgba(14,165,233,0.3)' : 'none',
+            }}
+          >
+            {tab.icon} {tab.label}
           </button>
         ))}
       </div>
 
       {/* TRANSACTIONS TAB */}
       {activeTab === 'transactions' && (
-        <div className="card" style={{ background: 'rgba(255,255,255,0.85)', padding: 24 }}>
-          {/* Table header with filters */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 12, borderBottom: '1px solid #F1F5F9', paddingBottom: 14, marginBottom: 16 }}>
-            <h3 style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#1E293B', display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#F97316', display: 'inline-block' }} /> Invoices &amp; Bills Ledger
-            </h3>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-              {/* Search filter */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'white', border: '1.5px solid #E2E8F0', borderRadius: 8, padding: '4px 10px' }}>
-                <FileText style={{ width: 12, height: 12, color: '#94A3B8' }} />
-                <input type="text" placeholder="Search invoice / pharmacy..." value={filterSearch} onChange={e => setFilterSearch(e.target.value)}
-                  style={{ border: 'none', outline: 'none', fontSize: 11, width: 160, color: '#1E293B' }} />
+        <div style={{ display: 'grid', gridTemplateColumns: '1.8fr 1fr', gap: 20, alignItems: 'start' }}>
+          {/* Main Transaction List */}
+          <div className="card" style={{ background: 'rgba(255,255,255,0.9)', padding: 20, border: '1.5px solid #E2E8F0', borderRadius: 18, boxShadow: '0 2px 12px rgba(0,0,0,0.03)' }}>
+            {/* Table header with filters */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 12, borderBottom: '1px solid #F1F5F9', paddingBottom: 14, marginBottom: 16 }}>
+              <h3 style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#1E293B', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#0EA5E9', display: 'inline-block' }} /> Sales Ledger Invoices
+              </h3>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                {/* Search filter */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'white', border: '1.5px solid #E2E8F0', borderRadius: 8, padding: '4px 10px' }}>
+                  <FileText style={{ width: 12, height: 12, color: '#94A3B8' }} />
+                  <input type="text" placeholder="Search invoices..." value={filterSearch} onChange={e => setFilterSearch(e.target.value)}
+                    style={{ border: 'none', outline: 'none', fontSize: 11, width: 110, color: '#1E293B' }} />
+                </div>
+                {/* Status filter */}
+                <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
+                  style={{ border: '1.5px solid #E2E8F0', borderRadius: 8, padding: '5px 10px', fontSize: 11, fontWeight: 600, color: '#475569', background: 'white', outline: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
+                  <option value="all">All Status</option>
+                  <option value="PENDING">Pending</option>
+                  <option value="DISPATCHED">Dispatched</option>
+                  <option value="DELIVERED">Delivered</option>
+                  <option value="RETURNED">Returned</option>
+                </select>
+                {/* Column picker */}
+                <button onClick={() => setShowColPicker(true)} className="btn-ghost" style={{ height: 32, padding: '0 10px', fontSize: 10, display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <SlidersHorizontal style={{ width: 12, height: 12 }} /> Cols
+                </button>
               </div>
-              {/* Status filter */}
-              <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
-                style={{ border: '1.5px solid #E2E8F0', borderRadius: 8, padding: '5px 10px', fontSize: 11, fontWeight: 600, color: '#475569', background: 'white', outline: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
-                <option value="all">All Status</option>
-                <option value="PENDING">Pending</option>
-                <option value="DISPATCHED">Dispatched</option>
-                <option value="DELIVERED">Delivered</option>
-                <option value="RETURNED">Returned</option>
-              </select>
-              {/* Column picker — proper modal button */}
-              <button onClick={() => setShowColPicker(true)} className="btn-ghost" style={{ height: 32, padding: '0 10px', fontSize: 10, display: 'flex', alignItems: 'center', gap: 4 }}>
-                <SlidersHorizontal style={{ width: 12, height: 12 }} /> Columns
-              </button>
+            </div>
+
+            <div className="table-wrapper">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    {visibleCols.date && <th>Date</th>}
+                    {visibleCols.invoiceId && <th>Invoice ID</th>}
+                    {visibleCols.customer && <th>Customer</th>}
+                    {visibleCols.status && <th>Status</th>}
+                    {visibleCols.net && <th style={{ textAlign: 'right' }}>Net Payable</th>}
+                    {visibleCols.profit && <th style={{ textAlign: 'right' }}>Profit</th>}
+                    {visibleCols.discount && <th style={{ textAlign: 'right' }}>Discount</th>}
+                    {visibleCols.actions && <th style={{ textAlign: 'center' }}>Actions</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredOrders.length === 0 ? (
+                    <tr><td colSpan={6} style={{ padding: '32px', textAlign: 'center', color: '#94A3B8', fontStyle: 'italic', fontSize: 12 }}>No bills found matching filters.</td></tr>
+                  ) : (
+                    filteredOrders.map((order) => {
+                      const paid = settlements[order.id] || 0;
+                      const due = Math.max(order.netAmount - paid, 0);
+                      const isSelected = detailOrder?.id === order.id;
+                      return (
+                        <tr key={order.id} style={{ cursor: 'pointer', background: isSelected ? '#F0F9FF' : 'transparent', transition: 'background 0.15s' }} onClick={() => setDetailOrder(order)}>
+                          {visibleCols.date && <td style={{ fontFamily: 'monospace', fontSize: 11, color: '#64748B', whiteSpace: 'nowrap' }}>{new Date(order.createdAt).toLocaleDateString()}</td>}
+                          {visibleCols.invoiceId && (
+                            <td onClick={e => e.stopPropagation()}>
+                              <button
+                                onClick={() => setInvoiceModalOrder(order)}
+                                title="Click to open full invoice details"
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'monospace', fontWeight: 800, color: '#0EA5E9', fontSize: 12, padding: 0, textDecoration: 'underline dotted', display: 'flex', alignItems: 'center', gap: 3 }}
+                              >
+                                <Eye style={{ width: 11, height: 11, flexShrink: 0 }} />
+                                INV-{order.id.substring(0, 8).toUpperCase()}
+                              </button>
+                            </td>
+                          )}
+                          {visibleCols.customer && (
+                            <td style={{ fontWeight: 700, color: '#1E293B', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {order.retailer.pharmacyName === "Walk-in Customer (POS)" ? (
+                                <span style={{ fontSize: 11, color: '#0284C7' }}>{getWalkInName(order.overrideJustification)}</span>
+                              ) : (
+                                order.retailer.pharmacyName
+                              )}
+                            </td>
+                          )}
+                          {visibleCols.status && (
+                            <td><span style={statusPillStyle(order.status)}>{order.status}</span></td>
+                          )}
+                          {visibleCols.net && (
+                            <td style={{ fontFamily: 'monospace', textAlign: 'right' }}>
+                              <div style={{ fontWeight: 800, color: '#1E293B', fontSize: 11 }}>Rs. {order.netAmount.toFixed(2)}</div>
+                            </td>
+                          )}
+                          {visibleCols.profit && (
+                            <td style={{ fontFamily: 'monospace', textAlign: 'right' }}>
+                              <div style={{ fontWeight: 800, color: order.status === 'DELIVERED' ? '#059669' : '#94A3B8', fontSize: 11 }}>
+                                {order.status === 'DELIVERED' ? `Rs. ${getOrderProfit(order).toFixed(2)}` : '—'}
+                              </div>
+                            </td>
+                          )}
+                          {visibleCols.discount && (
+                            <td style={{ fontFamily: 'monospace', textAlign: 'right' }}>
+                              <div style={{ fontWeight: 800, color: '#EA580C', fontSize: 11 }}>- Rs. {order.discountAmount.toFixed(2)}</div>
+                            </td>
+                          )}
+                          {visibleCols.actions && (
+                            <td onClick={e => e.stopPropagation()}>
+                              <div style={{ display: 'flex', gap: 5, justifyContent: 'center', alignItems: 'center' }}>
+                                <button onClick={() => { setSelectedOrderForPrint(order); logActivity('PREVIEW_INVOICE', `Opened custom print preview for order: ${order.id}`); }} className="btn-ghost" style={{ padding: '4px 8px', fontSize: 10, gap: 3 }}>
+                                  <Printer style={{ width: 12, height: 12, color: '#0EA5E9' }} /> Print
+                                </button>
+                              </div>
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
 
-          <div className="table-wrapper">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  {visibleCols.date && <th>Billing Date</th>}
-                  {visibleCols.invoiceId && <th>Invoice ID</th>}
-                  {visibleCols.customer && <th>Customer Pharmacy</th>}
-                  {visibleCols.status && <th>Status</th>}
-                  {visibleCols.discount && <th>Discount</th>}
-                  {visibleCols.net && <th>Net / Paid / Due</th>}
-                  {visibleCols.profit && <th>Profit</th>}
-                  {visibleCols.actions && <th style={{ textAlign: 'center' }}>Actions</th>}
-                </tr>
-              </thead>
-              <tbody>
-                {filteredOrders.length === 0 ? (
-                  <tr><td colSpan={8} style={{ padding: '32px', textAlign: 'center', color: '#94A3B8', fontStyle: 'italic', fontSize: 12 }}>No bills found matching filters.</td></tr>
+          {/* Side Panel Info Block */}
+          <div className="card" style={{ background: 'rgba(255,255,255,0.95)', border: '1.5px solid rgba(14,165,233,0.2)', borderRadius: 18, padding: 20, boxShadow: '0 4px 20px rgba(14,165,233,0.05)', minHeight: '400px', position: 'sticky', top: 20 }}>
+            {detailOrder ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {/* Header */}
+                <div style={{ borderBottom: '1px solid #F1F5F9', paddingBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div>
+                    <h4 style={{ fontSize: 12, fontWeight: 900, color: '#1E293B', fontFamily: 'monospace', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <Receipt style={{ width: 13, height: 13, color: '#0EA5E9' }} />
+                      INV-{detailOrder.id.substring(0, 12).toUpperCase()}
+                    </h4>
+                    <p style={{ fontSize: 10, color: '#64748B', marginTop: 3 }}>{new Date(detailOrder.createdAt).toLocaleString()}</p>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+                    <span style={statusPillStyle(detailOrder.status)}>{detailOrder.status}</span>
+                    <button
+                      onClick={() => setInvoiceModalOrder(detailOrder)}
+                      style={{ fontSize: 9, fontWeight: 700, color: '#0EA5E9', background: '#F0F9FF', border: '1px solid #BAE6FD', borderRadius: 6, padding: '3px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 3 }}
+                    >
+                      <Eye style={{ width: 10, height: 10 }} /> Full Details
+                    </button>
+                  </div>
+                </div>
+
+                {/* Customer Details */}
+                <div style={{ background: '#F0F9FF', border: '1.5px solid #BAE6FD', borderRadius: 12, padding: 12 }}>
+                  <div style={{ fontSize: 9, fontWeight: 800, color: '#0284C7', textTransform: 'uppercase', marginBottom: 4 }}>Billed To</div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#1E293B' }}>
+                    {detailOrder.retailer.pharmacyName === 'Walk-in Customer (POS)' ? getWalkInName(detailOrder.overrideJustification) : detailOrder.retailer.pharmacyName}
+                  </div>
+                  {detailOrder.retailer.pharmacyName !== 'Walk-in Customer (POS)' && (
+                    <p style={{ fontSize: 10, color: '#64748B', marginTop: 2 }}>{detailOrder.retailer.address}</p>
+                  )}
+                </div>
+
+                {/* Dynamic fields matching visible columns */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {/* Always show Net & Paid */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    <div style={{ background: '#F0F9FF', borderRadius: 10, padding: '10px 12px', border: '1px solid #BAE6FD' }}>
+                      <div style={{ fontSize: 9, fontWeight: 800, color: '#0284C7', textTransform: 'uppercase' }}>Net Payable</div>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: '#0EA5E9', fontFamily: 'monospace', marginTop: 2 }}>Rs. {detailOrder.netAmount.toFixed(2)}</div>
+                    </div>
+                    <div style={{ background: '#FEF2F2', borderRadius: 10, padding: '10px 12px', border: '1px solid #FECACA' }}>
+                      <div style={{ fontSize: 9, fontWeight: 800, color: '#DC2626', textTransform: 'uppercase' }}>Unpaid Due</div>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: '#DC2626', fontFamily: 'monospace', marginTop: 2 }}>Rs. {Math.max(detailOrder.netAmount - (settlements[detailOrder.id] || 0), 0).toLocaleString()}</div>
+                    </div>
+                  </div>
+
+                  {/* Show profit if column visible */}
+                  {visibleCols.profit && (
+                    <div style={{ background: '#ECFDF5', borderRadius: 10, padding: '10px 12px', border: '1px solid #A7F3D0' }}>
+                      <div style={{ fontSize: 9, fontWeight: 800, color: '#059669', textTransform: 'uppercase' }}>Estimated Profit</div>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: detailOrder.status === 'DELIVERED' ? '#059669' : '#94A3B8', fontFamily: 'monospace', marginTop: 2 }}>
+                        {detailOrder.status === 'DELIVERED' ? `Rs. ${getOrderProfit(detailOrder).toFixed(2)}` : 'N/A (not delivered)'}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Show discount if column visible */}
+                  {visibleCols.discount && (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                      <div style={{ background: '#FFF7ED', borderRadius: 10, padding: '10px 12px', border: '1px solid #FED7AA' }}>
+                        <div style={{ fontSize: 9, fontWeight: 800, color: '#C2410C', textTransform: 'uppercase' }}>Gross Amount</div>
+                        <div style={{ fontSize: 12, fontWeight: 800, color: '#EA580C', fontFamily: 'monospace', marginTop: 2 }}>Rs. {detailOrder.totalAmount.toFixed(2)}</div>
+                      </div>
+                      <div style={{ background: '#FFF7ED', borderRadius: 10, padding: '10px 12px', border: '1px solid #FED7AA' }}>
+                        <div style={{ fontSize: 9, fontWeight: 800, color: '#C2410C', textTransform: 'uppercase' }}>Discount</div>
+                        <div style={{ fontSize: 12, fontWeight: 800, color: '#EA580C', fontFamily: 'monospace', marginTop: 2 }}>- Rs. {detailOrder.discountAmount.toFixed(2)}</div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Paid amount */}
+                  <div style={{ background: '#F8FAFC', borderRadius: 10, padding: '10px 12px', border: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ fontSize: 9, fontWeight: 800, color: '#94A3B8', textTransform: 'uppercase' }}>Total Paid</div>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: '#059669', fontFamily: 'monospace' }}>Rs. {(settlements[detailOrder.id] || 0).toLocaleString()}</div>
+                  </div>
+                </div>
+
+                {/* Recording Payment directly in Side Panel */}
+                {detailOrder.netAmount - (settlements[detailOrder.id] || 0) > 0 ? (
+                  <div style={{ background: '#FFF7ED', border: '1.5px solid #FED7AA', borderRadius: 12, padding: 12 }}>
+                    <div style={{ fontSize: 9, fontWeight: 800, color: '#C2410C', textTransform: 'uppercase', marginBottom: 6 }}>Settle Remaining Payment</div>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <input
+                        type="number"
+                        placeholder="Amount..."
+                        value={settleAmount}
+                        onChange={e => setSettleAmount(e.target.value)}
+                        className="input-crisp"
+                        style={{ fontSize: 11, flex: 1, padding: '6px 8px' }}
+                      />
+                      <button
+                        onClick={() => handleSettleSubmit(detailOrder.id, detailOrder.netAmount)}
+                        className="btn-primary"
+                        style={{ padding: '6px 12px', fontSize: 11, background: '#10B981', border: 'none' }}
+                      >
+                        Settle
+                      </button>
+                    </div>
+                  </div>
                 ) : (
-                  filteredOrders.map((order) => {
-                    const orderProfit = getOrderProfit(order);
-                    const paid = settlements[order.id] || 0;
-                    const due = Math.max(order.netAmount - paid, 0);
-                    return (
-                      <tr key={order.id} style={{ cursor: 'pointer' }} onClick={() => setDetailOrder(order)}>
-                        {visibleCols.date && <td style={{ fontFamily: 'monospace', fontSize: 11, color: '#64748B', whiteSpace: 'nowrap' }}>{new Date(order.createdAt).toLocaleDateString()}</td>}
-                        {visibleCols.invoiceId && (
-                          <td onClick={e => e.stopPropagation()}>
-                            <button onClick={() => setDetailOrder(order)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'monospace', fontWeight: 800, color: '#F97316', fontSize: 12, padding: 0, textDecoration: 'underline dotted' }}>
-                              INV-{order.id.substring(0, 8).toUpperCase()}
-                            </button>
-                          </td>
-                        )}
-                        {visibleCols.customer && (
-                          <td style={{ fontWeight: 700, color: '#1E293B' }}>
-                            {order.retailer.pharmacyName === "Walk-in Customer (POS)" ? (
-                              <span style={{ fontSize: 11, color: '#0284C7' }}>{getWalkInName(order.overrideJustification)}</span>
-                            ) : (
-                              order.retailer.pharmacyName
-                            )}
-                          </td>
-                        )}
-                        {visibleCols.status && (
-                          <td><span style={statusPillStyle(order.status)}>{order.status}</span></td>
-                        )}
-                        {visibleCols.discount && <td style={{ fontFamily: 'monospace', fontSize: 11, color: '#94A3B8' }}>- Rs. {order.discountAmount.toFixed(2)}</td>}
-                        {visibleCols.net && (
-                          <td style={{ fontFamily: 'monospace' }}>
-                            <div style={{ fontWeight: 800, color: '#1E293B', fontSize: 12 }}>Rs. {order.netAmount.toFixed(2)}</div>
-                            <div style={{ fontSize: 10, color: '#059669', marginTop: 2 }}>✓ Paid: Rs. {paid.toLocaleString()}</div>
-                            {due > 0 && <div style={{ fontSize: 10, color: '#DC2626' }}>⚠ Due: Rs. {due.toLocaleString()}</div>}
-                          </td>
-                        )}
-                        {visibleCols.profit && (
-                          <td style={{ fontFamily: 'monospace' }}>
-                            {order.status === 'DELIVERED'
-                              ? <span style={{ color: '#059669', fontWeight: 700 }}>Rs. {orderProfit.toFixed(2)}</span>
-                              : <span style={{ color: '#94A3B8', fontStyle: 'italic', fontSize: 11 }}>Pending</span>}
-                          </td>
-                        )}
-                        {visibleCols.actions && (
-                          <td onClick={e => e.stopPropagation()}>
-                            <div style={{ display: 'flex', gap: 5, justifyContent: 'center', alignItems: 'center' }}>
-                              <button onClick={() => setDetailOrder(order)} className="btn-ghost" style={{ padding: '4px 8px', fontSize: 10, gap: 3 }}>
-                                <Eye style={{ width: 12, height: 12, color: '#0EA5E9' }} /> View
-                              </button>
-                              <button onClick={() => { setSelectedOrderForPrint(order); logActivity('PREVIEW_INVOICE', `Opened custom print preview for order: ${order.id}`); }} className="btn-ghost" style={{ padding: '4px 8px', fontSize: 10, gap: 3 }}>
-                                <Printer style={{ width: 12, height: 12, color: '#F97316' }} /> Print
-                              </button>
-                            </div>
-                          </td>
-                        )}
-                      </tr>
-                    );
-                  })
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#059669', fontWeight: 700, padding: '4px 0', background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 8, paddingLeft: 10 }}>
+                    <Check style={{ width: 14, height: 14 }} /> Invoice Fully Settled
+                  </div>
                 )}
-              </tbody>
-            </table>
+
+                {/* Action Controls */}
+                <div style={{ display: 'flex', gap: 6, paddingTop: 4, borderTop: '1px solid #F1F5F9' }}>
+                  <button onClick={() => setSelectedOrderForPrint(detailOrder)} className="btn-ghost" style={{ flex: 1, padding: '8px', fontSize: 10, display: 'flex', justifyContent: 'center', gap: 4 }}>
+                    <Printer style={{ width: 12, height: 12 }} /> Print
+                  </button>
+                  <button onClick={() => setInvoiceModalOrder(detailOrder)} className="btn-ghost" style={{ flex: 1, padding: '8px', fontSize: 10, display: 'flex', justifyContent: 'center', gap: 4, color: '#0EA5E9' }}>
+                    <Eye style={{ width: 12, height: 12 }} /> Full View
+                  </button>
+                  <button onClick={() => handleSendInvoice(detailOrder)} className="btn-ghost" style={{ flex: 1, padding: '8px', fontSize: 10, display: 'flex', justifyContent: 'center', gap: 4 }}>
+                    <Send style={{ width: 12, height: 12 }} /> Send
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '300px', textAlign: 'center', color: '#94A3B8' }}>
+                <FileText style={{ width: 44, height: 44, color: '#E2E8F0', marginBottom: 12 }} />
+                <h4 style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#475569' }}>Select an Invoice</h4>
+                <p style={{ fontSize: 11, color: '#94A3B8', marginTop: 6, maxWidth: 220, lineHeight: 1.5 }}>Click any row to preview details here. Click the <strong style={{ color: '#0EA5E9' }}>Invoice ID</strong> to open the full invoice modal.</p>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1096,7 +1242,7 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
                     return (
                       <tr key={bill.id} onClick={() => setDetailSupplierBill(bill)} style={{ cursor: 'pointer' }}>
                         <td style={{ fontFamily: 'monospace', fontSize: 11, color: '#64748B' }}>{new Date(bill.billDate).toLocaleDateString()}</td>
-                        <td style={{ fontFamily: 'monospace', fontWeight: 800, color: '#F97316' }}>{bill.billNumber}</td>
+                        <td style={{ fontFamily: 'monospace', fontWeight: 800, color: '#0EA5E9' }}>{bill.billNumber}</td>
                         <td style={{ fontWeight: 700, color: '#1E293B' }}>{bill.supplier.name}</td>
                         <td>
                           <span className={`status-pill status-pill-${bill.status.toLowerCase()}`}>{bill.status}</span>
@@ -1169,7 +1315,7 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
       {(['daily', 'weekly', 'monthly', 'yearly'] as TabType[]).includes(activeTab) && (
         <div className="card" style={{ background: 'rgba(255,255,255,0.85)', padding: 24 }}>
           <h3 style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#1E293B', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 6 }}>
-            <BarChart2 style={{ width: 14, height: 14, color: '#F97316' }} /> {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} Revenue &amp; Profit
+            <BarChart2 style={{ width: 14, height: 14, color: '#0EA5E9' }} /> {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} Revenue &amp; Profit
           </h3>
           {analyticsLoading ? (
             <div style={{ height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94A3B8', fontSize: 12 }}>Loading chart data...</div>
@@ -1184,7 +1330,7 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
                 <Tooltip content={<CustomTooltip />} />
                 <Legend wrapperStyle={{ fontSize: 11, fontWeight: 700 }} />
                 <Bar dataKey="revenue" name="Revenue" fill="#0EA5E9" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="profit" name="Profit" fill="#F97316" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="profit" name="Profit" fill="#0EA5E9" radius={[4, 4, 0, 0]} />
                 <Line type="monotone" dataKey="revenue" stroke="#0EA5E9" strokeWidth={2} dot={false} />
               </ComposedChart>
             </ResponsiveContainer>
@@ -1197,7 +1343,7 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
         <div className="card" style={{ background: 'rgba(255,255,255,0.85)', padding: 24 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
             <h3 style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#1E293B', display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Calendar style={{ width: 14, height: 14, color: '#F97316' }} /> Fiscal Year Audit Report — {fiscalYear}
+              <Calendar style={{ width: 14, height: 14, color: '#0EA5E9' }} /> Fiscal Year Audit Report — {fiscalYear}
             </h3>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               <select value={fiscalYear} onChange={e => setFiscalYear(parseInt(e.target.value))} className="input-crisp" style={{ fontSize: 11, padding: '4px 10px', width: 'auto' }}>
@@ -1283,7 +1429,7 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
                     {fiscalOrders.map(o => (
                       <tr key={o.id} style={{ cursor: 'pointer' }} onClick={() => setDetailOrder(o)}>
                         <td style={{ fontFamily: 'monospace', fontSize: 11 }}>{new Date(o.createdAt).toLocaleDateString()}</td>
-                        <td style={{ fontFamily: 'monospace', fontWeight: 700, color: '#F97316' }}>INV-{o.id.substring(0, 8).toUpperCase()}</td>
+                        <td style={{ fontFamily: 'monospace', fontWeight: 700, color: '#0EA5E9' }}>INV-{o.id.substring(0, 8).toUpperCase()}</td>
                         <td style={{ fontWeight: 700 }}>
                           {o.retailer.pharmacyName === "Walk-in Customer (POS)" ? (
                             <span style={{ fontSize: 11, color: '#0284C7' }}>{getWalkInName(o.overrideJustification)}</span>
@@ -1330,7 +1476,7 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
               <div className="modal-header">
                 <div>
                   <h3 style={{ fontSize: 14, fontWeight: 900, color: '#1E293B', display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <Receipt style={{ width: 18, height: 18, color: '#F97316' }} /> Supplier Bill Details
+                    <Receipt style={{ width: 18, height: 18, color: '#0EA5E9' }} /> Supplier Bill Details
                   </h3>
                   <p style={{ fontSize: 11, color: '#64748B', marginTop: 4 }}>
                     Bill No: {detailSupplierBill.billNumber} · Date: {new Date(detailSupplierBill.billDate).toLocaleDateString()}
@@ -1503,30 +1649,30 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
       })()}
 
       {/* ─────────────────────────────────────────────────────────────────
-          TRANSACTION DETAIL MODAL — Centered, 100vh, z-index 9999
+          TRANSACTION DETAIL MODAL — opened by clicking Invoice ID
       ───────────────────────────────────────────────────────────────── */}
-      {detailOrder && (
-        <div className="modal-overlay" onClick={() => setDetailOrder(null)}>
+      {invoiceModalOrder && (
+        <div className="modal-overlay" onClick={() => setInvoiceModalOrder(null)}>
           <div className="modal-card animate-scaleIn" style={{ '--modal-max-width': '760px' } as React.CSSProperties} onClick={e => e.stopPropagation()}>
             {/* Header */}
             <div className="modal-header">
               <div>
                 <h3 style={{ fontSize: 15, fontWeight: 900, color: '#1E293B', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Receipt style={{ width: 18, height: 18, color: '#F97316' }} />
-                  Invoice: INV-{detailOrder.id.substring(0, 12).toUpperCase()}
+                  <Receipt style={{ width: 18, height: 18, color: '#0EA5E9' }} />
+                  Invoice: INV-{invoiceModalOrder.id.substring(0, 12).toUpperCase()}
                 </h3>
                 <p style={{ fontSize: 11, color: '#94A3B8', marginTop: 3 }}>
-                  {detailOrder.retailer.pharmacyName === "Walk-in Customer (POS)" ? (
-                    <span style={{ fontWeight: 'bold', color: '#0EA5E9' }}>{getWalkInName(detailOrder.overrideJustification)}</span>
+                  {invoiceModalOrder.retailer.pharmacyName === 'Walk-in Customer (POS)' ? (
+                    <span style={{ fontWeight: 'bold', color: '#0EA5E9' }}>{getWalkInName(invoiceModalOrder.overrideJustification)}</span>
                   ) : (
-                    detailOrder.retailer.pharmacyName
+                    invoiceModalOrder.retailer.pharmacyName
                   )}
-                  {' · '}{new Date(detailOrder.createdAt).toLocaleString()}
+                  {' · '}{new Date(invoiceModalOrder.createdAt).toLocaleString()}
                 </p>
               </div>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <span style={statusPillStyle(detailOrder.status)}>{detailOrder.status}</span>
-                <button onClick={() => setDetailOrder(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8', padding: 4, borderRadius: 8, display: 'flex' }}>
+                <span style={statusPillStyle(invoiceModalOrder.status)}>{invoiceModalOrder.status}</span>
+                <button onClick={() => setInvoiceModalOrder(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8', padding: 4, borderRadius: 8, display: 'flex' }}>
                   <X style={{ width: 20, height: 20 }} />
                 </button>
               </div>
@@ -1536,12 +1682,12 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
               {/* Summary grid */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 12 }}>
                 {[
-                  { label: 'Gross Amount', val: `Rs. ${detailOrder.totalAmount.toFixed(2)}`, color: '#1E293B' },
-                  { label: 'Discount', val: `- Rs. ${detailOrder.discountAmount.toFixed(2)}`, color: '#EA580C' },
-                  { label: 'Net Payable', val: `Rs. ${detailOrder.netAmount.toFixed(2)}`, color: '#0EA5E9' },
-                  { label: 'Total Paid', val: `Rs. ${(settlements[detailOrder.id] || 0).toLocaleString()}`, color: '#059669' },
-                  { label: 'Remaining Due', val: `Rs. ${Math.max(detailOrder.netAmount - (settlements[detailOrder.id] || 0), 0).toLocaleString()}`, color: '#DC2626' },
-                  { label: 'Profit', val: detailOrder.status === 'DELIVERED' ? `Rs. ${getOrderProfit(detailOrder).toFixed(2)}` : 'Pending', color: '#059669' },
+                  { label: 'Gross Amount', val: `Rs. ${invoiceModalOrder.totalAmount.toFixed(2)}`, color: '#1E293B' },
+                  { label: 'Discount', val: `- Rs. ${invoiceModalOrder.discountAmount.toFixed(2)}`, color: '#EA580C' },
+                  { label: 'Net Payable', val: `Rs. ${invoiceModalOrder.netAmount.toFixed(2)}`, color: '#0EA5E9' },
+                  { label: 'Total Paid', val: `Rs. ${(settlements[invoiceModalOrder.id] || 0).toLocaleString()}`, color: '#059669' },
+                  { label: 'Remaining Due', val: `Rs. ${Math.max(invoiceModalOrder.netAmount - (settlements[invoiceModalOrder.id] || 0), 0).toLocaleString()}`, color: '#DC2626' },
+                  { label: 'Profit', val: invoiceModalOrder.status === 'DELIVERED' ? `Rs. ${getOrderProfit(invoiceModalOrder).toFixed(2)}` : 'Pending', color: '#059669' },
                 ].map(({ label, val, color }) => (
                   <div key={label} style={{ background: '#F8FAFC', borderRadius: 12, padding: '12px 14px', border: '1px solid #E2E8F0' }}>
                     <div style={{ fontSize: 9, fontWeight: 800, color: '#94A3B8', textTransform: 'uppercase', marginBottom: 4 }}>{label}</div>
@@ -1565,7 +1711,7 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
                       </tr>
                     </thead>
                     <tbody>
-                      {detailOrder.items.map(item => {
+                      {invoiceModalOrder.items.map(item => {
                         const boxQty = Math.floor(item.quantity / (item.product.tabletsPerStrip * item.product.stripsPerBox));
                         return (
                           <tr key={item.id} style={{ borderTop: '1px solid #E2E8F0' }}>
@@ -1589,10 +1735,10 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
                     <History style={{ width: 12, height: 12 }} /> Payment History
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 160, overflowY: 'auto' }}>
-                    {(settleLogs[detailOrder.id] || []).length === 0 ? (
+                    {(settleLogs[invoiceModalOrder.id] || []).length === 0 ? (
                       <div style={{ fontSize: 11, color: '#94A3B8', fontStyle: 'italic', padding: '12px 0' }}>No payments recorded yet.</div>
                     ) : (
-                      (settleLogs[detailOrder.id] || []).map((entry, i) => (
+                      (settleLogs[invoiceModalOrder.id] || []).map((entry, i) => (
                         <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 8 }}>
                           <div style={{ fontSize: 10, color: '#475569' }}>{new Date(entry.date).toLocaleString()}</div>
                           <div style={{ fontSize: 12, fontWeight: 800, color: '#059669', fontFamily: 'monospace' }}>+ Rs. {entry.amount.toLocaleString()}</div>
@@ -1608,10 +1754,10 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
                     <CreditCard style={{ width: 12, height: 12, display: 'inline', marginRight: 4 }} />
                     Settle Outstanding
                   </div>
-                  {Math.max(detailOrder.netAmount - (settlements[detailOrder.id] || 0), 0) > 0 ? (
+                  {Math.max(invoiceModalOrder.netAmount - (settlements[invoiceModalOrder.id] || 0), 0) > 0 ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                       <div style={{ fontSize: 11, color: '#7C2D12' }}>
-                        Remaining: <strong style={{ fontFamily: 'monospace' }}>Rs. {Math.max(detailOrder.netAmount - (settlements[detailOrder.id] || 0), 0).toLocaleString()}</strong>
+                        Remaining: <strong style={{ fontFamily: 'monospace' }}>Rs. {Math.max(invoiceModalOrder.netAmount - (settlements[invoiceModalOrder.id] || 0), 0).toLocaleString()}</strong>
                       </div>
                       <div style={{ display: 'flex', gap: 6 }}>
                         <input
@@ -1623,7 +1769,7 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
                           style={{ flex: 1, fontSize: 12, padding: '8px 10px' }}
                         />
                         <button
-                          onClick={() => handleSettleSubmit(detailOrder.id, detailOrder.netAmount)}
+                          onClick={() => handleSettleSubmit(invoiceModalOrder.id, invoiceModalOrder.netAmount)}
                           className="btn-primary"
                           style={{ padding: '8px 14px', fontSize: 11, background: '#10B981', whiteSpace: 'nowrap' }}
                         >
@@ -1642,13 +1788,13 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
 
             {/* Footer */}
             <div className="modal-footer" style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button onClick={() => { setSelectedOrderForPrint(detailOrder); setDetailOrder(null); }} className="btn-ghost" style={{ gap: 6 }}>
+              <button onClick={() => { setSelectedOrderForPrint(invoiceModalOrder); setInvoiceModalOrder(null); }} className="btn-ghost" style={{ gap: 6 }}>
                 <Printer style={{ width: 14, height: 14 }} /> Print Invoice
               </button>
-              <button onClick={() => handleSendInvoice(detailOrder)} className="btn-ghost" style={{ gap: 6 }}>
+              <button onClick={() => handleSendInvoice(invoiceModalOrder)} className="btn-ghost" style={{ gap: 6 }}>
                 <Send style={{ width: 14, height: 14 }} /> Send Invoice
               </button>
-              <button onClick={() => setDetailOrder(null)} className="btn-primary" style={{ background: '#475569' }}>
+              <button onClick={() => setInvoiceModalOrder(null)} className="btn-primary" style={{ background: '#475569' }}>
                 Close
               </button>
             </div>
@@ -1669,7 +1815,7 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
             <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {Object.entries(COLUMN_LABELS).map(([col, label]) => (
                 <label key={col} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, fontWeight: 600, color: '#334155', cursor: 'pointer', padding: '8px 12px', borderRadius: 10, background: visibleCols[col] ? '#F0F9FF' : '#F8FAFC', border: `1.5px solid ${visibleCols[col] ? '#BAE6FD' : '#E2E8F0'}`, transition: 'all 0.15s' }}>
-                  <input type="checkbox" checked={visibleCols[col]} onChange={() => setVisibleCols({ ...visibleCols, [col]: !visibleCols[col] })} style={{ accentColor: '#F97316', width: 14, height: 14 }} />
+                  <input type="checkbox" checked={visibleCols[col]} onChange={() => setVisibleCols({ ...visibleCols, [col]: !visibleCols[col] })} style={{ accentColor: '#0EA5E9', width: 14, height: 14 }} />
                   {label}
                 </label>
               ))}
@@ -1684,7 +1830,7 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
           <div className="modal-card animate-scaleIn" style={{ '--modal-max-width': '900px' } as React.CSSProperties} onClick={e => e.stopPropagation()}>
             <div className="modal-header no-print">
               <h3 style={{ fontSize: 13, fontWeight: 900, color: '#1E293B', display: 'flex', alignItems: 'center', gap: 6 }}>
-                <Receipt style={{ width: 16, height: 16, color: '#F97316' }} /> Invoice Print Preview
+                <Receipt style={{ width: 16, height: 16, color: '#0EA5E9' }} /> Invoice Print Preview
               </h3>
               <button onClick={() => setSelectedOrderForPrint(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8', display: 'flex' }}>
                 <X style={{ width: 20, height: 20 }} />
@@ -1775,7 +1921,7 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
               </div>
             </div>
             <div className="modal-footer no-print" style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button onClick={handlePrint} className="btn-primary" style={{ background: 'linear-gradient(135deg, #F97316, #F59E0B)', gap: 6 }}>
+              <button onClick={handlePrint} className="btn-primary" style={{ background: 'linear-gradient(135deg, #0EA5E9, #38BDF8)', gap: 6 }}>
                 <Printer style={{ width: 14, height: 14 }} /> Print Document
               </button>
               <button onClick={() => setSelectedOrderForPrint(null)} className="btn-ghost">Close Preview</button>

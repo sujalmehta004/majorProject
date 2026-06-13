@@ -146,10 +146,20 @@ export default function CustomerClient({ customers: initialCustomers, wholesaler
     setCustomers(initialCustomers);
     
     // Load local storage payments mapping
+    const dbSettlements: Record<string, number> = {};
+    initialCustomers.forEach(c => {
+      c.orders?.forEach((order: any) => {
+        if (order.settleStatus === 'VERIFIED') {
+          dbSettlements[order.id] = order.settleAmount || 0;
+        }
+      });
+    });
+
     const storedPayments = localStorage.getItem('medhub_order_payments');
     if (storedPayments) {
-      setSettlements(JSON.parse(storedPayments));
+      Object.assign(dbSettlements, JSON.parse(storedPayments));
     }
+    setSettlements(dbSettlements);
 
     const storedLogs = localStorage.getItem('medhub_settle_logs');
     if (storedLogs) {
@@ -183,25 +193,39 @@ export default function CustomerClient({ customers: initialCustomers, wholesaler
     }
   };
 
-  const handleSettleSubmit = (orderId: string, totalAmount: number) => {
+  const handleSettleSubmit = async (orderId: string, totalAmount: number) => {
     const currentPaid = settlements[orderId] || 0;
     const inputPaid = parseFloat(settleAmount) || 0;
     if (inputPaid <= 0) return;
     const finalPaid = Math.min(currentPaid + inputPaid, totalAmount);
     
-    const updated = { ...settlements, [orderId]: finalPaid };
-    setSettlements(updated);
-    localStorage.setItem('medhub_order_payments', JSON.stringify(updated));
+    try {
+      const res = await fetch('/api/wholesaler/verify-settlement', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId, approve: true, settleAmount: finalPaid }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to update database');
+      }
 
-    // Log this payment entry with date
-    const newEntry = { amount: inputPaid, date: new Date().toISOString() };
-    const existingLog = settleLogs[orderId] || [];
-    const updatedLogs = { ...settleLogs, [orderId]: [...existingLog, newEntry] };
-    setSettleLogs(updatedLogs);
-    localStorage.setItem('medhub_settle_logs', JSON.stringify(updatedLogs));
+      const updated = { ...settlements, [orderId]: finalPaid };
+      setSettlements(updated);
+      localStorage.setItem('medhub_order_payments', JSON.stringify(updated));
 
-    setSettleAmount('');
-    setSettlingOrderId(null);
+      // Log this payment entry with date
+      const newEntry = { amount: inputPaid, date: new Date().toISOString() };
+      const existingLog = settleLogs[orderId] || [];
+      const updatedLogs = { ...settleLogs, [orderId]: [...existingLog, newEntry] };
+      setSettleLogs(updatedLogs);
+      localStorage.setItem('medhub_settle_logs', JSON.stringify(updatedLogs));
+
+      setSettleAmount('');
+      setSettlingOrderId(null);
+    } catch (err: any) {
+      alert(err.message || 'Error recording payment settlement in database');
+    }
   };
 
   const calculateCustomerBalance = (customer: Customer) => {
@@ -262,7 +286,7 @@ export default function CustomerClient({ customers: initialCustomers, wholesaler
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.80)', backdropFilter: 'blur(16px)', border: '1.5px solid rgba(186,230,253,0.5)', borderRadius: 20, padding: '20px 24px', boxShadow: '0 2px 12px rgba(14,165,233,0.07)' }}>
         <div>
           <h1 style={{ fontSize: 20, fontWeight: 800, color: '#1E293B', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Users style={{ width: 22, height: 22, color: '#F97316' }} />
+            <Users style={{ width: 22, height: 22, color: '#0EA5E9' }} />
             Customer Directory
           </h1>
           <p style={{ fontSize: 13, color: '#64748B', marginTop: 4 }}>
@@ -429,7 +453,7 @@ export default function CustomerClient({ customers: initialCustomers, wholesaler
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #F1F5F9', paddingBottom: 12 }}>
                 <div>
                   <h3 style={{ fontSize: 15, fontWeight: 900, color: '#1E293B', display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <Users style={{ width: 18, height: 18, color: '#F97316' }} />
+                    <Users style={{ width: 18, height: 18, color: '#0EA5E9' }} />
                     Customer Account: {selectedCustomer.pharmacyName}
                   </h3>
                   <p style={{ fontSize: 11, color: '#64748B', marginTop: 4 }}>B2B transactions history, billing limits, and credit controls</p>

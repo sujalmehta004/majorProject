@@ -25,6 +25,9 @@ import {
   Clock,
   Bell,
   X,
+  Maximize2,
+  Minimize2,
+  ArrowUpRight,
 } from "lucide-react";
 import { useRealtimeData } from "@/hooks/useRealtimeData";
 import {
@@ -109,8 +112,8 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 const SectionBreaker = ({ title, desc, icon: Icon }: { title: string; desc?: string; icon?: any }) => (
   <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '28px 0 16px' }} className="no-print">
     {Icon && (
-      <div style={{ padding: '6px', background: 'rgba(249,115,22,0.08)', border: '1px solid rgba(249,115,22,0.18)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Icon style={{ width: 13, height: 13, color: '#F97316' }} />
+      <div style={{ padding: '6px', background: 'rgba(14,165,233,0.08)', border: '1px solid rgba(14,165,233,0.18)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Icon style={{ width: 13, height: 13, color: '#0EA5E9' }} />
       </div>
     )}
     <div style={{ flexShrink: 0 }}>
@@ -128,6 +131,22 @@ export default function DashboardClient({
   pendingSettlements = [],
   rejectedSettlements = [],
 }: DashboardClientProps) {
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => {});
+    } else {
+      document.exitFullscreen().then(() => setIsFullscreen(false)).catch(() => {});
+    }
+  };
+
+  useEffect(() => {
+    const handler = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", handler);
+    return () => document.removeEventListener("fullscreenchange", handler);
+  }, []);
+
   const handleVerifySettlement = async (orderId: string, approve: boolean) => {
     try {
       const res = await fetch('/api/wholesaler/verify-settlement', {
@@ -172,6 +191,15 @@ export default function DashboardClient({
 
   useEffect(() => {
     if (typeof window !== "undefined") {
+      // Add meta+f keydown listener inside dashboard as well
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if ((e.ctrlKey || e.metaKey) && e.key?.toLowerCase() === 'f') {
+          e.preventDefault();
+          toggleFullscreen();
+        }
+      };
+      window.addEventListener("keydown", handleKeyDown);
+
       const saved = localStorage.getItem("medhub_dashboard_widgets");
       if (saved) {
         try {
@@ -199,6 +227,10 @@ export default function DashboardClient({
 
       const storedExpiry = localStorage.getItem("medhub_expiry_alert_days");
       if (storedExpiry) setExpiryDays(parseInt(storedExpiry, 10));
+
+      return () => {
+        window.removeEventListener("keydown", handleKeyDown);
+      };
     }
   }, []);
 
@@ -271,8 +303,8 @@ export default function DashboardClient({
       unit: "SKUs",
       icon: Package,
       href: "/wholesaler/inventory",
-      color: "#F97316",
-      bg: "#FFF7ED",
+      color: "#0EA5E9",
+      bg: "#F0F9FF",
     },
     {
       key: "activeBatches",
@@ -316,7 +348,7 @@ export default function DashboardClient({
           justifyContent: "space-between",
           alignItems: "center",
           gap: 16,
-          background: "rgba(255,255,255,0.80)",
+          background: "rgba(255,255,255,0.85)",
           backdropFilter: "blur(16px)",
           border: "1.5px solid rgba(186,230,253,0.5)",
           borderRadius: 20,
@@ -337,7 +369,7 @@ export default function DashboardClient({
             }}
           >
             <LayoutDashboard
-              style={{ width: 22, height: 22, color: "#F97316" }}
+              style={{ width: 22, height: 22, color: "#0EA5E9" }}
             />
             Operations Overview
           </h1>
@@ -346,13 +378,34 @@ export default function DashboardClient({
             {metrics.companyName}
           </p>
         </div>
-        <div>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <button
+            onClick={toggleFullscreen}
+            title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '8px 14px',
+              borderRadius: 10,
+              border: '1.5px solid #BAE6FD',
+              background: isFullscreen ? '#0EA5E9' : '#FFFFFF',
+              color: isFullscreen ? '#FFFFFF' : '#475569',
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+            }}
+          >
+            {isFullscreen ? <Minimize2 style={{ width: 14, height: 14 }} /> : <Maximize2 style={{ width: 14, height: 14 }} />}
+            {isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+          </button>
           <button
             onClick={() => setShowConfig(true)}
             className="btn-ghost"
             style={{ display: "none", alignItems: "center", gap: 6 }}
           >
-            <Settings style={{ width: 14, height: 14, color: "#F97316" }} />
+            <Settings style={{ width: 14, height: 14, color: "#0EA5E9" }} />
             Customize Widgets
           </button>
           {showConfig && (
@@ -440,7 +493,7 @@ export default function DashboardClient({
                           borderRadius: 10,
                           border: "none",
                           background: isActive
-                            ? "rgba(249,115,22,0.06)"
+                            ? "rgba(14,165,233,0.06)"
                             : "transparent",
                           cursor: "pointer",
                           textAlign: "left",
@@ -454,7 +507,7 @@ export default function DashboardClient({
                             style={{
                               width: 16,
                               height: 16,
-                              color: "#F97316",
+                              color: "#0EA5E9",
                               flexShrink: 0,
                             }}
                           />
@@ -488,7 +541,7 @@ export default function DashboardClient({
                     className="btn-primary"
                     style={{
                       width: "100%",
-                      background: "linear-gradient(135deg, #F97316, #F59E0B)",
+                      background: "linear-gradient(135deg, #0EA5E9, #38BDF8)",
                       border: "none",
                       padding: "12px",
                       justifyContent: "center",
@@ -855,10 +908,8 @@ export default function DashboardClient({
 
           // Generate a vibrant colorful shadow based on the card color
           const shadowColor =
-            card.color === "#F97316"
-              ? "rgba(249,115,22,0.18)"
-              : card.color === "#0EA5E9"
-                ? "rgba(14,165,233,0.18)"
+            card.color === "#0EA5E9"
+              ? "rgba(14,165,233,0.18)"
                 : card.color === "#10B981"
                   ? "rgba(16,185,129,0.18)"
                   : card.color === "#DC2626"
@@ -940,7 +991,7 @@ export default function DashboardClient({
                 }}
               >
                 <TrendingUp
-                  style={{ width: 14, height: 14, color: "#F97316" }}
+                  style={{ width: 14, height: 14, color: "#0EA5E9" }}
                 />
                 Revenue & Profit Analysis
               </h3>
@@ -974,7 +1025,7 @@ export default function DashboardClient({
                     fontFamily: "inherit",
                     transition: "all 0.2s",
                     background: period === p ? "white" : "transparent",
-                    color: period === p ? "#F97316" : "#64748B",
+                    color: period === p ? "#0EA5E9" : "#64748B",
                     boxShadow:
                       period === p ? "0 1px 4px rgba(0,0,0,0.05)" : "none",
                   }}
@@ -1150,7 +1201,7 @@ export default function DashboardClient({
                   <Bar
                     name="Revenue"
                     dataKey="revenue"
-                    fill="#F97316"
+                    fill="#0EA5E9"
                     radius={[4, 4, 0, 0]}
                   />
                   <Bar
@@ -1223,7 +1274,7 @@ export default function DashboardClient({
                     width: 8,
                     height: 8,
                     borderRadius: "50%",
-                    background: "#F97316",
+                    background: "#0EA5E9",
                     display: "inline-block",
                   }}
                 />
@@ -1289,9 +1340,9 @@ export default function DashboardClient({
                               fontWeight: 700,
                               textTransform: "uppercase",
                               fontFamily: "monospace",
-                              color: "#C2410C",
-                              background: "#FFF7ED",
-                              border: "1px solid #FED7AA",
+                              color: "#0284C7",
+                              background: "#F0F9FF",
+                              border: "1px solid #BAE6FD",
                               padding: "2px 8px",
                               borderRadius: 6,
                               whiteSpace: "nowrap",
@@ -1350,7 +1401,7 @@ export default function DashboardClient({
                   gap: 6,
                 }}
               >
-                <Activity style={{ width: 14, height: 14, color: "#F97316" }} />
+                <Activity style={{ width: 14, height: 14, color: "#0EA5E9" }} />
                 <h3
                   style={{
                     fontSize: 11,
@@ -1379,7 +1430,7 @@ export default function DashboardClient({
                   style={{
                     width: 16,
                     height: 16,
-                    color: "#F97316",
+                    color: "#0EA5E9",
                     flexShrink: 0,
                   }}
                 />
@@ -1500,7 +1551,7 @@ export default function DashboardClient({
                   gap: 6,
                 }}
               >
-                <Zap style={{ width: 12, height: 12, color: "#F97316" }} />
+                <Zap style={{ width: 12, height: 12, color: "#0EA5E9" }} />
                 Quick Actions
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>

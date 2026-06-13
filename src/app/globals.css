@@ -349,23 +349,76 @@ body {
   color: #DC2626;
 }
 
-/* Collapsed Sidebar Centering overrides */
-.sidebar.collapsed .sidebar-nav-item {
+/* Collapsed Sidebar Centering & Beautification overrides */
+.sidebar.collapsed .sidebar-header {
   justify-content: center;
-  padding: 9px 0;
+  padding: 18px 0 14px;
+}
+
+.sidebar.collapsed .sidebar-toggle {
+  margin-left: 0;
+}
+
+.sidebar.collapsed .sidebar-nav-item {
+  width: 38px;
+  height: 38px;
+  margin: 4px auto;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
   gap: 0;
+  transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sidebar.collapsed .sidebar-nav-item:hover {
+  background: rgba(245, 158, 11, 0.08);
+  transform: scale(1.08);
+}
+
+.sidebar.collapsed .sidebar-nav-item.active {
+  background: rgba(245, 158, 11, 0.12);
+  border: 1.5px solid rgba(245, 158, 11, 0.3);
 }
 
 .sidebar.collapsed .sidebar-user {
+  width: 38px;
+  height: 38px;
+  margin: 6px auto;
+  padding: 0;
+  display: flex;
+  align-items: center;
   justify-content: center;
-  padding: 8px 0;
+  border-radius: 50%;
   gap: 0;
+  cursor: pointer;
+  transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sidebar.collapsed .sidebar-user:hover {
+  background: rgba(245, 158, 11, 0.08);
+  transform: scale(1.08);
 }
 
 .sidebar.collapsed .sidebar-logout {
+  width: 38px;
+  height: 38px;
+  margin: 6px auto;
+  padding: 0;
+  display: flex;
+  align-items: center;
   justify-content: center;
-  padding: 8px 0;
+  border-radius: 50%;
   gap: 0;
+  cursor: pointer;
+  transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sidebar.collapsed .sidebar-logout:hover {
+  background: rgba(239, 68, 68, 0.1);
+  color: #DC2626;
+  transform: scale(1.08);
 }
 
 /* Main content offset */
@@ -382,22 +435,26 @@ body {
 }
 
 /* Sidebar tooltip for collapsed mode */
-.sidebar.collapsed .sidebar-nav-item:hover::after {
+.sidebar.collapsed .sidebar-nav-item:hover::after,
+.sidebar.collapsed .sidebar-user:hover::after,
+.sidebar.collapsed .sidebar-logout:hover::after {
   content: attr(data-label);
   position: absolute;
-  left: calc(100% + 8px);
+  left: calc(100% + 12px);
   top: 50%;
   transform: translateY(-50%);
-  background: var(--text-primary);
-  color: white;
+  background: #1E293B;
+  color: #FFFFFF;
   font-size: 11px;
   font-weight: 600;
-  padding: 4px 10px;
-  border-radius: 6px;
+  padding: 6px 12px;
+  border-radius: 8px;
   white-space: nowrap;
   pointer-events: none;
   z-index: 200;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.18);
+  border: 1px solid rgba(255,255,255,0.08);
+  animation: fadeIn 0.15s ease-out forwards;
 }
 
 /* ──────────────────────────────────────────────────────────────

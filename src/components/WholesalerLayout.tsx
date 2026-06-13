@@ -6,7 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, Package, Truck, Receipt, LogOut,
   ShieldAlert, ChevronRight, Search, Settings, X,
-  PanelLeftClose, PanelLeftOpen, Menu, Users
+  PanelLeftClose, PanelLeftOpen, Menu, Users, Briefcase
 } from 'lucide-react';
 
 interface WholesalerLayoutProps {
@@ -49,70 +49,85 @@ export default function WholesalerLayout({ children, user, profile }: Wholesaler
     ? user.allowedFeatures.split(',')
     : ['Dashboard', 'Medicines', 'Orders', 'Billing', 'POS', 'Profile', 'Logs', 'Customers', 'Suppliers'];
 
-  const navItems = [
+  const groupedNavItems = [
     {
-      name: 'Dashboard',
-      href: '/wholesaler/dashboard',
-      icon: LayoutDashboard,
-      desc: 'Overview stats and widgets',
-      feature: 'Dashboard',
-      tags: 'home, main, analytics, widgets, stats',
+      category: 'Operations',
+      items: [
+        {
+          name: 'Dashboard',
+          href: '/wholesaler/dashboard',
+          icon: LayoutDashboard,
+          desc: 'Overview stats and widgets',
+          feature: 'Dashboard',
+          tags: 'home, main, analytics, widgets, stats',
+        },
+        {
+          name: 'Medicines',
+          href: '/wholesaler/inventory',
+          icon: Package,
+          desc: 'Product catalog, batches and barcodes',
+          feature: 'Medicines',
+          tags: 'stock, batch, add, medicines, inventory, barcode, print',
+        },
+        {
+          name: 'POS B2C',
+          href: '/wholesaler/pos',
+          icon: Receipt,
+          desc: 'Manual bill for physical customer',
+          feature: 'POS',
+          tags: 'cash, pos, point of sale, checkout, manual, walkin',
+        },
+      ]
     },
     {
-      name: 'Medicines',
-      href: '/wholesaler/inventory',
-      icon: Package,
-      desc: 'Product catalog, batches and barcodes',
-      feature: 'Medicines',
-      tags: 'stock, batch, add, medicines, inventory, barcode, print',
-    },
-    {
-      name: 'Orders',
-      href: '/wholesaler/orders',
-      icon: Truck,
-      desc: 'Create and dispatch B2B orders',
-      feature: 'Orders',
-      tags: 'sell, dispatch, buy, sales, retailer, pending',
-    },
-    {
-      name: 'Customers',
-      href: '/wholesaler/customers',
-      icon: Users,
-      desc: 'Retailer accounts and transaction histories',
-      feature: 'Customers',
-      tags: 'retailer, customer, history, transactions, accounts',
-    },
-    {
-      name: 'Suppliers',
-      href: '/wholesaler/suppliers',
-      icon: Users,
-      desc: 'Manufacturer and supplier bills and shipments',
-      feature: 'Suppliers',
-      tags: 'vendor, manufacturer, supplier, bills, settlements',
-    },
-    {
-      name: 'POS B2C',
-      href: '/wholesaler/pos',
-      icon: Receipt,
-      desc: 'Manual bill for physical customer',
-      feature: 'POS',
-      tags: 'cash, pos, point of sale, checkout, manual, walkin',
-    },
-    {
-      name: 'Billing',
-      href: '/wholesaler/billing',
-      icon: Receipt,
-      desc: 'Invoices, margins and payment tracking',
-      feature: 'Billing',
-      tags: 'money, revenue, statement, invoice, profit, margins',
-    },
+      category: 'B2B & Distribution',
+      items: [
+        {
+          name: 'Orders',
+          href: '/wholesaler/orders',
+          icon: Truck,
+          desc: 'Create and dispatch B2B orders',
+          feature: 'Orders',
+          tags: 'sell, dispatch, buy, sales, retailer, pending',
+        },
+        {
+          name: 'Customers',
+          href: '/wholesaler/customers',
+          icon: Users,
+          desc: 'Retailer accounts and transaction histories',
+          feature: 'Customers',
+          tags: 'retailer, customer, history, transactions, accounts',
+        },
+        {
+          name: 'Suppliers',
+          href: '/wholesaler/suppliers',
+          icon: Briefcase,
+          desc: 'Manufacturer and supplier bills and shipments',
+          feature: 'Suppliers',
+          tags: 'vendor, manufacturer, supplier, bills, settlements',
+        },
+        {
+          name: 'Billing',
+          href: '/wholesaler/billing',
+          icon: Receipt,
+          desc: 'Invoices, margins and payment tracking',
+          feature: 'Billing',
+          tags: 'money, revenue, statement, invoice, profit, margins',
+        },
+      ]
+    }
+  ];
+
+  const searchablePages = [
+    ...groupedNavItems.flatMap(g => g.items),
     {
       name: 'Settings',
       href: '/wholesaler/settings',
       icon: Settings,
       desc: 'Profile, staff roster, logs and preferences',
+      feature: 'Settings',
       tags: 'profile, staff, team, logs, audit, security, settings',
-    },
+    }
   ];
 
   let currentFeature = '';
@@ -128,6 +143,20 @@ export default function WholesalerLayout({ children, user, profile }: Wholesaler
     user.role === 'WHOLESALER_STAFF' &&
     currentFeature &&
     !allowedList.includes(currentFeature);
+
+  const isSettingsAllowed =
+    user.role === 'WHOLESALER' ||
+    allowedList.includes('Profile') ||
+    allowedList.includes('Logs');
+
+  const filteredGroups = groupedNavItems.map(group => {
+    const items = group.items.filter(item => {
+      if (user.role === 'WHOLESALER') return true;
+      if (item.feature && !allowedList.includes(item.feature)) return false;
+      return true;
+    });
+    return { ...group, items };
+  }).filter(group => group.items.length > 0);
 
   const [searchResults, setSearchResults] = useState<{
     pages: Array<any>;
@@ -175,6 +204,22 @@ export default function WholesalerLayout({ children, user, profile }: Wholesaler
         e.preventDefault();
         setShowSearch((prev) => !prev);
       }
+      if ((e.ctrlKey || e.metaKey) && e.key?.toLowerCase() === 'b') {
+        e.preventDefault();
+        setCollapsed((prev) => {
+          const next = !prev;
+          localStorage.setItem('sidebar_collapsed', String(next));
+          return next;
+        });
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key?.toLowerCase() === 'f') {
+        e.preventDefault();
+        if (!document.fullscreenElement) {
+          document.documentElement.requestFullscreen().catch(() => {});
+        } else {
+          document.exitFullscreen().catch(() => {});
+        }
+      }
       if (e.key === 'Escape') {
         setShowSearch(false);
         setSearchQuery('');
@@ -215,7 +260,7 @@ export default function WholesalerLayout({ children, user, profile }: Wholesaler
       setLoadingSearch(true);
       try {
         const q = searchQuery.toLowerCase();
-        const matchedPages = navItems.filter((item) => {
+        const matchedPages = searchablePages.filter((item) => {
           if (user.role === 'WHOLESALER_STAFF') {
             if (item.name === 'Settings' && !(allowedList.includes('Profile') || allowedList.includes('Logs'))) return false;
             if (item.feature && !allowedList.includes(item.feature)) return false;
@@ -286,15 +331,6 @@ export default function WholesalerLayout({ children, user, profile }: Wholesaler
     await logActivity('LOGOUT', 'User logged out.');
     window.location.href = '/api/auth/logout';
   };
-
-  const visibleNavItems = navItems.filter((item) => {
-    if (user.role === 'WHOLESALER_STAFF') {
-      if (item.name === 'Settings')
-        return allowedList.includes('Profile') || allowedList.includes('Logs');
-      if (item.feature && !allowedList.includes(item.feature)) return false;
-    }
-    return true;
-  });
 
   // Real-time search state is managed above dynamically via SWR and API routes.
 
@@ -419,27 +455,56 @@ export default function WholesalerLayout({ children, user, profile }: Wholesaler
         )}
 
         {/* Nav */}
-        <nav className="sidebar-nav">
-          {visibleNavItems.map((item) => {
-            const isActive = pathname === item.href;
-            const Icon = item.icon;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`sidebar-nav-item ${isActive ? 'active' : ''}`}
-                data-label={item.name}
-                onClick={() => logActivity('NAVIGATE', `Clicked: ${item.name}`)}
-              >
-                <Icon className="nav-icon" />
-                <span className="sidebar-nav-label">{item.name}</span>
-              </Link>
-            );
-          })}
+        <nav className="sidebar-nav" style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: '16px 0' }}>
+          {filteredGroups.map((group) => (
+            <div key={group.category} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {!collapsed && (
+                <div style={{
+                  fontSize: 9, fontWeight: 900, textTransform: 'uppercase', color: '#94A3B8',
+                  padding: '0 20px', marginBottom: 4, letterSpacing: '0.05em'
+                }}>
+                  {group.category}
+                </div>
+              )}
+              {group.items.map((item) => {
+                const isActive = pathname === item.href;
+                const Icon = item.icon;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`sidebar-nav-item ${isActive ? 'active' : ''}`}
+                    data-label={item.name}
+                    onClick={() => logActivity('NAVIGATE', `Clicked: ${item.name}`)}
+                  >
+                    <Icon className="nav-icon" />
+                    <span className="sidebar-nav-label">{item.name}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          ))}
         </nav>
 
-        {/* Bottom: user + logout */}
+        {/* Bottom: user + settings + logout */}
         <div className="sidebar-bottom">
+          {/* Settings link relocated here */}
+          {isSettingsAllowed && (
+            <Link
+              href="/wholesaler/settings"
+              className={`sidebar-nav-item ${pathname === '/wholesaler/settings' ? 'active' : ''}`}
+              style={{
+                marginBottom: 12,
+                borderRadius: 8,
+              }}
+              data-label="Settings"
+              onClick={() => logActivity('NAVIGATE', 'Clicked: Settings')}
+            >
+              <Settings className="nav-icon" />
+              <span className="sidebar-nav-label">Settings</span>
+            </Link>
+          )}
+
           {/* Node badge */}
           {!collapsed && (
             <div
@@ -460,7 +525,7 @@ export default function WholesalerLayout({ children, user, profile }: Wholesaler
             </div>
           )}
 
-          <div className="sidebar-user">
+          <div className="sidebar-user" data-label={user.fullName || user.email.split('@')[0]}>
             <div className="sidebar-user-avatar">{userInitials}</div>
             <div className="sidebar-user-info">
               <div className="sidebar-user-name">

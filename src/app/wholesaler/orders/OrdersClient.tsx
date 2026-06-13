@@ -153,6 +153,7 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
   const [viewMode, setViewMode] = useState<'simple' | 'detail'>('simple');
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterSearch, setFilterSearch] = useState('');
+  const [showB2BOrderCreator, setShowB2BOrderCreator] = useState(false);
 
   // Filtered lists
   const filteredRetailers = retailers.filter(r =>
@@ -598,6 +599,14 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <button
+            onClick={() => setShowB2BOrderCreator(prev => !prev)}
+            className="btn-ghost"
+            style={{ padding: '6px 14px', background: showB2BOrderCreator ? '#0EA5E9' : 'white', border: '1.5px solid #0EA5E9', color: showB2BOrderCreator ? 'white' : '#0EA5E9', borderRadius: 10, fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}
+          >
+            <ShoppingCart style={{ width: 13, height: 13 }} />
+            {showB2BOrderCreator ? 'Hide Order Box' : 'Show Order Box'}
+          </button>
+          <button
             onClick={() => setShowAddCustomerModal(true)}
             className="btn-ghost"
             style={{ padding: '6px 14px', background: 'white', border: '1.5px solid #0EA5E9', color: '#0EA5E9', borderRadius: 10, fontSize: 11, fontWeight: 700 }}
@@ -616,7 +625,7 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
       {successMsg && <div className="alert alert-success"><CheckCircle style={{ width: 14, height: 14, flexShrink: 0 }} /><span>{successMsg}</span></div>}
 
       {/* Main 2-col layout */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: 20, alignItems: 'start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: showB2BOrderCreator ? '1fr 380px' : '1fr', gap: 20, alignItems: 'start' }}>
 
         {/* LEFT — Orders Table */}
         <div style={{ background: 'rgba(255,255,255,0.9)', border: '1.5px solid #E2E8F0', borderRadius: 18, overflow: 'hidden', boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}>
@@ -934,9 +943,10 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
             </div>
           )}
         </div>
-
+        
         {/* RIGHT — Order Creator Panel */}
-        <div style={{ background: 'rgba(255,255,255,0.95)', border: '1.5px solid rgba(14,165,233,0.25)', borderRadius: 18, padding: 20, boxShadow: '0 4px 20px rgba(14,165,233,0.08)', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {showB2BOrderCreator && (
+          <div style={{ background: 'rgba(255,255,255,0.95)', border: '1.5px solid rgba(14,165,233,0.25)', borderRadius: 18, padding: 20, boxShadow: '0 4px 20px rgba(14,165,233,0.08)', display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={{ borderBottom: '1px solid #F1F5F9', paddingBottom: 12 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h2 style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#1E293B', display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -962,7 +972,7 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
                   style={{
                     padding: '3px 8px', border: 'none', borderRadius: 7, fontSize: 9, fontWeight: 700, cursor: 'pointer',
                     background: useTierPricing ? 'white' : 'transparent',
-                    color: useTierPricing ? '#F97316' : '#94A3B8',
+                    color: useTierPricing ? '#0EA5E9' : '#94A3B8',
                     boxShadow: useTierPricing ? '0 1px 3px rgba(0,0,0,0.08)' : 'none'
                   }}
                 >
@@ -1063,7 +1073,7 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
                         style={{ width: '100%', fontSize: 12 }}
                       />
                       {showMedicineDropdown && (
-                        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, background: 'white', border: '1.5px solid #FED7AA', borderRadius: 8, boxShadow: '0 8px 24px rgba(249,115,22,0.15)', zIndex: 20, maxHeight: 160, overflowY: 'auto' }}>
+                        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, background: 'white', border: '1.5px solid #BAE6FD', borderRadius: 8, boxShadow: '0 8px 24px rgba(14,165,233,0.15)', zIndex: 20, maxHeight: 160, overflowY: 'auto' }}>
                           {filteredProducts.length === 0 ? (
                             <div style={{ padding: '8px 12px', fontSize: 11, color: '#94A3B8', textAlign: 'center' }}>No medicines found</div>
                           ) : (
@@ -1147,8 +1157,8 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
                                   disabled={isOutOfStock}
                                   style={{
                                     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                                    padding: '7px 10px', border: isSelected ? '1.5px solid #F97316' : '1.5px solid #E2E8F0',
-                                    borderRadius: 8, background: isSelected ? '#FFF7ED' : (isOutOfStock ? '#F8FAFC' : 'white'),
+                                    padding: '7px 10px', border: isSelected ? '1.5px solid #0EA5E9' : '1.5px solid #E2E8F0',
+                                    borderRadius: 8, background: isSelected ? '#F0F9FF' : (isOutOfStock ? '#F8FAFC' : 'white'),
                                     cursor: isOutOfStock ? 'not-allowed' : 'pointer', textAlign: 'left',
                                     opacity: isOutOfStock ? 0.5 : 1, fontFamily: 'inherit', width: '100%'
                                   }}
@@ -1157,7 +1167,7 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                                       <span style={{ fontWeight: 700, fontSize: 11, color: '#1E293B', fontFamily: 'monospace' }}>{b.batchNumber}</span>
                                       {isRecommended && (
-                                        <span style={{ fontSize: 8, fontWeight: 800, background: '#F97316', color: 'white', padding: '1px 5px', borderRadius: 4 }}>⭐ RECOMMENDED</span>
+                                        <span style={{ fontSize: 8, fontWeight: 800, background: '#0EA5E9', color: 'white', padding: '1px 5px', borderRadius: 4 }}>⭐ RECOMMENDED</span>
                                       )}
                                       {isOutOfStock && (
                                         <span style={{ fontSize: 8, fontWeight: 800, background: '#FEE2E2', color: '#DC2626', padding: '1px 5px', borderRadius: 4 }}>OUT OF STOCK</span>
@@ -1169,7 +1179,7 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
                                   </div>
                                   <div style={{ textAlign: 'right', flexShrink: 0, fontSize: 10 }}>
                                     <div style={{ color: '#64748B' }}>Buy: Rs.{b.purchasePricePerBox}</div>
-                                    <div style={{ fontWeight: 700, color: '#F97316' }}>Sell: Rs.{b.sellingPricePerBox}</div>
+                                    <div style={{ fontWeight: 700, color: '#0EA5E9' }}>Sell: Rs.{b.sellingPricePerBox}</div>
                                   </div>
                                 </button>
                               );
@@ -1179,15 +1189,15 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
                       )}
 
                       {/* Medicine Info Box */}
-                      <div style={{ background: '#FFF7ED', border: '1px solid #FFEDD5', borderRadius: 8, padding: 10, fontSize: 11, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                        <div style={{ fontWeight: 800, color: '#C2410C' }}>Batch Info:</div>
+                      <div style={{ background: '#F0F9FF', border: '1px solid #BAE6FD', borderRadius: 8, padding: 10, fontSize: 11, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <div style={{ fontWeight: 800, color: '#0284C7' }}>Batch Info:</div>
                         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                           <span>Buying Price:</span>
                           <span style={{ fontWeight: 700 }}>Rs. {purchasePrice}</span>
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                           <span>Selling Price:</span>
-                          <span style={{ fontWeight: 700, color: '#F97316' }}>Rs. {defaultSellingPrice}</span>
+                          <span style={{ fontWeight: 700, color: '#0EA5E9' }}>Rs. {defaultSellingPrice}</span>
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', color: '#059669' }}>
                           <span>Profit / Box:</span>
@@ -1195,9 +1205,9 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
                         </div>
                         {tiers.length > 0 && (
                           <div style={{ marginTop: 4 }}>
-                            <div style={{ fontWeight: 700, color: '#EA580C', marginBottom: 2 }}>Volume Tiers:</div>
+                            <div style={{ fontWeight: 700, color: '#0284C7', marginBottom: 2 }}>Volume Tiers:</div>
                             {tiers.map((t: any, idx: number) => (
-                              <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', paddingLeft: 6, color: '#7C2D12', fontSize: 10 }}>
+                              <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', paddingLeft: 6, color: '#0369A1', fontSize: 10 }}>
                                 <span>{t.minQty}–{t.maxQty || '∞'} boxes:</span>
                                 <span style={{ fontWeight: 700 }}>Rs. {t.pricePerBox}</span>
                               </div>
@@ -1322,6 +1332,7 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
             </>
           )}
         </div>
+        )}
       </div>
 
       {/* ORDER DETAIL MODAL */}
@@ -1465,7 +1476,7 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: refundPreview > 0 ? 12 : 0 }}>
                   <div>
                     <div style={{ fontSize: 12, fontWeight: 800, color: '#1E293B', display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <DollarSign style={{ width: 14, height: 14, color: '#F97316' }} /> Adjust Billing
+                      <DollarSign style={{ width: 14, height: 14, color: '#0EA5E9' }} /> Adjust Billing
                     </div>
                     <div style={{ fontSize: 10, color: '#64748B', marginTop: 2 }}>Credit refund value as advance balance for next order</div>
                   </div>
@@ -1475,7 +1486,7 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
                     onClick={() => setAdjustBilling(v => !v)}
                     style={{
                       width: 46, height: 26, borderRadius: 13, border: 'none', cursor: 'pointer',
-                      background: adjustBilling ? '#F97316' : '#CBD5E1', transition: 'background 0.2s',
+                      background: adjustBilling ? '#0EA5E9' : '#CBD5E1', transition: 'background 0.2s',
                       position: 'relative', flexShrink: 0
                     }}
                   >
