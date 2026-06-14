@@ -29,6 +29,7 @@ export async function GET(request: Request) {
             product: true,
           },
         },
+        b2bSettlements: true,
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -53,6 +54,7 @@ export async function GET(request: Request) {
             product: true,
           },
         },
+        b2bSettlements: true,
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -127,13 +129,23 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Order not found' }, { status: 404 });
     }
 
-    const updatedOrder = await db.order.update({
-      where: { id: orderId },
-      data: {
-        settleStatus: 'PENDING_VERIFICATION',
-        settleAmount: parseFloat(amount),
-        settleMethod: method || 'CASH',
-      },
+    const updatedOrder = await db.$transaction(async (tx) => {
+      // Create a pending settlement request
+      await tx.b2BSettlement.create({
+        data: {
+          orderId,
+          amount: parseFloat(amount),
+          method: method || 'CASH',
+          status: 'PENDING',
+        },
+      });
+
+      return tx.order.update({
+        where: { id: orderId },
+        data: {
+          settleStatus: 'PENDING_VERIFICATION',
+        },
+      });
     });
 
     await db.systemAuditLog.create({

@@ -495,6 +495,17 @@ export async function confirmB2BDeliveryAction(
       },
     });
 
+    if (settleNow) {
+      await tx.b2BSettlement.create({
+        data: {
+          orderId: order.id,
+          amount: parseFloat(String(settleAmount || order.netAmount)),
+          method: settleMethod || 'CASH',
+          status: 'PENDING',
+        },
+      });
+    }
+
     // 2. Map transit logs to RetailerInventory
     for (const transit of order.inTransitLogs) {
       const customPrice = customPrices?.find((cp) => cp.productId === transit.productId);

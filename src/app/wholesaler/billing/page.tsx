@@ -37,6 +37,7 @@ export default async function WholesalerBillingPage() {
     where: { wholesalerId: profile.id },
     include: {
       retailer: true,
+      b2bSettlements: true,
       items: {
         include: {
           product: true,

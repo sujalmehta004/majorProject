@@ -21,6 +21,14 @@ interface OrderItem {
   product: { name: string; sku: string; };
 }
 
+interface B2BSettlement {
+  id: string;
+  amount: number;
+  method?: string | null;
+  status: string;
+  createdAt: string;
+}
+
 interface Order {
   id: string;
   wholesaler?: { companyName: string; address?: string; phone?: string; } | null;
@@ -35,6 +43,7 @@ interface Order {
   settleStatus?: string;
   settleAmount?: number;
   settleMethod?: string;
+  b2bSettlements?: B2BSettlement[];
 }
 
 interface WholesalerRelation {
@@ -195,25 +204,39 @@ export default function BillingClient({
     return () => window.removeEventListener('keydown', handler);
   }, []);
 
+  /* ── Helpers ── */
+  const getOrderPaid = (order: any): number => {
+    if (order.b2bSettlements && Array.isArray(order.b2bSettlements)) {
+      return order.b2bSettlements
+        .filter((s: any) => s.status === 'VERIFIED')
+        .reduce((sum: number, s: any) => sum + (s.amount || 0), 0);
+    }
+    return order.settleAmount || 0;
+  };
+
+  const getOrderPendingSettle = (order: any): number => {
+    if (order.b2bSettlements && Array.isArray(order.b2bSettlements)) {
+      return order.b2bSettlements
+        .filter((s: any) => s.status === 'PENDING')
+        .reduce((sum: number, s: any) => sum + (s.amount || 0), 0);
+    }
+    return order.settleStatus === 'PENDING_VERIFICATION' ? (order.settleAmount || 0) : 0;
+  };
+
   /* ── Derived Metrics ── */
   // Advance balances aggregated across all wholesaler relations
   const totalAdvanceBalance = relations.reduce((s, r) => s + r.advanceBalance, 0);
 
   // Outstanding due from B2B purchases (actual per-order)
   const totalOutstandingDue = purchases.reduce((s, p) => {
-    const st = p.settleStatus || 'UNPAID';
-    if (st === 'UNPAID' || st === 'REJECTED') return s + p.netAmount - (p.advanceApplied || 0);
-    if (st === 'PENDING_VERIFICATION') return s + Math.max(p.netAmount - (p.advanceApplied || 0) - (p.settleAmount || 0), 0);
-    return s;
+    const paid = getOrderPaid(p);
+    const due = Math.max(p.netAmount - paid, 0);
+    return s + due;
   }, 0);
 
-  const totalVerifiedPayments = purchases
-    .filter(p => p.settleStatus === 'VERIFIED')
-    .reduce((s, p) => s + (p.settleAmount || 0), 0);
+  const totalVerifiedPayments = purchases.reduce((s, p) => s + getOrderPaid(p), 0);
 
-  const totalPendingVerification = purchases
-    .filter(p => p.settleStatus === 'PENDING_VERIFICATION')
-    .reduce((s, p) => s + (p.settleAmount || 0), 0);
+  const totalPendingVerification = purchases.reduce((s, p) => s + getOrderPendingSettle(p), 0);
 
   const totalSalesRevenue = sales.reduce((s, o) => s + o.netAmount, 0);
   const totalPurchaseCost = purchases.reduce((s, o) => s + o.netAmount, 0);
@@ -224,7 +247,17 @@ export default function BillingClient({
 
   /* ── Filtered Lists ── */
   const filteredPurchases = purchases.filter(p => {
-    const matchSettle = filterSettle === 'all' || (p.settleStatus || 'UNPAID') === filterSettle;
+    const st = p.settleStatus || 'UNPAID';
+    const remainingDue = Math.max(p.netAmount - getOrderPaid(p), 0);
+    let matchSettle = true;
+    if (filterSettle === 'UNPAID') {
+      matchSettle = remainingDue > 0;
+    } else if (filterSettle === 'VERIFIED') {
+      matchSettle = remainingDue <= 0;
+    } else if (filterSettle === 'PENDING_VERIFICATION') {
+      matchSettle = st === 'PENDING_VERIFICATION' || (p.b2bSettlements?.some((s: any) => s.status === 'PENDING') ?? false);
+    }
+
     const matchStatus = filterStatus === 'all' || p.status === filterStatus;
     const q = searchQuery.toLowerCase();
     const matchSearch = !q || p.id.toLowerCase().includes(q) ||
@@ -246,9 +279,9 @@ export default function BillingClient({
     const d = isB2C ? getB2CDetails(order.overrideJustification) : null;
     setSettleOrder(order);
     setSettleIsB2C(isB2C);
-    setSettleAmountVal(String(d ? d.due : Math.max(order.netAmount - (order.advanceApplied || 0) - (order.settleAmount || 0), 0)));
-    setSettleMethod(d ? d.method : 'CASH');
     setSettleError('');
+    setSettleMethod(d ? d.method : 'CASH');
+    setSettleAmountVal(String(d ? d.due : Math.max(order.netAmount - getOrderPaid(order), 0)));
   };
 
   const handleSubmitSettlement = async () => {
@@ -445,7 +478,7 @@ export default function BillingClient({
                 const st = p.settleStatus || 'UNPAID';
                 const meta = SETTLE_META[st] || SETTLE_META.UNPAID;
                 const SIcon = meta.icon;
-                const due = p.netAmount - (p.advanceApplied || 0) - (st === 'VERIFIED' ? (p.settleAmount || 0) : 0);
+                const due = Math.max(p.netAmount - getOrderPaid(p), 0);
                 return (
                   <tr key={p.id} onClick={() => { setSelectedOrder(p); setIsSaleModal(false); }}
                     style={{ cursor: 'pointer', borderBottom: '1px solid #F8FAFC', transition: 'background 0.15s' }}
@@ -557,9 +590,9 @@ export default function BillingClient({
                   const st = p.settleStatus || 'UNPAID';
                   const meta = SETTLE_META[st] || SETTLE_META.UNPAID;
                   const SIcon = meta.icon;
-                  const effectivePaid = st === 'VERIFIED' ? (p.settleAmount || 0) : 0;
-                  const due = Math.max(p.netAmount - (p.advanceApplied || 0) - effectivePaid, 0);
-                  const canSettle = p.status === 'DELIVERED' && (st === 'UNPAID' || st === 'REJECTED');
+                  const effectivePaid = getOrderPaid(p);
+                  const due = Math.max(p.netAmount - effectivePaid, 0);
+                  const canSettle = p.status === 'DELIVERED' && due > 0 && st !== 'PENDING_VERIFICATION';
                   return (
                     <tr key={p.id}
                       onClick={() => { setSelectedOrder(p); setIsSaleModal(false); }}
@@ -994,9 +1027,9 @@ export default function BillingClient({
         const settleKey = selectedOrder.settleStatus || 'UNPAID';
         const pm = SETTLE_META[settleKey] || SETTLE_META.UNPAID;
         const PayIcon = pm.icon;
-        const effectivePaid = settleKey === 'VERIFIED' ? (selectedOrder.settleAmount || 0) : 0;
-        const dueAmount = isSale ? (d?.due || 0) : Math.max(selectedOrder.netAmount - (selectedOrder.advanceApplied || 0) - effectivePaid, 0);
-        const canSettle = isSale ? (d && d.due > 0) : (selectedOrder.status === 'DELIVERED' && (settleKey === 'UNPAID' || settleKey === 'REJECTED'));
+        const effectivePaid = getOrderPaid(selectedOrder);
+        const dueAmount = isSale ? (d?.due || 0) : Math.max(selectedOrder.netAmount - effectivePaid, 0);
+        const canSettle = isSale ? (d && d.due > 0) : (selectedOrder.status === 'DELIVERED' && dueAmount > 0 && selectedOrder.settleStatus !== 'PENDING_VERIFICATION');
 
         return (
           <div style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(15,23,42,0.4)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
@@ -1069,9 +1102,8 @@ export default function BillingClient({
                     <div style={{ fontSize: 11, fontWeight: 800, color: dueAmount > 0 ? '#EF4444' : '#10B981', textTransform: 'uppercase', marginBottom: 12 }}>Payment Breakdown</div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                       {[
-                        { label: 'Order Total', val: selectedOrder.netAmount, color: '#1E293B' },
-                        { label: 'Advance Applied', val: -(selectedOrder.advanceApplied || 0), color: '#8B5CF6', hide: !selectedOrder.advanceApplied },
-                        { label: 'Settlement Paid', val: -(selectedOrder.settleAmount || 0), color: '#10B981', hide: !selectedOrder.settleAmount },
+                        { label: 'Order Total (After applied advance)', val: selectedOrder.netAmount, color: '#1E293B' },
+                        { label: 'Settlement Paid', val: -effectivePaid, color: '#10B981', hide: !effectivePaid },
                         { label: 'Outstanding Due', val: dueAmount, color: dueAmount > 0 ? '#EF4444' : '#10B981', bold: true },
                       ].filter(row => !row.hide).map((row, i, arr) => (
                         <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', ...(i === arr.length - 1 ? { borderTop: '1px solid rgba(0,0,0,0.06)', paddingTop: 8, marginTop: 4 } : {}) }}>
@@ -1087,9 +1119,6 @@ export default function BillingClient({
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700, color: pm.color, background: pm.bg }}>
                         <PayIcon style={{ width: 10, height: 10 }} /> {pm.label}
                       </span>
-                      {settleKey === 'PENDING_VERIFICATION' && (
-                        <span style={{ fontSize: 11, color: '#94A3B8' }}>{fmtRs(selectedOrder.settleAmount || 0)} via {selectedOrder.settleMethod}</span>
-                      )}
                     </div>
                   </div>
                 )}
@@ -1154,6 +1183,34 @@ export default function BillingClient({
                     </div>
                   </div>
                 </div>
+
+                {/* Timeline B2B Settlement History */}
+                {!isSale && selectedOrder.b2bSettlements && selectedOrder.b2bSettlements.length > 0 && (
+                  <div style={{ borderTop: '1.5px solid #F1F5F9', paddingTop: 16, marginTop: 4 }}>
+                    <div style={{ fontSize: 11, fontWeight: 800, color: '#475569', textTransform: 'uppercase', marginBottom: 12 }}>Payment Settlement Timeline</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {selectedOrder.b2bSettlements.map((settle: any) => {
+                        const sm = SETTLE_META[settle.status] || SETTLE_META.UNPAID;
+                        const SettleIcon = sm.icon;
+                        return (
+                          <div key={settle.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#F8FAFC', padding: '12px 16px', borderRadius: 12, border: '1px solid #F1F5F9' }}>
+                            <div>
+                              <div style={{ fontSize: 13, fontWeight: 800, color: '#1E293B' }}>
+                                Rs. {settle.amount.toLocaleString()} via {settle.method}
+                              </div>
+                              <div style={{ fontSize: 10, color: '#94A3B8', marginTop: 3 }}>
+                                {new Date(settle.createdAt).toLocaleString()}
+                              </div>
+                            </div>
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, color: sm.color, background: sm.bg }}>
+                              <SettleIcon style={{ width: 10, height: 10 }} /> {sm.label}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Footer */}
@@ -1180,10 +1237,9 @@ export default function BillingClient({
       {/* ─ Settle Payment Modal ─ */}
       {settleOrder && (() => {
         const b2cDetails = settleIsB2C ? getB2CDetails(settleOrder.overrideJustification) : null;
-        const st = settleOrder.settleStatus || 'UNPAID';
         const maxVal = settleIsB2C
           ? (b2cDetails?.due || 0)
-          : Math.max(settleOrder.netAmount - (settleOrder.advanceApplied || 0) - (st === 'VERIFIED' ? (settleOrder.settleAmount || 0) : 0), 0);
+          : Math.max(settleOrder.netAmount - (settleOrder.settleAmount || 0), 0);
 
         return (
           <div style={{ position: 'fixed', inset: 0, zIndex: 400, background: 'rgba(15,23,42,0.55)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
@@ -1224,6 +1280,46 @@ export default function BillingClient({
                     <div style={{ fontSize: 11, color: '#94A3B8', fontWeight: 700 }}>Invoice Total</div>
                     <div style={{ fontSize: 16, fontWeight: 800, color: '#475569', marginTop: 4, fontFamily: 'monospace' }}>{fmtRs(settleOrder.netAmount)}</div>
                   </div>
+                </div>
+
+                {/* Quick Selection Buttons */}
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    type="button"
+                    onClick={() => setSettleAmountVal(String(maxVal))}
+                    style={{
+                      flex: 1,
+                      padding: '10px 14px',
+                      borderRadius: 10,
+                      border: '1.5px solid #E2E8F0',
+                      fontSize: 12,
+                      fontWeight: 800,
+                      background: settleAmount === String(maxVal) ? 'rgba(30,64,175,0.08)' : '#FFFFFF',
+                      color: settleAmount === String(maxVal) ? '#1E40AF' : '#475569',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                    }}
+                  >
+                    Full Pay ({fmtRs(maxVal)})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSettleAmountVal(String(Math.round(maxVal / 2)))}
+                    style={{
+                      flex: 1,
+                      padding: '10px 14px',
+                      borderRadius: 10,
+                      border: '1.5px solid #E2E8F0',
+                      fontSize: 12,
+                      fontWeight: 800,
+                      background: settleAmount === String(Math.round(maxVal / 2)) ? 'rgba(30,64,175,0.08)' : '#FFFFFF',
+                      color: settleAmount === String(Math.round(maxVal / 2)) ? '#1E40AF' : '#475569',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                    }}
+                  >
+                    Half Pay ({fmtRs(Math.round(maxVal / 2))})
+                  </button>
                 </div>
 
                 {/* Amount Input */}

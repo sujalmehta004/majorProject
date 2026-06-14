@@ -27,6 +27,16 @@ interface Product { id: string; name: string; sku: string; tabletsPerStrip: numb
 interface OrderAllocation { id: string; quantity: number; batch: Batch; }
 interface OrderItem { id: string; productId: string; product: Product; quantity: number; pricePerUnit: number; allocations: OrderAllocation[]; }
 
+interface B2BSettlement {
+  id: string;
+  orderId?: string;
+  amount: number;
+  method?: string | null;
+  status: string;
+  createdAt?: string;
+  date?: string;
+}
+
 interface Order {
   id: string;
   retailer: Retailer;
@@ -37,6 +47,11 @@ interface Order {
   overrideJustification?: string | null;
   createdAt: string;
   items: OrderItem[];
+  settleStatus?: string | null;
+  settleAmount?: number | null;
+  settleMethod?: string | null;
+  advanceApplied?: number | null;
+  b2bSettlements?: B2BSettlement[];
 }
 
 // Settle log entry persisted per payment
@@ -160,10 +175,7 @@ export default function BillingClient({ profileId, initialOrders, initialSupplie
   const [detailSupplierBill, setDetailSupplierBill] = useState<SupplierBill | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
 
-  // Partial payment settlements — amount totals
-  const [settlements, setSettlements] = useState<Record<string, number>>({});
-  // Settle log — detailed entries per order: orderId → [{amount, date}]
-  const [settleLogs, setSettleLogs] = useState<Record<string, SettleEntry[]>>({});
+  // Settle input state
   const [settleAmount, setSettleAmount] = useState('');
   const [settlingOrderId, setSettlingOrderId] = useState<string | null>(null);
   const [settlingBillId, setSettlingBillId] = useState<string | null>(null);
@@ -184,23 +196,6 @@ export default function BillingClient({ profileId, initialOrders, initialSupplie
   const [supBillDateTo, setSupBillDateTo] = useState('');
 
   useEffect(() => {
-    const dbSettlements: Record<string, number> = {};
-    initialOrders.forEach((order: any) => {
-      if (order.settleStatus === 'VERIFIED') {
-        dbSettlements[order.id] = order.settleAmount || 0;
-      }
-    });
-
-    const stored = localStorage.getItem('medhub_order_payments');
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      Object.assign(dbSettlements, parsed);
-    }
-    setSettlements(dbSettlements);
-
-    const storedLogs = localStorage.getItem('medhub_settle_logs');
-    if (storedLogs) setSettleLogs(JSON.parse(storedLogs));
-
     // Fetch wholesaler products catalog
     fetch('/api/wholesaler/products')
       .then(res => res.json())
@@ -211,6 +206,16 @@ export default function BillingClient({ profileId, initialOrders, initialSupplie
       })
       .catch(err => console.error('Error fetching products for supplier bills:', err));
   }, []);
+
+  // Helper: get total verified paid amount for an order from DB settlements
+  const getOrderPaid = (order: any): number => {
+    if (order.b2bSettlements && Array.isArray(order.b2bSettlements)) {
+      return order.b2bSettlements
+        .filter((s: any) => s.status === 'VERIFIED')
+        .reduce((sum: number, s: any) => sum + (s.amount || 0), 0);
+    }
+    return order.settleAmount || 0;
+  };
 
   const getProductBuyingPrice = (productId: string): number => {
     const prod = products.find(p => p.id === productId);
@@ -385,33 +390,112 @@ export default function BillingClient({ profileId, initialOrders, initialSupplie
     printWindow.document.close();
   };
 
+  const handleVerifySettlementRequest = async (settlementId: string, orderId: string, approve: boolean) => {
+    try {
+      const res = await fetch('/api/wholesaler/verify-settlement', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ settlementId, orderId, approve }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert(approve ? 'Settlement verified and approved!' : 'Settlement request rejected.');
+        // Update client-side state
+        setOrders(prev => prev.map(o => {
+          if (o.id === orderId) {
+            return {
+              ...o,
+              settleStatus: data.order.settleStatus,
+              settleAmount: data.order.settleAmount,
+              b2bSettlements: (o.b2bSettlements || []).map((s: any) => 
+                s.id === settlementId ? { ...s, status: approve ? 'VERIFIED' : 'REJECTED' } : s
+              )
+            };
+          }
+          return o;
+        }));
+
+        // Update active modal order if open
+        if (invoiceModalOrder && invoiceModalOrder.id === orderId) {
+          setInvoiceModalOrder(prev => {
+            if (!prev) return null;
+            return {
+              ...prev,
+              settleStatus: data.order.settleStatus,
+              settleAmount: data.order.settleAmount,
+              b2bSettlements: (prev.b2bSettlements || []).map((s: any) => 
+                s.id === settlementId ? { ...s, status: approve ? 'VERIFIED' : 'REJECTED' } : s
+              )
+            } as any;
+          });
+        }
+      } else {
+        alert(data.error || 'Failed to verify settlement');
+      }
+    } catch (e) {
+      alert('Error verifying settlement request');
+    }
+  };
+
   const handleSettleSubmit = async (orderId: string, totalAmount: number) => {
-    const currentPaid = settlements[orderId] || 0;
     const inputPaid = parseFloat(settleAmount) || 0;
     if (inputPaid <= 0) return;
-    const finalPaid = Math.min(currentPaid + inputPaid, totalAmount);
 
     try {
       const res = await fetch('/api/wholesaler/verify-settlement', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId, approve: true, settleAmount: finalPaid }),
+        body: JSON.stringify({ orderId, amount: inputPaid, method: 'CASH', approve: true }),
       });
       if (!res.ok) {
         const data = await res.json();
         throw new Error(data.error || 'Failed to update database');
       }
+      const data = await res.json();
 
-      const updatedSettlements = { ...settlements, [orderId]: finalPaid };
-      setSettlements(updatedSettlements);
-      localStorage.setItem('medhub_order_payments', JSON.stringify(updatedSettlements));
+      // Update client-side state
+      setOrders(prev => prev.map(o => {
+        if (o.id === orderId) {
+          const updatedSettlements = [...(o.b2bSettlements || [])];
+          updatedSettlements.push({
+            id: Math.random().toString(),
+            orderId,
+            amount: inputPaid,
+            method: 'CASH',
+            status: 'VERIFIED',
+            createdAt: new Date().toISOString()
+          });
+          return {
+            ...o,
+            settleStatus: data.order.settleStatus,
+            settleAmount: data.order.settleAmount,
+            b2bSettlements: updatedSettlements
+          };
+        }
+        return o;
+      }));
 
-      // Log this payment entry with date
-      const newEntry: SettleEntry = { amount: inputPaid, date: new Date().toISOString() };
-      const existingLog = settleLogs[orderId] || [];
-      const updatedLogs = { ...settleLogs, [orderId]: [...existingLog, newEntry] };
-      setSettleLogs(updatedLogs);
-      localStorage.setItem('medhub_settle_logs', JSON.stringify(updatedLogs));
+      // Also update the invoiceModalOrder if open
+      if (invoiceModalOrder && invoiceModalOrder.id === orderId) {
+        setInvoiceModalOrder(prev => {
+          if (!prev) return null;
+          const updatedSettlements = [...(prev.b2bSettlements || [])];
+          updatedSettlements.push({
+            id: Math.random().toString(),
+            orderId,
+            amount: inputPaid,
+            method: 'CASH',
+            status: 'VERIFIED',
+            createdAt: new Date().toISOString()
+          });
+          return {
+            ...prev,
+            settleStatus: data.order.settleStatus,
+            settleAmount: data.order.settleAmount,
+            b2bSettlements: updatedSettlements
+          };
+        });
+      }
 
       setSettleAmount('');
       setSettlingOrderId(null);
@@ -536,15 +620,15 @@ export default function BillingClient({ profileId, initialOrders, initialSupplie
   const calculateMetrics = () => {
     let totalSales = 0, totalCogs = 0;
     let pendingSales = 0;
-    orders.forEach(order => {
+    orders.forEach((order: any) => {
       if (order.status === 'DELIVERED') {
         totalSales += order.netAmount;
-        order.items.forEach(item => item.allocations.forEach(al => {
+        order.items.forEach((item: any) => item.allocations.forEach((al: any) => {
           totalCogs += al.quantity * al.batch.manufacturingCost;
         }));
       }
       // Count remaining unpaid for ALL orders regardless of delivery status
-      const paid = settlements[order.id] || 0;
+      const paid = getOrderPaid(order);
       const remaining = Math.max(order.netAmount - paid, 0);
       pendingSales += remaining;
     });
@@ -621,7 +705,7 @@ export default function BillingClient({ profileId, initialOrders, initialSupplie
   const handlePrint = async () => {
     if (!selectedOrderForPrint) return;
     await logActivity('PRINT_INVOICE', `Printed custom invoice for order: ${selectedOrderForPrint.id}`);
-    const order = selectedOrderForPrint;
+    const order = selectedOrderForPrint as any;
     const customerName = order.retailer.pharmacyName === 'Walk-in Customer (POS)'
       ? getWalkInName(order.overrideJustification)
       : order.retailer.pharmacyName;
@@ -631,9 +715,9 @@ export default function BillingClient({ profileId, initialOrders, initialSupplie
     const customerPhone = order.retailer.pharmacyName === 'Walk-in Customer (POS)'
       ? getWalkInPhone(order.overrideJustification)
       : order.retailer.phone;
-    const paidAmt = settlements[order.id] || 0;
+    const paidAmt = getOrderPaid(order);
     const remaining = Math.max(order.netAmount - paidAmt, 0);
-    const itemRows = order.items.map(item => {
+    const itemRows = order.items.map((item: any) => {
       const totalPerBox = item.product.tabletsPerStrip * item.product.stripsPerBox;
       const qtyBoxes = item.quantity / totalPerBox;
       const pricePerBox = item.pricePerUnit * totalPerBox;
@@ -915,253 +999,163 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
       </div>
 
       {/* TRANSACTIONS TAB */}
-      {activeTab === 'transactions' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1.8fr 1fr', gap: 20, alignItems: 'start' }}>
-          {/* Main Transaction List */}
-          <div className="card" style={{ background: 'rgba(255,255,255,0.9)', padding: 20, border: '1.5px solid #E2E8F0', borderRadius: 18, boxShadow: '0 2px 12px rgba(0,0,0,0.03)' }}>
-            {/* Table header with filters */}
-            <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 12, borderBottom: '1px solid #F1F5F9', paddingBottom: 14, marginBottom: 16 }}>
-              <h3 style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#1E293B', display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#0EA5E9', display: 'inline-block' }} /> Sales Ledger Invoices
-              </h3>
-              <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-                {/* Search filter */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'white', border: '1.5px solid #E2E8F0', borderRadius: 8, padding: '4px 10px' }}>
-                  <FileText style={{ width: 12, height: 12, color: '#94A3B8' }} />
-                  <input type="text" placeholder="Search invoices..." value={filterSearch} onChange={e => setFilterSearch(e.target.value)}
-                    style={{ border: 'none', outline: 'none', fontSize: 11, width: 110, color: '#1E293B' }} />
-                </div>
-                {/* Status filter */}
-                <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
-                  style={{ border: '1.5px solid #E2E8F0', borderRadius: 8, padding: '5px 10px', fontSize: 11, fontWeight: 600, color: '#475569', background: 'white', outline: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
-                  <option value="all">All Status</option>
-                  <option value="PENDING">Pending</option>
-                  <option value="DISPATCHED">Dispatched</option>
-                  <option value="DELIVERED">Delivered</option>
-                  <option value="RETURNED">Returned</option>
-                </select>
-                {/* Column picker */}
-                <button onClick={() => setShowColPicker(true)} className="btn-ghost" style={{ height: 32, padding: '0 10px', fontSize: 10, display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <SlidersHorizontal style={{ width: 12, height: 12 }} /> Cols
-                </button>
-              </div>
-            </div>
+      {/* TRANSACTIONS TAB */}
+      {activeTab === 'transactions' && (() => {
+        // Find orders with pending B2B settlements
+        const pendingSettlementOrders = orders.filter(o => 
+          o.b2bSettlements?.some((s: any) => s.status === 'PENDING')
+        );
 
-            <div className="table-wrapper">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    {visibleCols.date && <th>Date</th>}
-                    {visibleCols.invoiceId && <th>Invoice ID</th>}
-                    {visibleCols.customer && <th>Customer</th>}
-                    {visibleCols.status && <th>Status</th>}
-                    {visibleCols.net && <th style={{ textAlign: 'right' }}>Net Payable</th>}
-                    {visibleCols.profit && <th style={{ textAlign: 'right' }}>Profit</th>}
-                    {visibleCols.discount && <th style={{ textAlign: 'right' }}>Discount</th>}
-                    {visibleCols.actions && <th style={{ textAlign: 'center' }}>Actions</th>}
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredOrders.length === 0 ? (
-                    <tr><td colSpan={6} style={{ padding: '32px', textAlign: 'center', color: '#94A3B8', fontStyle: 'italic', fontSize: 12 }}>No bills found matching filters.</td></tr>
-                  ) : (
-                    filteredOrders.map((order) => {
-                      const paid = settlements[order.id] || 0;
-                      const due = Math.max(order.netAmount - paid, 0);
-                      const isSelected = detailOrder?.id === order.id;
-                      return (
-                        <tr key={order.id} style={{ cursor: 'pointer', background: isSelected ? '#F0F9FF' : 'transparent', transition: 'background 0.15s' }} onClick={() => setDetailOrder(order)}>
-                          {visibleCols.date && <td style={{ fontFamily: 'monospace', fontSize: 11, color: '#64748B', whiteSpace: 'nowrap' }}>{new Date(order.createdAt).toLocaleDateString()}</td>}
-                          {visibleCols.invoiceId && (
-                            <td onClick={e => e.stopPropagation()}>
-                              <button
-                                onClick={() => setInvoiceModalOrder(order)}
-                                title="Click to open full invoice details"
-                                style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'monospace', fontWeight: 800, color: '#0EA5E9', fontSize: 12, padding: 0, textDecoration: 'underline dotted', display: 'flex', alignItems: 'center', gap: 3 }}
-                              >
-                                <Eye style={{ width: 11, height: 11, flexShrink: 0 }} />
-                                INV-{order.id.substring(0, 8).toUpperCase()}
-                              </button>
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            {/* Pending Settlements Verification Section */}
+            {pendingSettlementOrders.length > 0 && (
+              <div style={{ background: 'linear-gradient(135deg, rgba(30,64,175,0.06), rgba(59,130,246,0.03))', border: '1.5px dashed #3B82F6', borderRadius: 16, padding: '20px 24px', boxShadow: '0 4px 20px rgba(59,130,246,0.05)' }}>
+                <h3 style={{ margin: 0, fontSize: 14, fontWeight: 900, color: '#1E40AF', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <DollarSign style={{ width: 18, height: 18, color: '#3B82F6' }} /> B2B Payment Verification Requests
+                </h3>
+                <p style={{ margin: '4px 0 16px', fontSize: 12, color: '#475569' }}>
+                  The following retailers have submitted payments that require your confirmation.
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {pendingSettlementOrders.map(order => {
+                    const pendings = (order.b2bSettlements || []).filter((s: any) => s.status === 'PENDING');
+                    return pendings.map((settle: any) => (
+                      <div key={settle.id} style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', background: '#FFFFFF', padding: '14px 18px', borderRadius: 12, border: '1.5px solid #E2E8F0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 800, color: '#1E293B' }}>
+                            {order.retailer.pharmacyName}
+                          </div>
+                          <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>
+                            Invoice: <span style={{ fontFamily: 'monospace', fontWeight: 700 }}>#{order.id.substring(0, 8).toUpperCase()}</span> · Amount: <strong style={{ color: '#10B981' }}>Rs. {settle.amount.toLocaleString()}</strong> via {settle.method}
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button
+                            onClick={() => handleVerifySettlementRequest(settle.id, order.id, false)}
+                            style={{ padding: '8px 14px', borderRadius: 8, border: '1.5px solid #EF4444', fontSize: 12, fontWeight: 700, background: '#FFFFFF', color: '#EF4444', cursor: 'pointer', transition: 'all 0.2s' }}
+                          >
+                            Reject
+                          </button>
+                          <button
+                            onClick={() => handleVerifySettlementRequest(settle.id, order.id, true)}
+                            style={{ padding: '8px 14px', borderRadius: 8, border: 'none', fontSize: 12, fontWeight: 800, background: 'linear-gradient(135deg, #10B981, #059669)', color: '#FFFFFF', cursor: 'pointer', transition: 'all 0.2s' }}
+                          >
+                            Approve & Settle
+                          </button>
+                        </div>
+                      </div>
+                    ));
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Main Transaction List (Full Width) */}
+            <div className="card" style={{ background: '#FFFFFF', padding: 24, border: '1.5px solid #E2E8F0', borderRadius: 18, boxShadow: '0 4px 20px rgba(0,0,0,0.03)' }}>
+              {/* Header with filters */}
+              <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 12, borderBottom: '1px solid #F1F5F9', paddingBottom: 16, marginBottom: 20 }}>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: 15, fontWeight: 900, color: '#1E293B', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#3B82F6', display: 'inline-block' }} /> Sales Ledger Invoices
+                  </h3>
+                  <p style={{ margin: '4px 0 0', fontSize: 11, color: '#94A3B8' }}>Click any invoice row to view details, settle balance, or send digital copy.</p>
+                </div>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                  {/* Search filter */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#F8FAFC', border: '1.5px solid #E2E8F0', borderRadius: 10, padding: '6px 12px' }}>
+                    <FileText style={{ width: 14, height: 14, color: '#94A3B8' }} />
+                    <input type="text" placeholder="Search invoices..." value={filterSearch} onChange={e => setFilterSearch(e.target.value)}
+                      style={{ border: 'none', background: 'transparent', outline: 'none', fontSize: 12, width: 140, color: '#1E293B' }} />
+                  </div>
+                  {/* Status filter */}
+                  <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
+                    style={{ border: '1.5px solid #E2E8F0', borderRadius: 10, padding: '7px 12px', fontSize: 12, fontWeight: 600, color: '#475569', background: '#FFFFFF', outline: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
+                    <option value="all">All Status</option>
+                    <option value="PENDING">Pending</option>
+                    <option value="DISPATCHED">Dispatched</option>
+                    <option value="DELIVERED">Delivered</option>
+                    <option value="RETURNED">Returned</option>
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ overflowX: 'auto' }}>
+                <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ background: '#F8FAFC', borderBottom: '2px solid #F1F5F9' }}>
+                      <th style={{ padding: '12px 16px', color: '#64748B', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', textAlign: 'left' }}>Date</th>
+                      <th style={{ padding: '12px 16px', color: '#64748B', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', textAlign: 'left' }}>Invoice ID</th>
+                      <th style={{ padding: '12px 16px', color: '#64748B', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', textAlign: 'left' }}>Customer</th>
+                      <th style={{ padding: '12px 16px', color: '#64748B', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', textAlign: 'left' }}>Status</th>
+                      <th style={{ padding: '12px 16px', color: '#64748B', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', textAlign: 'right' }}>Advance Applied</th>
+                      <th style={{ padding: '12px 16px', color: '#64748B', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', textAlign: 'right' }}>Net Payable</th>
+                      <th style={{ padding: '12px 16px', color: '#64748B', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', textAlign: 'right' }}>Total Paid</th>
+                      <th style={{ padding: '12px 16px', color: '#64748B', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', textAlign: 'right' }}>Outstanding Due</th>
+                      <th style={{ padding: '12px 16px', color: '#64748B', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', textAlign: 'center' }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredOrders.length === 0 ? (
+                      <tr><td colSpan={9} style={{ padding: '32px', textAlign: 'center', color: '#94A3B8', fontStyle: 'italic', fontSize: 13 }}>No bills found matching filters.</td></tr>
+                    ) : (
+                      filteredOrders.map((order: any) => {
+                        const paid = getOrderPaid(order);
+                        const due = Math.max(order.netAmount - paid, 0);
+                        return (
+                          <tr key={order.id}
+                            style={{ cursor: 'pointer', borderBottom: '1px solid #F1F5F9', transition: 'background 0.15s' }}
+                            onClick={() => setInvoiceModalOrder(order)}
+                            onMouseEnter={e => e.currentTarget.style.background = '#F8FAFC'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                          >
+                            <td style={{ padding: '14px 16px', fontSize: 12, color: '#64748B' }}>{new Date(order.createdAt).toLocaleDateString()}</td>
+                            <td style={{ padding: '14px 16px', fontFamily: 'monospace', fontWeight: 700, color: '#3B82F6', fontSize: 12 }}>
+                              INV-{order.id.substring(0, 8).toUpperCase()}
                             </td>
-                          )}
-                          {visibleCols.customer && (
-                            <td style={{ fontWeight: 700, color: '#1E293B', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            <td style={{ padding: '14px 16px', fontWeight: 700, color: '#1E293B', fontSize: 12 }}>
                               {order.retailer.pharmacyName === "Walk-in Customer (POS)" ? (
-                                <span style={{ fontSize: 11, color: '#0284C7' }}>{getWalkInName(order.overrideJustification)}</span>
+                                <span style={{ fontSize: 11, color: '#0EA5E9' }}>{getWalkInName(order.overrideJustification)}</span>
                               ) : (
                                 order.retailer.pharmacyName
                               )}
                             </td>
-                          )}
-                          {visibleCols.status && (
-                            <td><span style={statusPillStyle(order.status)}>{order.status}</span></td>
-                          )}
-                          {visibleCols.net && (
-                            <td style={{ fontFamily: 'monospace', textAlign: 'right' }}>
-                              <div style={{ fontWeight: 800, color: '#1E293B', fontSize: 11 }}>Rs. {order.netAmount.toFixed(2)}</div>
+                            <td style={{ padding: '14px 16px' }}>
+                              <span style={statusPillStyle(order.status)}>{order.status}</span>
                             </td>
-                          )}
-                          {visibleCols.profit && (
-                            <td style={{ fontFamily: 'monospace', textAlign: 'right' }}>
-                              <div style={{ fontWeight: 800, color: order.status === 'DELIVERED' ? '#059669' : '#94A3B8', fontSize: 11 }}>
-                                {order.status === 'DELIVERED' ? `Rs. ${getOrderProfit(order).toFixed(2)}` : '—'}
-                              </div>
+                            <td style={{ padding: '14px 16px', fontFamily: 'monospace', textAlign: 'right', fontWeight: 700, color: '#8B5CF6' }}>
+                              {(order.advanceApplied || 0) > 0 ? `Rs. ${(order.advanceApplied as number).toLocaleString()}` : '—'}
                             </td>
-                          )}
-                          {visibleCols.discount && (
-                            <td style={{ fontFamily: 'monospace', textAlign: 'right' }}>
-                              <div style={{ fontWeight: 800, color: '#EA580C', fontSize: 11 }}>- Rs. {order.discountAmount.toFixed(2)}</div>
+                            <td style={{ padding: '14px 16px', fontFamily: 'monospace', textAlign: 'right', fontWeight: 800, color: '#1E293B' }}>
+                              Rs. {order.netAmount.toLocaleString()}
                             </td>
-                          )}
-                          {visibleCols.actions && (
-                            <td onClick={e => e.stopPropagation()}>
-                              <div style={{ display: 'flex', gap: 5, justifyContent: 'center', alignItems: 'center' }}>
-                                <button onClick={() => { setSelectedOrderForPrint(order); logActivity('PREVIEW_INVOICE', `Opened custom print preview for order: ${order.id}`); }} className="btn-ghost" style={{ padding: '4px 8px', fontSize: 10, gap: 3 }}>
-                                  <Printer style={{ width: 12, height: 12, color: '#0EA5E9' }} /> Print
+                            <td style={{ padding: '14px 16px', fontFamily: 'monospace', textAlign: 'right', fontWeight: 800, color: '#10B981' }}>
+                              Rs. {paid.toLocaleString()}
+                            </td>
+                            <td style={{ padding: '14px 16px', fontFamily: 'monospace', textAlign: 'right', fontWeight: 900, color: due > 0 ? '#EF4444' : '#10B981' }}>
+                              {due > 0 ? `Rs. ${due.toLocaleString()}` : '✓ Paid'}
+                            </td>
+                            <td style={{ padding: '14px 16px', textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+                              <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
+                                <button onClick={() => { setSelectedOrderForPrint(order); logActivity('PREVIEW_INVOICE', `Opened custom print preview for order: ${order.id}`); }} className="btn-ghost" style={{ padding: '6px 10px', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                  <Printer style={{ width: 13, height: 13 }} /> Print
+                                </button>
+                                <button onClick={() => setInvoiceModalOrder(order)} style={{ padding: '6px 10px', borderRadius: 8, border: 'none', background: '#F0F9FF', color: '#0EA5E9', fontSize: 11, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                  <Eye style={{ width: 13, height: 13 }} /> Details
                                 </button>
                               </div>
                             </td>
-                          )}
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
-
-          {/* Side Panel Info Block */}
-          <div className="card" style={{ background: 'rgba(255,255,255,0.95)', border: '1.5px solid rgba(14,165,233,0.2)', borderRadius: 18, padding: 20, boxShadow: '0 4px 20px rgba(14,165,233,0.05)', minHeight: '400px', position: 'sticky', top: 20 }}>
-            {detailOrder ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                {/* Header */}
-                <div style={{ borderBottom: '1px solid #F1F5F9', paddingBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <div>
-                    <h4 style={{ fontSize: 12, fontWeight: 900, color: '#1E293B', fontFamily: 'monospace', display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <Receipt style={{ width: 13, height: 13, color: '#0EA5E9' }} />
-                      INV-{detailOrder.id.substring(0, 12).toUpperCase()}
-                    </h4>
-                    <p style={{ fontSize: 10, color: '#64748B', marginTop: 3 }}>{new Date(detailOrder.createdAt).toLocaleString()}</p>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
-                    <span style={statusPillStyle(detailOrder.status)}>{detailOrder.status}</span>
-                    <button
-                      onClick={() => setInvoiceModalOrder(detailOrder)}
-                      style={{ fontSize: 9, fontWeight: 700, color: '#0EA5E9', background: '#F0F9FF', border: '1px solid #BAE6FD', borderRadius: 6, padding: '3px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 3 }}
-                    >
-                      <Eye style={{ width: 10, height: 10 }} /> Full Details
-                    </button>
-                  </div>
-                </div>
-
-                {/* Customer Details */}
-                <div style={{ background: '#F0F9FF', border: '1.5px solid #BAE6FD', borderRadius: 12, padding: 12 }}>
-                  <div style={{ fontSize: 9, fontWeight: 800, color: '#0284C7', textTransform: 'uppercase', marginBottom: 4 }}>Billed To</div>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: '#1E293B' }}>
-                    {detailOrder.retailer.pharmacyName === 'Walk-in Customer (POS)' ? getWalkInName(detailOrder.overrideJustification) : detailOrder.retailer.pharmacyName}
-                  </div>
-                  {detailOrder.retailer.pharmacyName !== 'Walk-in Customer (POS)' && (
-                    <p style={{ fontSize: 10, color: '#64748B', marginTop: 2 }}>{detailOrder.retailer.address}</p>
-                  )}
-                </div>
-
-                {/* Dynamic fields matching visible columns */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {/* Always show Net & Paid */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                    <div style={{ background: '#F0F9FF', borderRadius: 10, padding: '10px 12px', border: '1px solid #BAE6FD' }}>
-                      <div style={{ fontSize: 9, fontWeight: 800, color: '#0284C7', textTransform: 'uppercase' }}>Net Payable</div>
-                      <div style={{ fontSize: 13, fontWeight: 800, color: '#0EA5E9', fontFamily: 'monospace', marginTop: 2 }}>Rs. {detailOrder.netAmount.toFixed(2)}</div>
-                    </div>
-                    <div style={{ background: '#FEF2F2', borderRadius: 10, padding: '10px 12px', border: '1px solid #FECACA' }}>
-                      <div style={{ fontSize: 9, fontWeight: 800, color: '#DC2626', textTransform: 'uppercase' }}>Unpaid Due</div>
-                      <div style={{ fontSize: 13, fontWeight: 800, color: '#DC2626', fontFamily: 'monospace', marginTop: 2 }}>Rs. {Math.max(detailOrder.netAmount - (settlements[detailOrder.id] || 0), 0).toLocaleString()}</div>
-                    </div>
-                  </div>
-
-                  {/* Show profit if column visible */}
-                  {visibleCols.profit && (
-                    <div style={{ background: '#ECFDF5', borderRadius: 10, padding: '10px 12px', border: '1px solid #A7F3D0' }}>
-                      <div style={{ fontSize: 9, fontWeight: 800, color: '#059669', textTransform: 'uppercase' }}>Estimated Profit</div>
-                      <div style={{ fontSize: 13, fontWeight: 800, color: detailOrder.status === 'DELIVERED' ? '#059669' : '#94A3B8', fontFamily: 'monospace', marginTop: 2 }}>
-                        {detailOrder.status === 'DELIVERED' ? `Rs. ${getOrderProfit(detailOrder).toFixed(2)}` : 'N/A (not delivered)'}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Show discount if column visible */}
-                  {visibleCols.discount && (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                      <div style={{ background: '#FFF7ED', borderRadius: 10, padding: '10px 12px', border: '1px solid #FED7AA' }}>
-                        <div style={{ fontSize: 9, fontWeight: 800, color: '#C2410C', textTransform: 'uppercase' }}>Gross Amount</div>
-                        <div style={{ fontSize: 12, fontWeight: 800, color: '#EA580C', fontFamily: 'monospace', marginTop: 2 }}>Rs. {detailOrder.totalAmount.toFixed(2)}</div>
-                      </div>
-                      <div style={{ background: '#FFF7ED', borderRadius: 10, padding: '10px 12px', border: '1px solid #FED7AA' }}>
-                        <div style={{ fontSize: 9, fontWeight: 800, color: '#C2410C', textTransform: 'uppercase' }}>Discount</div>
-                        <div style={{ fontSize: 12, fontWeight: 800, color: '#EA580C', fontFamily: 'monospace', marginTop: 2 }}>- Rs. {detailOrder.discountAmount.toFixed(2)}</div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Paid amount */}
-                  <div style={{ background: '#F8FAFC', borderRadius: 10, padding: '10px 12px', border: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ fontSize: 9, fontWeight: 800, color: '#94A3B8', textTransform: 'uppercase' }}>Total Paid</div>
-                    <div style={{ fontSize: 12, fontWeight: 800, color: '#059669', fontFamily: 'monospace' }}>Rs. {(settlements[detailOrder.id] || 0).toLocaleString()}</div>
-                  </div>
-                </div>
-
-                {/* Recording Payment directly in Side Panel */}
-                {detailOrder.netAmount - (settlements[detailOrder.id] || 0) > 0 ? (
-                  <div style={{ background: '#FFF7ED', border: '1.5px solid #FED7AA', borderRadius: 12, padding: 12 }}>
-                    <div style={{ fontSize: 9, fontWeight: 800, color: '#C2410C', textTransform: 'uppercase', marginBottom: 6 }}>Settle Remaining Payment</div>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <input
-                        type="number"
-                        placeholder="Amount..."
-                        value={settleAmount}
-                        onChange={e => setSettleAmount(e.target.value)}
-                        className="input-crisp"
-                        style={{ fontSize: 11, flex: 1, padding: '6px 8px' }}
-                      />
-                      <button
-                        onClick={() => handleSettleSubmit(detailOrder.id, detailOrder.netAmount)}
-                        className="btn-primary"
-                        style={{ padding: '6px 12px', fontSize: 11, background: '#10B981', border: 'none' }}
-                      >
-                        Settle
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#059669', fontWeight: 700, padding: '4px 0', background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 8, paddingLeft: 10 }}>
-                    <Check style={{ width: 14, height: 14 }} /> Invoice Fully Settled
-                  </div>
-                )}
-
-                {/* Action Controls */}
-                <div style={{ display: 'flex', gap: 6, paddingTop: 4, borderTop: '1px solid #F1F5F9' }}>
-                  <button onClick={() => setSelectedOrderForPrint(detailOrder)} className="btn-ghost" style={{ flex: 1, padding: '8px', fontSize: 10, display: 'flex', justifyContent: 'center', gap: 4 }}>
-                    <Printer style={{ width: 12, height: 12 }} /> Print
-                  </button>
-                  <button onClick={() => setInvoiceModalOrder(detailOrder)} className="btn-ghost" style={{ flex: 1, padding: '8px', fontSize: 10, display: 'flex', justifyContent: 'center', gap: 4, color: '#0EA5E9' }}>
-                    <Eye style={{ width: 12, height: 12 }} /> Full View
-                  </button>
-                  <button onClick={() => handleSendInvoice(detailOrder)} className="btn-ghost" style={{ flex: 1, padding: '8px', fontSize: 10, display: 'flex', justifyContent: 'center', gap: 4 }}>
-                    <Send style={{ width: 12, height: 12 }} /> Send
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '300px', textAlign: 'center', color: '#94A3B8' }}>
-                <FileText style={{ width: 44, height: 44, color: '#E2E8F0', marginBottom: 12 }} />
-                <h4 style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#475569' }}>Select an Invoice</h4>
-                <p style={{ fontSize: 11, color: '#94A3B8', marginTop: 6, maxWidth: 220, lineHeight: 1.5 }}>Click any row to preview details here. Click the <strong style={{ color: '#0EA5E9' }}>Invoice ID</strong> to open the full invoice modal.</p>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* SUPPLIER BILLS TAB */}
       {activeTab === 'supplier_bills' && (
@@ -1690,111 +1684,139 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
             </div>
 
             <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-              {/* Summary grid */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 12 }}>
-                {[
-                  { label: 'Gross Amount', val: `Rs. ${invoiceModalOrder.totalAmount.toFixed(2)}`, color: '#1E293B' },
-                  { label: 'Discount', val: `- Rs. ${invoiceModalOrder.discountAmount.toFixed(2)}`, color: '#EA580C' },
-                  { label: 'Net Payable', val: `Rs. ${invoiceModalOrder.netAmount.toFixed(2)}`, color: '#0EA5E9' },
-                  { label: 'Total Paid', val: `Rs. ${(settlements[invoiceModalOrder.id] || 0).toLocaleString()}`, color: '#059669' },
-                  { label: 'Remaining Due', val: `Rs. ${Math.max(invoiceModalOrder.netAmount - (settlements[invoiceModalOrder.id] || 0), 0).toLocaleString()}`, color: '#DC2626' },
-                  { label: 'Profit', val: invoiceModalOrder.status === 'DELIVERED' ? `Rs. ${getOrderProfit(invoiceModalOrder).toFixed(2)}` : 'Pending', color: '#059669' },
-                ].map(({ label, val, color }) => (
-                  <div key={label} style={{ background: '#F8FAFC', borderRadius: 12, padding: '12px 14px', border: '1px solid #E2E8F0' }}>
-                    <div style={{ fontSize: 9, fontWeight: 800, color: '#94A3B8', textTransform: 'uppercase', marginBottom: 4 }}>{label}</div>
-                    <div style={{ fontSize: 13, fontWeight: 800, color, fontFamily: 'monospace' }}>{val}</div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Items */}
-              <div>
-                <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: '#475569', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Package style={{ width: 12, height: 12 }} /> Itemized Order Lines
-                </div>
-                <div style={{ border: '1px solid #E2E8F0', borderRadius: 12, overflow: 'hidden' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
-                    <thead style={{ background: '#F8FAFC' }}>
-                      <tr>
-                        {['Product', 'SKU', 'Qty', 'Unit Price', 'Subtotal'].map(h => (
-                          <th key={h} style={{ padding: '8px 12px', textAlign: h === 'Product' || h === 'SKU' ? 'left' : 'right', fontWeight: 700, color: '#475569', fontSize: 10, textTransform: 'uppercase' }}>{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {invoiceModalOrder.items.map(item => {
-                        const boxQty = Math.floor(item.quantity / (item.product.tabletsPerStrip * item.product.stripsPerBox));
-                        return (
-                          <tr key={item.id} style={{ borderTop: '1px solid #E2E8F0' }}>
-                            <td style={{ padding: '10px 12px', fontWeight: 700, color: '#1E293B' }}>{item.product.name}</td>
-                            <td style={{ padding: '10px 12px', fontFamily: 'monospace', fontSize: 10, color: '#64748B' }}>{item.product.sku}</td>
-                            <td style={{ padding: '10px 12px', textAlign: 'right', fontFamily: 'monospace' }}>{boxQty} boxes</td>
-                            <td style={{ padding: '10px 12px', textAlign: 'right', fontFamily: 'monospace' }}>Rs. {(item.pricePerUnit * item.product.tabletsPerStrip * item.product.stripsPerBox).toFixed(2)}/box</td>
-                            <td style={{ padding: '10px 12px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 800 }}>Rs. {(item.quantity * item.pricePerUnit).toFixed(2)}</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {/* Settle History */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                <div>
-                  <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: '#475569', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <History style={{ width: 12, height: 12 }} /> Payment History
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 160, overflowY: 'auto' }}>
-                    {(settleLogs[invoiceModalOrder.id] || []).length === 0 ? (
-                      <div style={{ fontSize: 11, color: '#94A3B8', fontStyle: 'italic', padding: '12px 0' }}>No payments recorded yet.</div>
-                    ) : (
-                      (settleLogs[invoiceModalOrder.id] || []).map((entry, i) => (
-                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 8 }}>
-                          <div style={{ fontSize: 10, color: '#475569' }}>{new Date(entry.date).toLocaleString()}</div>
-                          <div style={{ fontSize: 12, fontWeight: 800, color: '#059669', fontFamily: 'monospace' }}>+ Rs. {entry.amount.toLocaleString()}</div>
+              {(() => {
+                const imoOrder = invoiceModalOrder as any;
+                const imoVerifiedSettlements = (imoOrder.b2bSettlements || []).filter((s: any) => s.status === 'VERIFIED');
+                const imoPaid = imoVerifiedSettlements.reduce((sum: number, s: any) => sum + (s.amount || 0), 0);
+                const imoDue = Math.max(imoOrder.netAmount - imoPaid, 0);
+                return (
+                  <>
+                    {/* Summary grid */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 12 }}>
+                      {[
+                        { label: 'Gross Amount', val: `Rs. ${imoOrder.totalAmount.toFixed(2)}`, color: '#1E293B' },
+                        { label: 'Discount', val: `- Rs. ${imoOrder.discountAmount.toFixed(2)}`, color: '#EA580C' },
+                        { label: 'Advance Applied', val: (imoOrder.advanceApplied || 0) > 0 ? `Rs. ${(imoOrder.advanceApplied as number).toLocaleString()}` : 'None', color: '#7C3AED' },
+                        { label: 'Net Payable', val: `Rs. ${imoOrder.netAmount.toFixed(2)}`, color: '#0EA5E9' },
+                        { label: 'Total Paid', val: `Rs. ${imoPaid.toLocaleString()}`, color: '#059669' },
+                        { label: 'Remaining Due', val: `Rs. ${imoDue.toLocaleString()}`, color: imoDue > 0 ? '#DC2626' : '#94A3B8' },
+                        { label: 'Profit', val: imoOrder.status === 'DELIVERED' ? `Rs. ${getOrderProfit(imoOrder).toFixed(2)}` : 'Pending', color: '#059669' },
+                      ].map(({ label, val, color }) => (
+                        <div key={label} style={{ background: '#F8FAFC', borderRadius: 12, padding: '12px 14px', border: '1px solid #E2E8F0' }}>
+                          <div style={{ fontSize: 9, fontWeight: 800, color: '#94A3B8', textTransform: 'uppercase', marginBottom: 4 }}>{label}</div>
+                          <div style={{ fontSize: 13, fontWeight: 800, color, fontFamily: 'monospace' }}>{val}</div>
                         </div>
-                      ))
-                    )}
-                  </div>
-                </div>
+                      ))}
+                    </div>
 
-                {/* Settle input */}
-                <div style={{ background: '#FFF7ED', border: '1.5px solid #FED7AA', borderRadius: 14, padding: 16 }}>
-                  <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: '#C2410C', marginBottom: 10 }}>
-                    <CreditCard style={{ width: 12, height: 12, display: 'inline', marginRight: 4 }} />
-                    Settle Outstanding
-                  </div>
-                  {Math.max(invoiceModalOrder.netAmount - (settlements[invoiceModalOrder.id] || 0), 0) > 0 ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      <div style={{ fontSize: 11, color: '#7C2D12' }}>
-                        Remaining: <strong style={{ fontFamily: 'monospace' }}>Rs. {Math.max(invoiceModalOrder.netAmount - (settlements[invoiceModalOrder.id] || 0), 0).toLocaleString()}</strong>
+                    {/* Items */}
+                    <div>
+                      <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: '#475569', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <Package style={{ width: 12, height: 12 }} /> Itemized Order Lines
                       </div>
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        <input
-                          type="number"
-                          placeholder="Enter amount..."
-                          value={settleAmount}
-                          onChange={e => setSettleAmount(e.target.value)}
-                          className="input-crisp"
-                          style={{ flex: 1, fontSize: 12, padding: '8px 10px' }}
-                        />
-                        <button
-                          onClick={() => handleSettleSubmit(invoiceModalOrder.id, invoiceModalOrder.netAmount)}
-                          className="btn-primary"
-                          style={{ padding: '8px 14px', fontSize: 11, background: '#10B981', whiteSpace: 'nowrap' }}
-                        >
-                          Record
-                        </button>
+                      <div style={{ border: '1px solid #E2E8F0', borderRadius: 12, overflow: 'hidden' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+                          <thead style={{ background: '#F8FAFC' }}>
+                            <tr>
+                              {['Product', 'SKU', 'Qty', 'Unit Price', 'Subtotal'].map(h => (
+                                <th key={h} style={{ padding: '8px 12px', textAlign: h === 'Product' || h === 'SKU' ? 'left' : 'right', fontWeight: 700, color: '#475569', fontSize: 10, textTransform: 'uppercase' }}>{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {imoOrder.items.map((item: any) => {
+                              const boxQty = Math.floor(item.quantity / (item.product.tabletsPerStrip * item.product.stripsPerBox));
+                              return (
+                                <tr key={item.id} style={{ borderTop: '1px solid #E2E8F0' }}>
+                                  <td style={{ padding: '10px 12px', fontWeight: 700, color: '#1E293B' }}>{item.product.name}</td>
+                                  <td style={{ padding: '10px 12px', fontFamily: 'monospace', fontSize: 10, color: '#64748B' }}>{item.product.sku}</td>
+                                  <td style={{ padding: '10px 12px', textAlign: 'right', fontFamily: 'monospace' }}>{boxQty} boxes</td>
+                                  <td style={{ padding: '10px 12px', textAlign: 'right', fontFamily: 'monospace' }}>Rs. {(item.pricePerUnit * item.product.tabletsPerStrip * item.product.stripsPerBox).toFixed(2)}/box</td>
+                                  <td style={{ padding: '10px 12px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 800 }}>Rs. {(item.quantity * item.pricePerUnit).toFixed(2)}</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
                       </div>
                     </div>
-                  ) : (
-                    <div style={{ fontSize: 12, color: '#059669', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, padding: '8px 0' }}>
-                      <Check style={{ width: 16, height: 16 }} /> Fully Settled
+
+                    {/* Settle History + Settle Input */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                      <div>
+                        <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: '#475569', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <History style={{ width: 12, height: 12 }} /> Payment History
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 180, overflowY: 'auto' }}>
+                          {imoVerifiedSettlements.length === 0 ? (
+                            <div style={{ fontSize: 11, color: '#94A3B8', fontStyle: 'italic', padding: '12px 0' }}>No payments recorded yet.</div>
+                          ) : (
+                            imoVerifiedSettlements.map((entry: any, i: number) => (
+                              <div key={entry.id || i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 8 }}>
+                                <div>
+                                  <div style={{ fontSize: 10, color: '#475569' }}>{new Date(entry.createdAt || entry.date).toLocaleString()}</div>
+                                  {entry.method && <div style={{ fontSize: 9, color: '#94A3B8', marginTop: 1 }}>{entry.method}</div>}
+                                </div>
+                                <div style={{ fontSize: 12, fontWeight: 800, color: '#059669', fontFamily: 'monospace' }}>+ Rs. {(entry.amount || 0).toLocaleString()}</div>
+                              </div>
+                            ))
+                          )}
+                          {/* Also show pending settlements with PENDING badge */}
+                          {(imoOrder.b2bSettlements || []).filter((s: any) => s.status === 'PENDING').map((entry: any, i: number) => (
+                            <div key={`pending-${entry.id || i}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 8 }}>
+                              <div>
+                                <div style={{ fontSize: 10, color: '#475569' }}>{new Date(entry.createdAt || entry.date).toLocaleString()}</div>
+                                <div style={{ fontSize: 9, color: '#C2410C', fontWeight: 700 }}>⏳ AWAITING APPROVAL</div>
+                              </div>
+                              <div style={{ fontSize: 12, fontWeight: 800, color: '#EA580C', fontFamily: 'monospace' }}>Rs. {(entry.amount || 0).toLocaleString()}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Settle input */}
+                      <div style={{ background: '#FFF7ED', border: '1.5px solid #FED7AA', borderRadius: 14, padding: 16 }}>
+                        <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: '#C2410C', marginBottom: 10 }}>
+                          <CreditCard style={{ width: 12, height: 12, display: 'inline', marginRight: 4 }} />
+                          Record Manual Payment
+                        </div>
+                        {imoDue > 0 ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                            <div style={{ fontSize: 11, color: '#7C2D12' }}>
+                              Remaining Due: <strong style={{ fontFamily: 'monospace' }}>Rs. {imoDue.toLocaleString()}</strong>
+                            </div>
+                            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                              <button onClick={() => setSettleAmount(String(imoDue))} style={{ padding: '4px 10px', fontSize: 10, borderRadius: 8, border: '1px solid #FED7AA', background: '#FEF3C7', color: '#92400E', cursor: 'pointer', fontWeight: 700 }}>Full Pay</button>
+                              <button onClick={() => setSettleAmount(String(Math.floor(imoDue / 2)))} style={{ padding: '4px 10px', fontSize: 10, borderRadius: 8, border: '1px solid #FED7AA', background: '#FEF3C7', color: '#92400E', cursor: 'pointer', fontWeight: 700 }}>Half Pay</button>
+                            </div>
+                            <div style={{ display: 'flex', gap: 6 }}>
+                              <input
+                                type="number"
+                                placeholder="Enter amount..."
+                                value={settleAmount}
+                                onChange={e => setSettleAmount(e.target.value)}
+                                className="input-crisp"
+                                style={{ flex: 1, fontSize: 12, padding: '8px 10px' }}
+                              />
+                              <button
+                                onClick={() => handleSettleSubmit(imoOrder.id, imoOrder.netAmount)}
+                                className="btn-primary"
+                                style={{ padding: '8px 14px', fontSize: 11, background: '#10B981', whiteSpace: 'nowrap' }}
+                              >
+                                Record
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div style={{ fontSize: 12, color: '#059669', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, padding: '8px 0' }}>
+                            <Check style={{ width: 16, height: 16 }} /> Fully Settled
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  )}
-                </div>
-              </div>
+                  </>
+                );
+              })()}
             </div>
 
             {/* Footer */}
@@ -1891,8 +1913,8 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
                   <div>
                     <div style={{ fontSize: 9, textTransform: 'uppercase', color: '#94A3B8', fontWeight: 800, marginBottom: 6 }}>Payment Summary:</div>
                     <div style={{ fontSize: 13, fontWeight: 900 }}>Net Value: Rs. {selectedOrderForPrint.netAmount.toFixed(2)}</div>
-                    <div style={{ fontSize: 11, color: '#059669', marginTop: 2 }}>Paid: Rs. {(settlements[selectedOrderForPrint.id] || 0).toLocaleString()}</div>
-                    <div style={{ fontSize: 11, color: '#DC2626', marginTop: 1 }}>Remaining: Rs. {Math.max(selectedOrderForPrint.netAmount - (settlements[selectedOrderForPrint.id] || 0), 0).toLocaleString()}</div>
+                    <div style={{ fontSize: 11, color: '#059669', marginTop: 2 }}>Paid: Rs. {getOrderPaid(selectedOrderForPrint as any).toLocaleString()}</div>
+                    <div style={{ fontSize: 11, color: '#DC2626', marginTop: 1 }}>Remaining: Rs. {Math.max(selectedOrderForPrint.netAmount - getOrderPaid(selectedOrderForPrint as any), 0).toLocaleString()}</div>
                   </div>
                 </div>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, marginBottom: 20 }}>
@@ -1921,8 +1943,8 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
                     <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748B' }}><span>Total:</span><span>Rs. {selectedOrderForPrint.totalAmount.toFixed(2)}</span></div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748B' }}><span>Discount:</span><span>- Rs. {selectedOrderForPrint.discountAmount.toFixed(2)}</span></div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 900, fontSize: 14, color: '#1E293B', borderTop: '1px solid #1E293B', paddingTop: 8, marginTop: 4 }}><span>NET DUE:</span><span>Rs. {selectedOrderForPrint.netAmount.toFixed(2)}</span></div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#059669', fontWeight: 700 }}><span>Paid:</span><span>Rs. {(settlements[selectedOrderForPrint.id] || 0).toLocaleString()}</span></div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#DC2626', fontWeight: 700 }}><span>Remaining:</span><span>Rs. {Math.max(selectedOrderForPrint.netAmount - (settlements[selectedOrderForPrint.id] || 0), 0).toLocaleString()}</span></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#059669', fontWeight: 700 }}><span>Paid:</span><span>Rs. {getOrderPaid(selectedOrderForPrint as any).toLocaleString()}</span></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#DC2626', fontWeight: 700 }}><span>Remaining:</span><span>Rs. {Math.max(selectedOrderForPrint.netAmount - getOrderPaid(selectedOrderForPrint as any), 0).toLocaleString()}</span></div>
                   </div>
                 </div>
                 <div style={{ borderTop: '1px dashed #CBD5E1', paddingTop: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 10, fontWeight: 700, color: '#94A3B8', fontFamily: 'monospace' }}>

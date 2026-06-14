@@ -132,8 +132,21 @@ export async function POST(
       }
 
       // 2. Billing / Credit Adjustment
-      const isPaid = order.settleStatus === 'VERIFIED' || order.advanceApplied > 0;
-      if (returnRequest.adjustBilling && refundValue > 0 && isPaid) {
+      const outstandingDue = Math.max(order.netAmount - (order.settleAmount || 0), 0);
+      const offsetDue = Math.min(refundValue, outstandingDue);
+      const advanceGenerated = returnRequest.adjustBilling ? Math.max(refundValue - outstandingDue, 0) : 0;
+
+      const newNetAmount = Math.max(order.netAmount - refundValue, 0);
+      let newSettleStatus = order.settleStatus;
+      if (newNetAmount <= (order.settleAmount || 0)) {
+        newSettleStatus = 'VERIFIED';
+      } else if ((order.settleAmount || 0) > 0) {
+        newSettleStatus = 'PARTIALLY_PAID';
+      } else {
+        newSettleStatus = 'UNPAID';
+      }
+
+      if (advanceGenerated > 0) {
         await tx.wholesalerRetailerRelation.upsert({
           where: {
             wholesalerId_retailerId: {
@@ -145,66 +158,54 @@ export async function POST(
             wholesalerId: returnRequest.wholesalerId,
             retailerId: returnRequest.retailerId,
             creditLimit: 200000,
-            advanceBalance: refundValue,
+            advanceBalance: advanceGenerated,
           },
           update: {
-            advanceBalance: { increment: refundValue },
+            advanceBalance: { increment: advanceGenerated },
           },
-        });
-
-        // Log to Wholesaler Ledger (Credit to retailer account)
-        await createLedgerEntry(tx, {
-          partyType: 'WHOLESALER',
-          partyId: returnRequest.wholesalerId,
-          oppositePartyName: order.retailer.pharmacyName,
-          type: 'RETURN',
-          credit: refundValue,
-          description: `Items returned from delivered Order #${order.id.substring(0, 8).toUpperCase()}. Credit adjusted to advance balance.`,
-          orderId: order.id,
-        });
-
-        // Log to Retailer Ledger (Credit / Refund received)
-        await createLedgerEntry(tx, {
-          partyType: 'RETAILER',
-          partyId: returnRequest.retailerId,
-          oppositePartyName: order.wholesaler.companyName,
-          type: 'RETURN',
-          credit: refundValue,
-          description: `Items returned from delivered Order #${order.id.substring(0, 8).toUpperCase()}. Credit adjusted to advance refund.`,
-          orderId: order.id,
-        });
-      } else {
-        // Log basic Return transaction
-        await createLedgerEntry(tx, {
-          partyType: 'WHOLESALER',
-          partyId: returnRequest.wholesalerId,
-          oppositePartyName: order.retailer.pharmacyName,
-          type: 'RETURN',
-          credit: refundValue,
-          description: `Items returned from delivered Order #${order.id.substring(0, 8).toUpperCase()}`,
-          orderId: order.id,
-        });
-
-        await createLedgerEntry(tx, {
-          partyType: 'RETAILER',
-          partyId: returnRequest.retailerId,
-          oppositePartyName: order.wholesaler.companyName,
-          type: 'RETURN',
-          credit: refundValue,
-          description: `Items returned from delivered Order #${order.id.substring(0, 8).toUpperCase()}`,
-          orderId: order.id,
         });
       }
 
-      // 3. Update status fields
+      const descSuffix = `Refund: Rs. ${refundValue.toLocaleString()} (Offset Due: Rs. ${offsetDue.toLocaleString()}, Advance Generated: Rs. ${advanceGenerated.toLocaleString()})`;
+
+      // Log to Wholesaler Ledger (Credit to retailer account)
+      await createLedgerEntry(tx, {
+        partyType: 'WHOLESALER',
+        partyId: returnRequest.wholesalerId,
+        oppositePartyName: order.retailer.pharmacyName,
+        type: 'RETURN',
+        credit: refundValue,
+        description: `Items returned from Order #${order.id.substring(0, 8).toUpperCase()}. ${descSuffix}`,
+        orderId: order.id,
+      });
+
+      // Log to Retailer Ledger (Credit / Refund received)
+      await createLedgerEntry(tx, {
+        partyType: 'RETAILER',
+        partyId: returnRequest.retailerId,
+        oppositePartyName: order.wholesaler.companyName,
+        type: 'RETURN',
+        credit: refundValue,
+        description: `Items returned from Order #${order.id.substring(0, 8).toUpperCase()}. ${descSuffix}`,
+        orderId: order.id,
+      });
+
+      // 3. Update status fields and advanceGenerated
       await tx.returnRequest.update({
         where: { id: returnRequest.id },
-        data: { status: 'APPROVED' },
+        data: {
+          status: 'APPROVED',
+          advanceGenerated,
+        },
       });
 
       await tx.order.update({
         where: { id: order.id },
-        data: { status: 'RETURNED' as any },
+        data: {
+          status: 'RETURNED' as any,
+          netAmount: newNetAmount,
+          settleStatus: newSettleStatus,
+        },
       });
 
       // 4. Log Audit
@@ -212,7 +213,7 @@ export async function POST(
         data: {
           action: 'RETURN_REQUEST_APPROVED',
           userId: user.userId,
-          details: `Retailer approved return for Order #${order.id.substring(0, 8).toUpperCase()}. Refund: Rs. ${refundValue.toFixed(2)} credited as advance.`,
+          details: `Retailer approved return for Order #${order.id.substring(0, 8).toUpperCase()}. ${descSuffix}`,
         },
       });
     });

@@ -125,9 +125,7 @@ export default function CustomerClient({ customers: initialCustomers, wholesaler
   const [addError, setAddError] = useState('');
   const [addSuccess, setAddSuccess] = useState('');
 
-  // Settle amounts local dictionary
-  const [settlements, setSettlements] = useState<Record<string, number>>({});
-  const [settleLogs, setSettleLogs] = useState<Record<string, any[]>>({});
+  // Settle input state
   const [settleAmount, setSettleAmount] = useState('');
   const [settlingOrderId, setSettlingOrderId] = useState<string | null>(null);
 
@@ -144,28 +142,17 @@ export default function CustomerClient({ customers: initialCustomers, wholesaler
   // Sync state with prop updates
   useEffect(() => {
     setCustomers(initialCustomers);
-    
-    // Load local storage payments mapping
-    const dbSettlements: Record<string, number> = {};
-    initialCustomers.forEach(c => {
-      c.orders?.forEach((order: any) => {
-        if (order.settleStatus === 'VERIFIED') {
-          dbSettlements[order.id] = order.settleAmount || 0;
-        }
-      });
-    });
-
-    const storedPayments = localStorage.getItem('medhub_order_payments');
-    if (storedPayments) {
-      Object.assign(dbSettlements, JSON.parse(storedPayments));
-    }
-    setSettlements(dbSettlements);
-
-    const storedLogs = localStorage.getItem('medhub_settle_logs');
-    if (storedLogs) {
-      setSettleLogs(JSON.parse(storedLogs));
-    }
   }, [initialCustomers]);
+
+  // Helper: get total verified paid for an order from DB
+  const getOrderPaid = (order: any): number => {
+    if (order.b2bSettlements && Array.isArray(order.b2bSettlements)) {
+      return order.b2bSettlements
+        .filter((s: any) => s.status === 'VERIFIED')
+        .reduce((sum: number, s: any) => sum + (s.amount || 0), 0);
+    }
+    return order.settleAmount || 0;
+  };
 
   const handleAddCustomer = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -194,32 +181,41 @@ export default function CustomerClient({ customers: initialCustomers, wholesaler
   };
 
   const handleSettleSubmit = async (orderId: string, totalAmount: number) => {
-    const currentPaid = settlements[orderId] || 0;
     const inputPaid = parseFloat(settleAmount) || 0;
     if (inputPaid <= 0) return;
-    const finalPaid = Math.min(currentPaid + inputPaid, totalAmount);
     
     try {
       const res = await fetch('/api/wholesaler/verify-settlement', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId, approve: true, settleAmount: finalPaid }),
+        body: JSON.stringify({ orderId, amount: inputPaid, method: 'CASH', approve: true }),
       });
       if (!res.ok) {
         const data = await res.json();
         throw new Error(data.error || 'Failed to update database');
       }
+      const data = await res.json();
 
-      const updated = { ...settlements, [orderId]: finalPaid };
-      setSettlements(updated);
-      localStorage.setItem('medhub_order_payments', JSON.stringify(updated));
-
-      // Log this payment entry with date
-      const newEntry = { amount: inputPaid, date: new Date().toISOString() };
-      const existingLog = settleLogs[orderId] || [];
-      const updatedLogs = { ...settleLogs, [orderId]: [...existingLog, newEntry] };
-      setSettleLogs(updatedLogs);
-      localStorage.setItem('medhub_settle_logs', JSON.stringify(updatedLogs));
+      // Update local customers state with new b2bSettlement entry
+      setCustomers(prev => prev.map(c => ({
+        ...c,
+        orders: c.orders.map((o: any) => {
+          if (o.id !== orderId) return o;
+          const newSettle = {
+            id: Math.random().toString(),
+            orderId,
+            amount: inputPaid,
+            method: 'CASH',
+            status: 'VERIFIED',
+            createdAt: new Date().toISOString()
+          };
+          return {
+            ...o,
+            settleAmount: data.order?.settleAmount ?? (o.settleAmount || 0) + inputPaid,
+            b2bSettlements: [...(o.b2bSettlements || []), newSettle]
+          };
+        })
+      })));
 
       setSettleAmount('');
       setSettlingOrderId(null);
@@ -232,8 +228,8 @@ export default function CustomerClient({ customers: initialCustomers, wholesaler
     if (!customer) return { totalPaid: 0, totalPending: 0 };
     let totalPaid = 0;
     let totalPending = 0;
-    customer.orders.forEach(o => {
-      const paid = settlements[o.id] || 0;
+    customer.orders.forEach((o: any) => {
+      const paid = getOrderPaid(o);
       totalPaid += paid;
       totalPending += Math.max(o.netAmount - paid, 0);
     });
@@ -542,8 +538,8 @@ export default function CustomerClient({ customers: initialCustomers, wholesaler
                           <td colSpan={selectedCustomer.pharmacyName === "Walk-in Customer (POS)" ? 7 : 6} style={{ padding: 24, textAlign: 'center', color: '#94A3B8', fontStyle: 'italic' }}>No billing orders registered for this customer.</td>
                         </tr>
                       ) : (
-                        selectedCustomer.orders.map(o => {
-                          const oPaid = settlements[o.id] || 0;
+                        selectedCustomer.orders.map((o: any) => {
+                          const oPaid = getOrderPaid(o);
                           const isFullyPaid = oPaid >= o.netAmount;
                           return (
                             <tr key={o.id}>
@@ -675,9 +671,11 @@ export default function CustomerClient({ customers: initialCustomers, wholesaler
 
       {/* Bill ID detailed popup modal */}
       {activeInvoice && (() => {
-        const orderPaid = settlements[activeInvoice.id] || 0;
-        const orderRemaining = Math.max(activeInvoice.netAmount - orderPaid, 0);
-        const percentPaid = Math.round((orderPaid / activeInvoice.netAmount) * 100);
+        const activeInv = activeInvoice as any;
+        const orderPaid = getOrderPaid(activeInv);
+        const orderRemaining = Math.max(activeInv.netAmount - orderPaid, 0);
+        const percentPaid = activeInv.netAmount > 0 ? Math.round((orderPaid / activeInv.netAmount) * 100) : 0;
+        const verifiedSettlements = (activeInv.b2bSettlements || []).filter((s: any) => s.status === 'VERIFIED');
 
         return (
           <div className="modal-overlay" onClick={() => setActiveInvoice(null)}>
@@ -798,12 +796,15 @@ export default function CustomerClient({ customers: initialCustomers, wholesaler
                 <div>
                   <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: '#475569', marginBottom: 8 }}>Payment Ledger Timeline</div>
                   <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 12, padding: 12, maxHeight: 150, overflowY: 'auto' }}>
-                    {settleLogs[activeInvoice.id] && settleLogs[activeInvoice.id].length > 0 ? (
+                    {verifiedSettlements.length > 0 ? (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        {settleLogs[activeInvoice.id].map((log: any, idx: number) => (
-                          <div key={idx} style={{ display: 'flex', justifySelf: 'space-between', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, borderBottom: '1px solid #F1F5F9', paddingBottom: 6 }}>
-                            <span style={{ color: '#64748B' }}>{new Date(log.date).toLocaleString()}</span>
-                            <span style={{ fontWeight: 800, color: '#059669' }}>+ Rs. {log.amount.toLocaleString()}</span>
+                        {verifiedSettlements.map((log: any, idx: number) => (
+                          <div key={log.id || idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, borderBottom: '1px solid #F1F5F9', paddingBottom: 6 }}>
+                            <div>
+                              <span style={{ color: '#64748B' }}>{new Date(log.createdAt || log.date).toLocaleString()}</span>
+                              {log.method && <div style={{ fontSize: 9, color: '#94A3B8', marginTop: 1 }}>{log.method}</div>}
+                            </div>
+                            <span style={{ fontWeight: 800, color: '#059669' }}>+ Rs. {(log.amount || 0).toLocaleString()}</span>
                           </div>
                         ))}
                       </div>

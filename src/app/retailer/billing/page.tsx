@@ -53,6 +53,7 @@ export default async function RetailerBillingPage() {
           product: true,
         },
       },
+      b2bSettlements: true,
     },
     orderBy: { createdAt: 'desc' },
   });
@@ -77,6 +78,7 @@ export default async function RetailerBillingPage() {
           product: true,
         },
       },
+      b2bSettlements: true,
     },
     orderBy: { createdAt: 'desc' },
   });

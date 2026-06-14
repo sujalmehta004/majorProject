@@ -54,6 +54,7 @@ export default async function WholesalerCustomers() {
               product: true,
             },
           },
+          b2bSettlements: true,
         },
         orderBy: { createdAt: "desc" },
       },
