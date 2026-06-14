@@ -19,6 +19,7 @@ interface Retailer {
   registrationNumber: string;
   address: string;
   phone: string;
+  user?: { email: string };
 }
 
 interface Batch { id: string; batchNumber: string; manufacturingCost: number; purchasePricePerBox: number; }
@@ -602,9 +603,19 @@ export default function BillingClient({ profileId, initialOrders, initialSupplie
 
   const handleSendInvoice = async (order: Order) => {
     setError(''); setSuccessMsg('');
-    await logActivity('SEND_INVOICE', `Dispatched digital tax invoice for Order ${order.id.substring(0, 8)} to ${order.retailer.pharmacyName}`);
-    setSuccessMsg(`Digital Invoice dispatched to ${order.retailer.pharmacyName} successfully.`);
-    setTimeout(() => setSuccessMsg(''), 4000);
+    try {
+      const res = await fetch(`/api/orders/${order.id}/send-invoice`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to dispatch digital invoice email.');
+      await logActivity('SEND_INVOICE', `Dispatched digital tax invoice for Order ${order.id.substring(0, 8)} to ${order.retailer.pharmacyName}`);
+      setSuccessMsg(data.message || `Digital Invoice dispatched to ${order.retailer.pharmacyName} successfully.`);
+    } catch (err: any) {
+      setError(err.message || 'An error occurred while sending the invoice email.');
+    }
+    setTimeout(() => { setSuccessMsg(''); setError(''); }, 5000);
   };
 
   const handlePrint = async () => {

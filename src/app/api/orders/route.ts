@@ -194,6 +194,10 @@ export async function POST(request: Request) {
         });
       }
 
+      const finalNetAmount = netAmount - appliedAdvance;
+      const settleStatus = finalNetAmount === 0 ? 'VERIFIED' : 'UNPAID';
+      const settleAmount = finalNetAmount === 0 ? appliedAdvance : 0;
+
       // Create main Order
       const newOrder = await tx.order.create({
         data: {
@@ -202,11 +206,57 @@ export async function POST(request: Request) {
           status: OrderStatus.PENDING,
           totalAmount,
           discountAmount,
-          netAmount,
+          netAmount: finalNetAmount,
           overrideJustification: overrideJustification || null,
           advanceApplied: appliedAdvance,
+          settleStatus,
+          settleAmount,
         },
       });
+
+      // Log to ledgers
+      const { createLedgerEntry } = await import('@/lib/ledger');
+      await createLedgerEntry(tx, {
+        partyType: 'WHOLESALER',
+        partyId: wholesaler.id,
+        oppositePartyName: retailer.pharmacyName,
+        type: 'SALE',
+        debit: netAmount,
+        description: `B2B Sale - Order #${newOrder.id.substring(0, 8).toUpperCase()}`,
+        orderId: newOrder.id,
+      });
+
+      await createLedgerEntry(tx, {
+        partyType: 'RETAILER',
+        partyId: retailer.id,
+        oppositePartyName: wholesaler.companyName,
+        type: 'PURCHASE',
+        debit: netAmount,
+        description: `B2B Procurement - Order #${newOrder.id.substring(0, 8).toUpperCase()}`,
+        orderId: newOrder.id,
+      });
+
+      if (appliedAdvance > 0) {
+        await createLedgerEntry(tx, {
+          partyType: 'WHOLESALER',
+          partyId: wholesaler.id,
+          oppositePartyName: retailer.pharmacyName,
+          type: 'ADVANCE_APPLIED',
+          credit: appliedAdvance,
+          description: `Advance balance applied to Order #${newOrder.id.substring(0, 8).toUpperCase()}`,
+          orderId: newOrder.id,
+        });
+
+        await createLedgerEntry(tx, {
+          partyType: 'RETAILER',
+          partyId: retailer.id,
+          oppositePartyName: wholesaler.companyName,
+          type: 'ADVANCE_APPLIED',
+          credit: appliedAdvance,
+          description: `Advance balance applied to Order #${newOrder.id.substring(0, 8).toUpperCase()}`,
+          orderId: newOrder.id,
+        });
+      }
 
       // Create Order Items and apply FIFO Allocation
       for (const item of computedItems) {
@@ -304,7 +354,11 @@ export async function GET(request: Request) {
         wholesalerId: wholesalerId || undefined,
       },
       include: {
-        retailer: true,
+        retailer: {
+          include: {
+            user: true,
+          },
+        },
         wholesaler: true,
         items: {
           include: {

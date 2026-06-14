@@ -31,7 +31,6 @@ export default function RegisterPage() {
   const [clinicPhone, setClinicPhone] = useState('');
 
   const [otpCode, setOtpCode] = useState('');
-  const [simulatedOtp, setSimulatedOtp] = useState('');
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -51,7 +50,6 @@ export default function RegisterPage() {
     setLoading(true);
     setError('');
     setSuccessMsg('');
-    setSimulatedOtp('');
     try {
       const res = await fetch('/api/auth/send-otp', {
         method: 'POST',
@@ -61,7 +59,6 @@ export default function RegisterPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to dispatch verification code.');
       setSuccessMsg(`Verification code generated successfully.`);
-      if (data.otpCode) setSimulatedOtp(data.otpCode);
       setStep('otp');
     } catch (err: any) {
       setError(err.message || 'Failed to initialize verification.');
@@ -457,19 +454,6 @@ export default function RegisterPage() {
                 A 6-digit verification code has been dispatched to <strong>{email}</strong>.
               </p>
 
-              {simulatedOtp && (
-                <div style={{
-                  padding: '14px 16px', background: '#F0F9FF', border: '1.5px solid #BAE6FD',
-                  borderRadius: 12, marginBottom: 20,
-                }}>
-                  <div style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#0284C7', marginBottom: 6 }}>
-                    Simulated Email Inbox — For Testing
-                  </div>
-                  <div style={{ fontSize: 13, fontWeight: 900, color: '#1E293B', fontFamily: 'monospace', letterSpacing: '0.1em' }}>
-                    MedHub Code: <span style={{ background: 'white', border: '1px solid #BAE6FD', borderRadius: 6, padding: '2px 10px', color: '#0EA5E9' }}>{simulatedOtp}</span>
-                  </div>
-                </div>
-              )}
 
               <form onSubmit={handleRegisterVerify} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <div>

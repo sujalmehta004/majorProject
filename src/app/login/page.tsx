@@ -115,10 +115,10 @@ export default function LoginPage() {
         body: JSON.stringify({ email: forgotEmail }),
       });
       const data = await res.json();
-      if (res.ok && data.tempPassword) {
-        setForgotResult(`Recovery Code: "${data.tempPassword}" (forces password update on login)`);
+      if (res.ok) {
+        setForgotResult(data.message || 'Recovery code sent successfully.');
       } else {
-        setForgotResult(data.message || 'Recovery email simulated.');
+        setForgotResult(data.error || 'Failed to recover account password.');
       }
     } catch (err: any) {
       setForgotResult('Failed to recover account password.');

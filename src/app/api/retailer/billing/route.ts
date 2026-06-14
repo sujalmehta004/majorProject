@@ -57,10 +57,44 @@ export async function GET(request: Request) {
       orderBy: { createdAt: 'desc' },
     });
 
+    // Load wholesaler relations (advance balances)
+    const relations = await db.wholesalerRetailerRelation.findMany({
+      where: { retailerId: retailer.id },
+      include: {
+        wholesaler: true,
+      },
+    });
+
+    // Load ledger entries (asc for running balance)
+    const ledgers = await db.ledgerEntry.findMany({
+      where: {
+        partyType: 'RETAILER',
+        partyId: retailer.id,
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    // Load return requests
+    const returnRequests = await db.returnRequest.findMany({
+      where: { retailerId: retailer.id },
+      include: {
+        order: {
+          include: {
+            wholesaler: true,
+            items: { include: { product: true } },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
     return NextResponse.json({
       success: true,
       sales,
       purchases,
+      relations,
+      ledgers,
+      returnRequests,
     });
   } catch (error: any) {
     console.error('Error fetching billing data:', error);

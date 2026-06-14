@@ -85,6 +85,7 @@ model WholesalerProfile {
   suppliers          Supplier[]
   customers          RetailerProfile[]
   retailerRelations  WholesalerRetailerRelation[]
+  returnRequests     ReturnRequest[]
 }
 
 model RetailerProfile {
@@ -110,6 +111,7 @@ model RetailerProfile {
   suppliers          Supplier[]
   staff              User[]              @relation("RetailerStaff")
   wholesalerRelations WholesalerRetailerRelation[]
+  returnRequests     ReturnRequest[]
 }
 
 model ClinicProfile {
@@ -200,6 +202,7 @@ model Order {
 
   items                 OrderItem[]
   inTransitLogs         InTransitLog[]
+  returnRequests        ReturnRequest[]
 }
 
 model OrderItem {
@@ -323,4 +326,35 @@ model WholesalerRetailerRelation {
 
   @@unique([wholesalerId, retailerId])
 }
+
+model ReturnRequest {
+  id            String            @id @default(uuid())
+  orderId       String
+  order         Order             @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  wholesalerId  String
+  wholesaler    WholesalerProfile @relation(fields: [wholesalerId], references: [id], onDelete: Cascade)
+  retailerId    String
+  retailer      RetailerProfile   @relation(fields: [retailerId], references: [id], onDelete: Cascade)
+  itemsJson     String            // Serialized items: [{ orderItemId: string, quantity: number, reason: string }]
+  reason        String?
+  adjustBilling Boolean           @default(false)
+  status        String            @default("PENDING") // PENDING, APPROVED, REJECTED
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+}
+
+model LedgerEntry {
+  id                String            @id @default(uuid())
+  partyType         String            // "WHOLESALER" or "RETAILER"
+  partyId           String            // WholesalerProfileId or RetailerProfileId
+  oppositePartyName String            // Name of the other party
+  orderId           String?
+  type              String            // "SALE", "RETURN", "PAYMENT", "ADVANCE_REFUND", "ADVANCE_APPLIED"
+  debit             Float             @default(0) // Owed/Charged amount
+  credit            Float             @default(0) // Paid/Credited/Refunded amount
+  balance           Float             @default(0) // Running balance
+  description       String
+  createdAt         DateTime          @default(now())
+}
+
 

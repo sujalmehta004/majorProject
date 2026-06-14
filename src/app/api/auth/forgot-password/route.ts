@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { hashPassword } from '@/lib/auth';
+import { sendResetPasswordEmail } from '@/lib/mailer';
 
 export async function POST(request: Request) {
   try {
@@ -36,19 +37,21 @@ export async function POST(request: Request) {
       },
     });
 
+    // Send the password recovery email
+    await sendResetPasswordEmail(user.email, tempPassword);
+
     // Record system log
     await db.systemAuditLog.create({
       data: {
         action: 'FORGOT_PASSWORD_REQUEST',
         userId: user.id,
-        details: `Forgot password request for ${user.email}. Temporary passcode: "${tempPassword}" (forces reset on login).`,
+        details: `Forgot password request for ${user.email}. Temporary passcode generated (forces reset on login).`,
       },
     });
 
     return NextResponse.json({ 
       success: true, 
-      message: 'Password reset link sent (simulated).',
-      tempPassword // Return for easy Sprint 1 demo/testing
+      message: 'Password reset code has been sent to your email.'
     });
   } catch (error: any) {
     console.error('Forgot password error:', error);

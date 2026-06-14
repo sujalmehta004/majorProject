@@ -6,11 +6,14 @@ import {
   X, Package, User, Phone, Building, Calendar, Hash,
   ArrowUpRight, BarChart2, ChevronDown, Layers, DollarSign,
   CheckCircle, Clock, AlertTriangle, CreditCard, Banknote,
-  Wallet, Send, ShieldCheck
+  Wallet, Send, ShieldCheck, BookOpen, RefreshCw, ArrowDownLeft,
+  ArrowUpLeft, Repeat, ChevronRight, Info, FileText, Activity,
+  PiggyBank, Minus, Plus, Download, Filter, ArrowLeft, ArrowRight
 } from 'lucide-react';
 import { useRealtimeEvent } from '@/lib/events';
 import { settleB2CDueAction } from '@/app/actions/retailerActions';
 
+/* ─── Types ─── */
 interface OrderItem {
   id: string;
   quantity: number;
@@ -25,43 +28,98 @@ interface Order {
   totalAmount: number;
   discountAmount: number;
   netAmount: number;
+  advanceApplied: number;
   overrideJustification?: string | null;
   createdAt: string;
   items: OrderItem[];
-  // Settlement fields
   settleStatus?: string;
   settleAmount?: number;
   settleMethod?: string;
 }
 
+interface WholesalerRelation {
+  id: string;
+  wholesalerId: string;
+  retailerId: string;
+  advanceBalance: number;
+  creditLimit: number;
+  wholesaler: { companyName: string; phone?: string; };
+}
+
+interface LedgerEntry {
+  id: string;
+  partyType: string;
+  partyId: string;
+  oppositePartyName: string;
+  orderId?: string | null;
+  type: string;
+  debit: number;
+  credit: number;
+  balance: number;
+  description: string;
+  createdAt: string;
+}
+
+interface ReturnRequestItem {
+  orderItemId: string;
+  quantity: number;
+  reason: string;
+}
+
+interface ReturnRequest {
+  id: string;
+  orderId: string;
+  status: string;
+  reason?: string | null;
+  adjustBilling: boolean;
+  createdAt: string;
+  itemsJson: string;
+  order: Order & {
+    wholesaler: { companyName: string } | null;
+  };
+}
+
 interface BillingClientProps {
   initialSales: Order[];
   initialPurchases: Order[];
+  initialRelations: WholesalerRelation[];
+  initialLedgers: LedgerEntry[];
+  initialReturnRequests: ReturnRequest[];
   profileId: string;
 }
 
-const STATUS_META: Record<string, { color: string; bg: string }> = {
+/* ─── Constants ─── */
+const SETTLE_META: Record<string, { label: string; color: string; bg: string; icon: any }> = {
+  UNPAID:               { label: 'Due',        color: '#EF4444', bg: 'rgba(239,68,68,0.08)',    icon: AlertTriangle },
+  PENDING_VERIFICATION: { label: 'Pending',    color: '#F59E0B', bg: 'rgba(245,158,11,0.08)',    icon: Clock },
+  VERIFIED:             { label: 'Paid',       color: '#10B981', bg: 'rgba(16,185,129,0.08)',    icon: CheckCircle },
+  REJECTED:             { label: 'Rejected',   color: '#EF4444', bg: 'rgba(239,68,68,0.12)',    icon: AlertTriangle },
+};
+
+const STATUS_COLORS: Record<string, { color: string; bg: string }> = {
   DELIVERED:  { color: '#10B981', bg: 'rgba(16,185,129,0.08)' },
   PENDING:    { color: '#F59E0B', bg: 'rgba(245,158,11,0.08)' },
   PICKING:    { color: '#3B82F6', bg: 'rgba(59,130,246,0.08)' },
   DISPATCHED: { color: '#8B5CF6', bg: 'rgba(139,92,246,0.08)' },
+  RETURNED:   { color: '#EF4444', bg: 'rgba(239,68,68,0.08)' },
 };
 
-const SETTLE_META: Record<string, { label: string; color: string; bg: string; icon: any }> = {
-  UNPAID:               { label: 'Due',        color: '#DC2626', bg: 'rgba(220,38,38,0.08)',    icon: AlertTriangle },
-  PENDING_VERIFICATION: { label: 'Pending',    color: '#D97706', bg: 'rgba(217,119,6,0.08)',    icon: Clock },
-  VERIFIED:             { label: 'Paid',       color: '#059669', bg: 'rgba(5,150,105,0.08)',    icon: CheckCircle },
-  REJECTED:             { label: 'Rejected',   color: '#DC2626', bg: 'rgba(220,38,38,0.12)',    icon: AlertTriangle },
+const LEDGER_TYPE_META: Record<string, { label: string; color: string; bg: string; icon: any; isDr: boolean }> = {
+  SALE:             { label: 'Sale',           color: '#EF4444', bg: 'rgba(239,68,68,0.08)',    icon: ArrowUpLeft,    isDr: true  },
+  RETURN:           { label: 'Return',         color: '#10B981', bg: 'rgba(16,185,129,0.08)',   icon: ArrowDownLeft,  isDr: false },
+  PAYMENT:          { label: 'Payment',        color: '#10B981', bg: 'rgba(16,185,129,0.08)',   icon: CheckCircle,    isDr: false },
+  ADVANCE_APPLIED:  { label: 'Advance Used',   color: '#8B5CF6', bg: 'rgba(139,92,246,0.08)',   icon: PiggyBank,      isDr: false },
+  ADVANCE_REFUND:   { label: 'Advance Add',    color: '#3B82F6', bg: 'rgba(59,130,246,0.08)',   icon: Plus,           isDr: false },
 };
 
 const PAYMENT_METHODS = [
-  { id: 'CASH',     label: 'Cash',          icon: Banknote,  enabled: true  },
-  { id: 'COD',      label: 'COD',           icon: Package,   enabled: true  },
-  { id: 'UPI',      label: 'UPI / QR',      icon: Wallet,    enabled: false },
-  { id: 'BANK',     label: 'Bank Transfer', icon: CreditCard,enabled: false },
-  { id: 'CHEQUE',   label: 'Cheque',        icon: Send,      enabled: false },
+  { id: 'CASH',     label: 'Cash',          icon: Banknote,   enabled: true  },
+  { id: 'COD',      label: 'COD',           icon: Package,    enabled: true  },
+  { id: 'UPI',      label: 'UPI / QR',      icon: Wallet,     enabled: false },
+  { id: 'BANK',     label: 'Bank Transfer', icon: CreditCard, enabled: false },
 ];
 
+/* ─── Helpers ─── */
 const getB2CDetails = (justification?: string | null) => {
   if (!justification) return { name: 'Walk-in Customer', phone: 'N/A', method: 'CASH', due: 0, paid: 0 };
   const nameMatch   = justification.match(/B2C POS:\s*([^,|]+)/);
@@ -73,233 +131,60 @@ const getB2CDetails = (justification?: string | null) => {
     name:   nameMatch   ? nameMatch[1].trim()   : 'Walk-in Customer',
     phone:  phoneMatch  ? phoneMatch[1].trim()  : 'N/A',
     method: methodMatch ? methodMatch[1].trim() : 'CASH',
-    due:    dueMatch    ? parseFloat(dueMatch[1]) : 0,
+    due:    dueMatch    ? parseFloat(dueMatch[1])  : 0,
     paid:   paidMatch   ? parseFloat(paidMatch[1]) : 0,
   };
 };
 
-export default function BillingClient({ initialSales, initialPurchases }: BillingClientProps) {
-  const [sales, setSales]         = useState<Order[]>(initialSales);
-  const [purchases, setPurchases] = useState<Order[]>(initialPurchases);
-  const [activeTab, setActiveTab] = useState<'sales' | 'purchases' | 'audit'>('sales');
-  const [selectedFY, setSelectedFY] = useState<'26-27' | '25-26' | '24-25' | 'all'>('26-27');
-  const [searchQuery, setSearchQuery] = useState('');
+const fmt = (n: number) => n.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+const fmtRs = (n: number) => `Rs. ${fmt(n)}`;
+
+/* ─── Main Component ─── */
+export default function BillingClient({
+  initialSales,
+  initialPurchases,
+  initialRelations,
+  initialLedgers,
+  initialReturnRequests,
+}: BillingClientProps) {
+  const [sales, setSales]               = useState<Order[]>(initialSales);
+  const [purchases, setPurchases]       = useState<Order[]>(initialPurchases);
+  const [relations, setRelations]       = useState<WholesalerRelation[]>(initialRelations);
+  const [ledgers, setLedgers]           = useState<LedgerEntry[]>(initialLedgers);
+  const [returns, setReturns]           = useState<ReturnRequest[]>(initialReturnRequests);
+
+  const [activeTab, setActiveTab] = useState<'overview' | 'purchases' | 'sales' | 'ledger' | 'returns'>('overview');
+  const [searchQuery, setSearchQuery]   = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
-  const [filterSettle, setFilterSettle]  = useState('all');
+  const [filterSettle, setFilterSettle] = useState('all');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [isSaleModal, setIsSaleModal]   = useState(false);
 
-  // Settle payment modal state
-  const [settleOrder, setSettleOrder]   = useState<Order | null>(null);
+  // Settle modal
+  const [settleOrder, setSettleOrder]     = useState<Order | null>(null);
+  const [settleIsB2C, setSettleIsB2C]     = useState(false);
   const [settleAmount, setSettleAmountVal] = useState('');
-  const [settleMethod, setSettleMethod] = useState('CASH');
+  const [settleMethod, setSettleMethod]   = useState('CASH');
   const [settleLoading, setSettleLoading] = useState(false);
-  const [settleError, setSettleError]   = useState('');
-
-  const [auditInterval, setAuditInterval] = useState<'day' | 'week' | 'month' | 'year' | 'all'>('month');
+  const [settleError, setSettleError]     = useState('');
 
   const searchRef = useRef<HTMLInputElement>(null);
 
-  useRealtimeEvent('BILLING_UPDATE', () => {
-    fetchBillingData();
-  });
+  useRealtimeEvent('BILLING_UPDATE', () => { fetchBillingData(); });
 
   const fetchBillingData = async () => {
     try {
       const res = await fetch('/api/retailer/billing');
       const data = await res.json();
       if (data.success) {
-        setSales(data.sales);
-        setPurchases(data.purchases);
+        setSales(data.sales || []);
+        setPurchases(data.purchases || []);
+        setRelations(data.relations || []);
+        setLedgers(data.ledgers || []);
+        setReturns(data.returnRequests || []);
       }
-    } catch (e) {
-      console.error(e);
-    }
+    } catch (e) { console.error(e); }
   };
-
-  // helper to check if date falls in selected FY range
-  const isInSelectedFY = (dateStr: string) => {
-    if (selectedFY === 'all') return true;
-    const date = new Date(dateStr);
-    
-    // FY 2026-2027: Apr 1 2026 - Mar 31 2027
-    if (selectedFY === '26-27') {
-      const start = new Date('2026-04-01T00:00:00');
-      const end = new Date('2027-03-31T23:59:59');
-      return date >= start && date <= end;
-    }
-    if (selectedFY === '25-26') {
-      const start = new Date('2025-04-01T00:00:00');
-      const end = new Date('2026-03-31T23:59:59');
-      return date >= start && date <= end;
-    }
-    if (selectedFY === '24-25') {
-      const start = new Date('2024-04-01T00:00:00');
-      const end = new Date('2025-03-31T23:59:59');
-      return date >= start && date <= end;
-    }
-    return true;
-  };
-
-  const getBuyingPricePerUnit = (item: OrderItem) => {
-    // Find in purchases first
-    for (const p of purchases) {
-      const matchedItem = p.items.find(pi => pi.product.sku === item.product.sku || pi.product.name === item.product.name);
-      if (matchedItem) {
-        return matchedItem.pricePerUnit;
-      }
-    }
-    // Fallback: 75% of selling price
-    return item.pricePerUnit * 0.75;
-  };
-
-  const auditedTransactions = (() => {
-    const allTx: any[] = [];
-    
-    // 1. Process Sales (B2C)
-    sales.forEach(sale => {
-      if (!isInSelectedFY(sale.createdAt)) return;
-      
-      const d = getB2CDetails(sale.overrideJustification);
-      
-      // Calculate COGS
-      let cogs = 0;
-      sale.items.forEach(item => {
-        cogs += item.quantity * getBuyingPricePerUnit(item);
-      });
-      
-      const netVal = sale.netAmount;
-      const profit = Math.max(netVal - cogs, 0);
-      const loss = Math.max(cogs - netVal, 0);
-      
-      allTx.push({
-        id: sale.id,
-        date: new Date(sale.createdAt).toLocaleDateString(),
-        time: new Date(sale.createdAt).toLocaleTimeString(),
-        timestamp: new Date(sale.createdAt).getTime(),
-        type: 'B2C Sale',
-        entity: d.name,
-        gross: sale.totalAmount,
-        discount: sale.discountAmount,
-        net: netVal,
-        cogs: Math.round(cogs),
-        profit: Math.round(profit),
-        loss: Math.round(loss),
-        status: d.due > 0 ? `Due: Rs. ${d.due}` : 'Paid',
-        rawType: 'sale',
-      });
-    });
-
-    // 2. Process Purchases (B2B)
-    purchases.forEach(purchase => {
-      if (!isInSelectedFY(purchase.createdAt)) return;
-      
-      // B2B Purchase is a capital outflow / expense
-      // Profit is 0, loss/expense is netAmount
-      allTx.push({
-        id: purchase.id,
-        date: new Date(purchase.createdAt).toLocaleDateString(),
-        time: new Date(purchase.createdAt).toLocaleTimeString(),
-        timestamp: new Date(purchase.createdAt).getTime(),
-        type: 'B2B Purchase',
-        entity: purchase.wholesaler?.companyName || 'Wholesaler',
-        gross: purchase.totalAmount,
-        discount: purchase.discountAmount,
-        net: purchase.netAmount,
-        cogs: purchase.netAmount, // Purchase cost is the COGS entry
-        profit: 0,
-        loss: purchase.netAmount,
-        status: purchase.settleStatus || 'UNPAID',
-        rawType: 'purchase',
-      });
-    });
-
-    // Sort chronologically (newest first)
-    return allTx.sort((a, b) => b.timestamp - a.timestamp);
-  })();
-
-  // Audit Metrics
-  const auditMetrics = (() => {
-    let salesRev = 0;
-    let purchaseCost = 0;
-    let totalCogs = 0;
-    let totalProfit = 0;
-    let totalLoss = 0;
-    
-    auditedTransactions.forEach(t => {
-      if (t.rawType === 'sale') {
-        salesRev += t.net;
-        totalCogs += t.cogs;
-        totalProfit += t.profit;
-      } else {
-        purchaseCost += t.net;
-        totalLoss += t.net; // purchase outflow
-      }
-    });
-
-    const netIncome = salesRev - totalCogs; // operating profit
-    
-    return {
-      salesRev,
-      purchaseCost,
-      totalCogs,
-      totalProfit,
-      totalLoss,
-      netIncome,
-    };
-  })();
-
-  const downloadCSVReport = () => {
-    const headers = ['Date', 'Time', 'Invoice ID', 'Type', 'Entity', 'Gross Amount (Rs)', 'Discount (Rs)', 'Net Amount (Rs)', 'Estimated COGS (Rs)', 'Net Profit (Rs)', 'Status'];
-    const rows = auditedTransactions.map(d => [
-      d.date,
-      d.time,
-      d.id,
-      d.type,
-      d.entity,
-      d.gross,
-      d.discount,
-      d.net,
-      d.cogs,
-      d.profit,
-      d.status
-    ]);
-    
-    const csvContent = [headers.join(','), ...rows.map(r => r.map(val => `"${String(val).replace(/"/g, '""')}"`).join(','))].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', `Fiscal_Year_Audit_Report_${selectedFY}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
-  const [hasParsedSearch, setHasParsedSearch] = useState(false);
-  useEffect(() => {
-    if (!hasParsedSearch && (sales.length > 0 || purchases.length > 0)) {
-      setHasParsedSearch(true);
-      if (typeof window !== 'undefined') {
-        const params = new URLSearchParams(window.location.search);
-        const searchVal = params.get('search') || params.get('q');
-        if (searchVal) {
-          setSearchQuery(searchVal);
-          const hasSale = sales.some(s => s.id.toLowerCase() === searchVal.toLowerCase() || s.id.toLowerCase().includes(searchVal.toLowerCase()));
-          const hasPurchase = purchases.some(p => p.id.toLowerCase() === searchVal.toLowerCase() || p.id.toLowerCase().includes(searchVal.toLowerCase()));
-          if (hasPurchase && !hasSale) {
-            setActiveTab('purchases');
-          } else if (hasSale && !hasPurchase) {
-            setActiveTab('sales');
-          }
-          const matched = [...sales, ...purchases].find(o => o.id.toLowerCase() === searchVal.toLowerCase() || o.id.toLowerCase().includes(searchVal.toLowerCase()));
-          if (matched) {
-            setSelectedOrder(matched);
-          }
-        }
-      }
-    }
-  }, [sales, purchases, hasParsedSearch]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -310,110 +195,85 @@ export default function BillingClient({ initialSales, initialPurchases }: Billin
     return () => window.removeEventListener('keydown', handler);
   }, []);
 
-  const isWithinInterval = (dateStr: string) => {
-    if (auditInterval === 'all') return true;
-    const txDate = new Date(dateStr).getTime();
-    const now = Date.now();
-    const diffDays = (now - txDate) / (1000 * 60 * 60 * 24);
-    if (auditInterval === 'day')   return diffDays <= 1;
-    if (auditInterval === 'week')  return diffDays <= 7;
-    if (auditInterval === 'month') return diffDays <= 30;
-    if (auditInterval === 'year')  return diffDays <= 365;
-    return true;
-  };
+  /* ── Derived Metrics ── */
+  // Advance balances aggregated across all wholesaler relations
+  const totalAdvanceBalance = relations.reduce((s, r) => s + r.advanceBalance, 0);
 
-  const currentSales     = sales.filter(s => isWithinInterval(s.createdAt));
-  const currentPurchases = purchases.filter(p => isWithinInterval(p.createdAt));
-  const list = activeTab === 'sales' ? currentSales : currentPurchases;
+  // Outstanding due from B2B purchases (actual per-order)
+  const totalOutstandingDue = purchases.reduce((s, p) => {
+    const st = p.settleStatus || 'UNPAID';
+    if (st === 'UNPAID' || st === 'REJECTED') return s + p.netAmount - (p.advanceApplied || 0);
+    if (st === 'PENDING_VERIFICATION') return s + Math.max(p.netAmount - (p.advanceApplied || 0) - (p.settleAmount || 0), 0);
+    return s;
+  }, 0);
 
-  const filtered = list.filter((item) => {
-    const matchStatus = filterStatus === 'all' || item.status === filterStatus;
-    const matchSettle = filterSettle === 'all' || (item.settleStatus || 'UNPAID') === filterSettle;
-    if (activeTab === 'sales') {
-      const d = getB2CDetails(item.overrideJustification);
-      return matchStatus && (
-        item.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        d.name.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-    }
-    return matchStatus && matchSettle && (
-      item.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (item.wholesaler?.companyName || '').toLowerCase().includes(searchQuery.toLowerCase())
-    );
+  const totalVerifiedPayments = purchases
+    .filter(p => p.settleStatus === 'VERIFIED')
+    .reduce((s, p) => s + (p.settleAmount || 0), 0);
+
+  const totalPendingVerification = purchases
+    .filter(p => p.settleStatus === 'PENDING_VERIFICATION')
+    .reduce((s, p) => s + (p.settleAmount || 0), 0);
+
+  const totalSalesRevenue = sales.reduce((s, o) => s + o.netAmount, 0);
+  const totalPurchaseCost = purchases.reduce((s, o) => s + o.netAmount, 0);
+  const totalAdvanceApplied = purchases.reduce((s, o) => s + (o.advanceApplied || 0), 0);
+
+  // Ledger running balance (last entry = current balance)
+  const ledgerBalance = ledgers.length > 0 ? ledgers[ledgers.length - 1].balance : 0;
+
+  /* ── Filtered Lists ── */
+  const filteredPurchases = purchases.filter(p => {
+    const matchSettle = filterSettle === 'all' || (p.settleStatus || 'UNPAID') === filterSettle;
+    const matchStatus = filterStatus === 'all' || p.status === filterStatus;
+    const q = searchQuery.toLowerCase();
+    const matchSearch = !q || p.id.toLowerCase().includes(q) ||
+      (p.wholesaler?.companyName || '').toLowerCase().includes(q);
+    return matchSettle && matchStatus && matchSearch;
   });
 
-  // Financial metrics
-  const totalSalesRevenue  = currentSales.reduce((sum, s) => sum + s.netAmount, 0);
-  const totalPurchaseCost  = currentPurchases.reduce((sum, p) => sum + p.netAmount, 0);
-  const grossProfit        = totalSalesRevenue - totalPurchaseCost;
-  const marginPercent      = totalSalesRevenue > 0 ? (grossProfit / totalSalesRevenue) * 100 : 0;
-  const totalFilteredRev   = filtered.reduce((sum, i) => sum + i.netAmount, 0);
+  const filteredSales = sales.filter(s => {
+    const d = getB2CDetails(s.overrideJustification);
+    const q = searchQuery.toLowerCase();
+    const matchSearch = !q || s.id.toLowerCase().includes(q) ||
+      d.name.toLowerCase().includes(q) || d.phone.includes(q);
+    const matchStatus = filterStatus === 'all' || s.status === filterStatus;
+    return matchSearch && matchStatus;
+  });
 
-  // Outstanding / Advance from purchases
-  const outstandingDue = currentPurchases
-    .reduce((sum, p) => {
-      const status = p.settleStatus || 'UNPAID';
-      if (status === 'UNPAID' || status === 'REJECTED') {
-        return sum + p.netAmount;
-      } else if (status === 'PENDING_VERIFICATION' || status === 'VERIFIED') {
-        return sum + Math.max(p.netAmount - (p.settleAmount || 0), 0);
-      }
-      return sum;
-    }, 0);
-
-  const pendingVerification = currentPurchases
-    .filter(p => (p.settleStatus || 'UNPAID') === 'PENDING_VERIFICATION')
-    .reduce((sum, p) => sum + (p.settleAmount || 0), 0);
-  const totalVerified = currentPurchases
-    .filter(p => (p.settleStatus || 'UNPAID') === 'VERIFIED')
-    .reduce((sum, p) => sum + (p.settleAmount || 0), 0);
-
-  const handleOpenSettle = (order: Order) => {
+  /* ── Settle Handlers ── */
+  const handleOpenSettle = (order: Order, isB2C: boolean) => {
+    const d = isB2C ? getB2CDetails(order.overrideJustification) : null;
     setSettleOrder(order);
-    const d = activeTab === 'sales' ? getB2CDetails(order.overrideJustification) : null;
-    setSettleAmountVal(String(d ? d.due : order.netAmount));
+    setSettleIsB2C(isB2C);
+    setSettleAmountVal(String(d ? d.due : Math.max(order.netAmount - (order.advanceApplied || 0) - (order.settleAmount || 0), 0)));
     setSettleMethod(d ? d.method : 'CASH');
     setSettleError('');
   };
 
   const handleSubmitSettlement = async () => {
     if (!settleOrder) return;
-    if (!settleAmount || isNaN(parseFloat(settleAmount))) {
-      setSettleError('Please enter a valid amount');
-      return;
-    }
+    const amt = parseFloat(settleAmount);
+    if (!settleAmount || isNaN(amt) || amt <= 0) { setSettleError('Enter a valid amount.'); return; }
     setSettleLoading(true);
     setSettleError('');
     try {
-      if (activeTab === 'purchases') {
+      if (settleIsB2C) {
+        const res = await settleB2CDueAction(settleOrder.id, amt);
+        if (!res.success || !res.order) throw new Error('Failed to settle B2C due');
+        setSales(prev => prev.map(s => s.id === settleOrder.id ? { ...s, overrideJustification: res.order.overrideJustification } : s));
+      } else {
         const res = await fetch('/api/retailer/billing', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            orderId: settleOrder.id,
-            amount: parseFloat(settleAmount),
-            method: settleMethod,
-          }),
+          body: JSON.stringify({ orderId: settleOrder.id, amount: amt, method: settleMethod }),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Failed to submit settlement');
-
-        // Update local state
         setPurchases(prev => prev.map(p =>
           p.id === settleOrder.id
-            ? { ...p, settleStatus: 'PENDING_VERIFICATION', settleAmount: parseFloat(settleAmount), settleMethod }
+            ? { ...p, settleStatus: 'PENDING_VERIFICATION', settleAmount: amt, settleMethod }
             : p
-        ));
-      } else {
-        // B2C Patient Due Settlement
-        const res = await settleB2CDueAction(settleOrder.id, parseFloat(settleAmount));
-        if (!res.success || !res.order) throw new Error('Failed to settle B2C due');
-
-        // Update local state
-        setSales(prev => prev.map(s =>
-          s.id === settleOrder.id
-            ? { ...s, overrideJustification: res.order.overrideJustification }
-            : s
         ));
       }
       setSettleOrder(null);
@@ -424,660 +284,777 @@ export default function BillingClient({ initialSales, initialPurchases }: Billin
     }
   };
 
+  /* ── Print Invoice ── */
   const printInvoice = (order: Order, isSale: boolean) => {
     const d = isSale ? getB2CDetails(order.overrideJustification) : null;
-    const win = window.open('', '_blank', 'width=700,height=800');
+    const win = window.open('', '_blank', 'width=700,height=900');
     if (!win) return;
-    const itemRows = order.items.map(item =>
-      `<tr>
-        <td>${item.product.name}</td>
-        <td>${item.product.sku}</td>
-        <td style="text-align:right">${item.quantity}</td>
-        <td style="text-align:right">Rs. ${item.pricePerUnit.toLocaleString()}</td>
-        <td style="text-align:right">Rs. ${(item.quantity * item.pricePerUnit).toLocaleString()}</td>
-      </tr>`
+    const rows = order.items.map(i =>
+      `<tr><td>${i.product.name}</td><td>${i.product.sku}</td><td style="text-align:right">${i.quantity}</td><td style="text-align:right">Rs. ${i.pricePerUnit.toLocaleString()}</td><td style="text-align:right">Rs. ${(i.quantity * i.pricePerUnit).toLocaleString()}</td></tr>`
     ).join('');
-
-    win.document.write(`
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Invoice Voucher</title>
-        <style>
-          body { font-family:'Courier New', monospace; max-width:600px; margin:30px auto; color:#000; font-size:13px; }
-          h1 { text-align:center; font-size:18px; margin:0; }
-          p { text-align:center; margin:4px 0; font-size:11px; }
-          table { width:100%; border-collapse:collapse; margin-top:12px; }
-          th { border-bottom:2px solid #000; padding:6px 8px; text-align:left; font-size:11px; }
-          td { padding:6px 8px; border-bottom:1px solid #ddd; font-size:12px; }
-          .total { font-weight:bold; font-size:14px; text-align:right; margin-top:10px; }
-          .meta { border-top:1px dashed #000; border-bottom:1px dashed #000; padding:8px 0; margin:10px 0; font-size:12px; }
-        </style>
-      </head>
-      <body>
-        <h1>MEDHUB PHARMACY NODE</h1>
-        <p>${isSale ? 'RETAIL INVOICE STATEMENT' : 'WHOLESALE PURCHASE BILL'}</p>
-        <div class="meta">
-          <div><strong>Ref #:</strong> ${order.id.toUpperCase()}</div>
-          <div><strong>Date:</strong> ${new Date(order.createdAt).toLocaleString()}</div>
-          ${isSale ? `<div><strong>Patient:</strong> ${d?.name} | Phone: ${d?.phone}</div><div><strong>Payment:</strong> ${d?.method}</div>` : `<div><strong>Supplier:</strong> ${order.wholesaler?.companyName || '—'}</div>`}
-          <div><strong>Status:</strong> ${order.status}</div>
-        </div>
-        <table>
-          <thead>
-            <tr>
-              <th>Medicine</th>
-              <th>SKU</th>
-              <th style="text-align:right">Qty</th>
-              <th style="text-align:right">Price/Unit</th>
-              <th style="text-align:right">Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${itemRows}
-          </tbody>
-        </table>
-        <div class="total">Gross Total: Rs. ${order.totalAmount.toLocaleString()}</div>
-        ${order.discountAmount > 0 ? `<div class="total" style="color:red">Discount: -Rs. ${order.discountAmount.toLocaleString()}</div>` : ''}
-        <div class="total" style="font-size:16px; border-top:2px solid #000; padding-top:6px;">NET VALUE: Rs. ${order.netAmount.toLocaleString()}</div>
-        <script>
-          window.onload = function() {
-            window.print();
-            window.close();
-          };
-        </script>
-      </body>
-      </html>
-    `);
+    win.document.write(`<!DOCTYPE html><html><head><title>Invoice</title><style>
+      body{font-family:'Courier New',monospace;max-width:600px;margin:30px auto;color:#000;font-size:13px}
+      h1{text-align:center;font-size:18px;margin:0}p{text-align:center;margin:4px 0;font-size:11px}
+      table{width:100%;border-collapse:collapse;margin-top:12px}
+      th{border-bottom:2px solid #000;padding:6px 8px;text-align:left;font-size:11px}
+      td{padding:6px 8px;border-bottom:1px solid #ddd;font-size:12px}
+      .total{font-weight:bold;font-size:14px;text-align:right;margin-top:10px}
+      .meta{border-top:1px dashed #000;border-bottom:1px dashed #000;padding:8px 0;margin:10px 0;font-size:12px}
+    </style></head><body>
+      <h1>MEDHUB PHARMACY NODE</h1>
+      <p>${isSale ? 'RETAIL INVOICE STATEMENT' : 'WHOLESALE PURCHASE BILL'}</p>
+      <div class="meta">
+        <div><strong>Ref #:</strong> ${order.id.toUpperCase()}</div>
+        <div><strong>Date:</strong> ${new Date(order.createdAt).toLocaleString()}</div>
+        ${isSale ? `<div><strong>Patient:</strong> ${d?.name} | Phone: ${d?.phone}</div><div><strong>Payment:</strong> ${d?.method}</div>` : `<div><strong>Supplier:</strong> ${order.wholesaler?.companyName || '—'}</div>`}
+        <div><strong>Status:</strong> ${order.status}</div>
+      </div>
+      <table><thead><tr><th>Medicine</th><th>SKU</th><th style="text-align:right">Qty</th><th style="text-align:right">Price/Unit</th><th style="text-align:right">Total</th></tr></thead><tbody>${rows}</tbody></table>
+      <div class="total">Gross: Rs. ${order.totalAmount.toLocaleString()}</div>
+      ${order.discountAmount > 0 ? `<div class="total" style="color:red">Discount: -Rs. ${order.discountAmount.toLocaleString()}</div>` : ''}
+      ${order.advanceApplied > 0 ? `<div class="total" style="color:#8B5CF6">Advance Applied: -Rs. ${order.advanceApplied.toLocaleString()}</div>` : ''}
+      <div class="total" style="font-size:16px;border-top:2px solid #000;padding-top:6px">NET VALUE: Rs. ${order.netAmount.toLocaleString()}</div>
+      <script>window.onload=function(){window.print();window.close();}</script>
+    </body></html>`);
     win.document.close();
   };
 
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 28, padding: '24px 0', maxWidth: 1200, margin: '0 auto' }}>
+  /* ── CSV Export ── */
+  const exportLedgerCSV = () => {
+    const headers = ['Date', 'Type', 'Description', 'Debit (Rs)', 'Credit (Rs)', 'Running Balance (Rs)'];
+    const rows = [...ledgers].reverse().map(l => [
+      new Date(l.createdAt).toLocaleString(),
+      l.type,
+      l.description,
+      l.debit || '',
+      l.credit || '',
+      l.balance,
+    ]);
+    const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'Ledger_Statement.csv'; a.click();
+  };
 
-      {/* ── Modern Page Header ── */}
-      <div style={{
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16,
-        background: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(12px)',
-        border: '1.5px solid #F1F5F9', borderRadius: 20, padding: '20px 24px',
-        boxShadow: '0 4px 20px -2px rgba(148,163,184,0.06)'
-      }}>
-        <div>
-          <h1 style={{ fontSize: 22, fontWeight: 900, color: '#1E293B', display: 'flex', alignItems: 'center', gap: 8, letterSpacing: '-0.02em' }}>
-            <Receipt style={{ width: 22, height: 22, color: '#F59E0B' }} />
-            Accounting & Fiscal Ledger
-          </h1>
-          <p style={{ fontSize: 13, color: '#64748B', marginTop: 4 }}>
-            B2C POS counter sales ledger, margins overview, and B2B spend analysis.
-          </p>
-        </div>
-        <div style={{ display: 'flex', gap: 6, background: '#F8FAFC', padding: 4, borderRadius: 12, border: '1px solid #E2E8F0' }}>
-          {([
-            { id: 'day', label: 'Today' },
-            { id: 'week', label: 'Weekly' },
-            { id: 'month', label: 'Monthly' },
-            { id: 'year', label: 'Annual' },
-            { id: 'all', label: 'All Time' },
-          ] as const).map((interval) => (
-            <button
-              key={interval.id}
-              onClick={() => setAuditInterval(interval.id)}
-              style={{
-                padding: '8px 14px', borderRadius: 9, border: 'none', fontSize: 11, fontWeight: 800, cursor: 'pointer',
-                background: auditInterval === interval.id ? 'linear-gradient(135deg, #F59E0B, #D97706)' : 'transparent',
-                color: auditInterval === interval.id ? '#FFFFFF' : '#64748B',
-                boxShadow: auditInterval === interval.id ? '0 4px 10px rgba(245,158,11,0.2)' : 'none',
-                transition: 'all 0.2s ease'
-              }}
-            >
-              {interval.label}
-            </button>
-          ))}
-        </div>
-      </div>
+  /* ─── Styles ─── */
+  const card = (extra?: React.CSSProperties): React.CSSProperties => ({
+    background: '#FFFFFF',
+    borderRadius: 18,
+    border: '1.5px solid #F1F5F9',
+    boxShadow: '0 2px 16px rgba(148,163,184,0.06)',
+    overflow: 'hidden',
+    ...extra,
+  });
 
-      {/* ── Beautiful Fiscal Cards ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 20 }}>
+  const tabBtnStyle = (active: boolean): React.CSSProperties => ({
+    display: 'flex', alignItems: 'center', gap: 6,
+    padding: '10px 18px', borderRadius: 10, border: 'none', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+    background: active ? '#FFFFFF' : 'transparent',
+    color: active ? '#1E40AF' : '#64748B',
+    boxShadow: active ? '0 2px 12px rgba(0,0,0,0.06)' : 'none',
+    transition: 'all 0.2s ease',
+  });
+
+  /* ─── Sub-renders ─── */
+
+  // Overview cards
+  const renderOverview = () => (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+
+      {/* Advance Balance Banner */}
+      {relations.map(rel => (
+        <div key={rel.id} style={{
+          background: 'linear-gradient(135deg, #1E40AF 0%, #3B82F6 50%, #60A5FA 100%)',
+          borderRadius: 20, padding: '24px 28px',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16,
+          boxShadow: '0 8px 32px rgba(30,64,175,0.2)',
+        }}>
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+              Advance Balance with {rel.wholesaler.companyName}
+            </div>
+            <div style={{ fontSize: 36, fontWeight: 900, color: '#FFFFFF', marginTop: 6, fontFamily: 'monospace' }}>
+              {fmtRs(rel.advanceBalance)}
+            </div>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.65)', marginTop: 4 }}>
+              Auto-applied to your next order • Credit Limit: {fmtRs(rel.creditLimit)}
+            </div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-end' }}>
+            <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: 12, padding: '10px 16px', backdropFilter: 'blur(8px)' }}>
+              <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.6)', fontWeight: 700 }}>LEDGER BALANCE</div>
+              <div style={{ fontSize: 18, fontWeight: 900, color: '#FFFFFF', fontFamily: 'monospace' }}>
+                {ledgerBalance >= 0 ? `You Owe: ${fmtRs(ledgerBalance)}` : `To Receive: ${fmtRs(Math.abs(ledgerBalance))}`}
+              </div>
+            </div>
+          </div>
+        </div>
+      ))}
+
+      {/* Key Metrics Grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
         {[
-          { label: 'Gross B2C Revenue', val: totalSalesRevenue, color: '#10B981', gradient: 'linear-gradient(135deg, rgba(16,185,129,0.02), rgba(16,185,129,0.06))', border: 'rgba(16,185,129,0.15)', icon: TrendingUp },
-          { label: 'B2B Procurement Spend', val: totalPurchaseCost, color: '#F97316', gradient: 'linear-gradient(135deg, rgba(249,115,22,0.02), rgba(249,115,22,0.06))', border: 'rgba(249,115,22,0.15)', icon: TrendingDown },
-          { label: 'Net Profit Margin', val: grossProfit, color: grossProfit >= 0 ? '#3B82F6' : '#EF4444', gradient: grossProfit >= 0 ? 'linear-gradient(135deg, rgba(59,130,246,0.02), rgba(59,130,246,0.06))' : 'linear-gradient(135deg, rgba(239,68,68,0.02), rgba(239,68,68,0.06))', border: grossProfit >= 0 ? 'rgba(59,130,246,0.15)' : 'rgba(239,68,68,0.15)', icon: BarChart2 },
-          { label: 'Gross Margin %', val: `${marginPercent.toFixed(1)}%`, color: '#8B5CF6', gradient: 'linear-gradient(135deg, rgba(139,92,246,0.02), rgba(139,92,246,0.06))', border: 'rgba(139,92,246,0.15)', icon: ArrowUpRight, raw: true },
-        ].map((card, idx) => {
-          const Icon = card.icon;
+          { label: 'B2C Revenue (Sales)', val: totalSalesRevenue, color: '#10B981', icon: TrendingUp, sub: `${sales.length} transactions` },
+          { label: 'B2B Procurement', val: totalPurchaseCost, color: '#F59E0B', icon: TrendingDown, sub: `${purchases.length} purchase orders` },
+          { label: 'Outstanding Dues', val: Math.max(totalOutstandingDue, 0), color: '#EF4444', icon: AlertTriangle, sub: 'Unpaid B2B bills' },
+          { label: 'Advance Balance', val: totalAdvanceBalance, color: '#3B82F6', icon: PiggyBank, sub: 'Across all wholesalers' },
+          { label: 'Verified Payments', val: totalVerifiedPayments, color: '#8B5CF6', icon: ShieldCheck, sub: 'Confirmed by wholesaler' },
+          { label: 'Pending Verification', val: totalPendingVerification, color: '#F97316', icon: Clock, sub: 'Awaiting wholesaler' },
+        ].map((c, i) => {
+          const Icon = c.icon;
           return (
-            <div
-              key={idx}
-              style={{
-                background: '#FFFFFF', border: `1.5px solid ${card.border}`, padding: '22px 24px', borderRadius: 18,
-                display: 'flex', alignItems: 'center', gap: 16, position: 'relative',
-                overflow: 'hidden', boxShadow: '0 4px 15px rgba(0,0,0,0.02)', transition: 'transform 0.2s ease, box-shadow 0.2s ease',
-                cursor: 'default'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'translateY(-2px)';
-                e.currentTarget.style.boxShadow = '0 10px 25px rgba(0,0,0,0.04)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'none';
-                e.currentTarget.style.boxShadow = '0 4px 15px rgba(0,0,0,0.02)';
-              }}
+            <div key={i} style={{ ...card(), padding: '20px 22px', display: 'flex', alignItems: 'center', gap: 14, transition: 'transform 0.2s, box-shadow 0.2s', cursor: 'default' }}
+              onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.06)'; }}
+              onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 2px 16px rgba(148,163,184,0.06)'; }}
             >
-              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 4, background: card.color }} />
-              <div style={{ width: 44, height: 44, borderRadius: 14, background: card.gradient, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${card.border}` }}>
-                <Icon style={{ width: 20, height: 20, color: card.color }} />
+              <div style={{ width: 48, height: 48, borderRadius: 14, background: `${c.color}15`, border: `1.5px solid ${c.color}25`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Icon style={{ width: 22, height: 22, color: c.color }} />
               </div>
               <div>
-                <div style={{ fontSize: 10, color: '#94A3B8', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{card.label}</div>
-                <div style={{ fontSize: 20, fontWeight: 950, color: '#1E293B', marginTop: 4 }}>
-                  {(card as any).raw ? card.val : `Rs. ${(card.val as number).toLocaleString()}`}
-                </div>
+                <div style={{ fontSize: 10, color: '#94A3B8', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{c.label}</div>
+                <div style={{ fontSize: 20, fontWeight: 900, color: '#1E293B', marginTop: 3, fontFamily: 'monospace' }}>{fmtRs(c.val)}</div>
+                <div style={{ fontSize: 11, color: '#CBD5E1', marginTop: 2 }}>{c.sub}</div>
               </div>
             </div>
           );
         })}
       </div>
 
-      {/* ── B2B Payment Summary Row ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20 }}>
-        {[
-          { label: 'Outstanding Due', val: outstandingDue, subtitle: 'Unpaid B2B purchases', color: '#EF4444', icon: AlertTriangle, bg: 'rgba(239,68,68,0.03)', border: 'rgba(239,68,68,0.12)' },
-          { label: 'Pending Verification', val: pendingVerification, subtitle: 'Awaiting wholesaler approval', color: '#F59E0B', icon: Clock, bg: 'rgba(245,158,11,0.03)', border: 'rgba(245,158,11,0.12)' },
-          { label: 'Total Verified Payments', val: totalVerified, subtitle: 'Confirmed by wholesaler', color: '#10B981', icon: ShieldCheck, bg: 'rgba(16,185,129,0.03)', border: 'rgba(16,185,129,0.12)' }
-        ].map((pCard, idx) => {
-          const PIcon = pCard.icon;
-          return (
-            <div key={idx} style={{
-              background: pCard.bg, border: `1.5px solid ${pCard.border}`, borderRadius: 16, padding: '16px 20px',
-              display: 'flex', alignItems: 'center', gap: 14, boxShadow: '0 2px 10px rgba(0,0,0,0.01)'
-            }}>
-              <div style={{ width: 38, height: 38, borderRadius: 10, background: '#FFFFFF', border: `1px solid ${pCard.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <PIcon style={{ width: 18, height: 18, color: pCard.color }} />
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 10, fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.03em' }}>{pCard.label}</div>
-                <div style={{ fontSize: 18, fontWeight: 900, color: '#1E293B', fontFamily: 'monospace', marginTop: 2 }}>
-                  Rs. {pCard.val.toLocaleString()}
-                </div>
-                <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 1 }}>{pCard.subtitle}</div>
-              </div>
-            </div>
-          );
-        })}
+      {/* Recent Purchases Summary */}
+      <div style={card()}>
+        <div style={{ padding: '18px 24px', borderBottom: '1px solid #F1F5F9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h3 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: '#1E293B', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Package style={{ width: 16, height: 16, color: '#3B82F6' }} /> Recent B2B Purchases
+          </h3>
+          <button onClick={() => setActiveTab('purchases')} style={{ fontSize: 12, color: '#3B82F6', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
+            View All <ChevronRight style={{ width: 14, height: 14 }} />
+          </button>
+        </div>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ background: '#F8FAFC' }}>
+                {['Invoice ID', 'Wholesaler', 'Amount', 'Advance Used', 'Status', 'Due'].map(h => (
+                  <th key={h} style={{ padding: '12px 18px', color: '#64748B', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em', textAlign: 'left', borderBottom: '1px solid #F1F5F9' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {purchases.slice(0, 5).map(p => {
+                const st = p.settleStatus || 'UNPAID';
+                const meta = SETTLE_META[st] || SETTLE_META.UNPAID;
+                const SIcon = meta.icon;
+                const due = p.netAmount - (p.advanceApplied || 0) - (st === 'VERIFIED' ? (p.settleAmount || 0) : 0);
+                return (
+                  <tr key={p.id} onClick={() => { setSelectedOrder(p); setIsSaleModal(false); }}
+                    style={{ cursor: 'pointer', borderBottom: '1px solid #F8FAFC', transition: 'background 0.15s' }}
+                    onMouseEnter={e => e.currentTarget.style.background = '#F8FAFC'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <td style={{ padding: '13px 18px', fontFamily: 'monospace', fontWeight: 700, color: '#475569', fontSize: 12 }}>
+                      #{p.id.substring(0, 8).toUpperCase()}
+                    </td>
+                    <td style={{ padding: '13px 18px', fontWeight: 700, color: '#1E293B' }}>{p.wholesaler?.companyName || '—'}</td>
+                    <td style={{ padding: '13px 18px', fontWeight: 800, color: '#1E293B', fontFamily: 'monospace' }}>{fmtRs(p.netAmount)}</td>
+                    <td style={{ padding: '13px 18px', fontWeight: 700, color: '#8B5CF6', fontFamily: 'monospace' }}>
+                      {p.advanceApplied > 0 ? fmtRs(p.advanceApplied) : '—'}
+                    </td>
+                    <td style={{ padding: '13px 18px' }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, color: meta.color, background: meta.bg }}>
+                        <SIcon style={{ width: 11, height: 11 }} /> {meta.label}
+                      </span>
+                    </td>
+                    <td style={{ padding: '13px 18px', fontWeight: 800, color: due > 0 ? '#EF4444' : '#10B981', fontFamily: 'monospace' }}>
+                      {due > 0 ? fmtRs(due) : '✓ Cleared'}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
 
-      {/* ── Modern Navigation Tabs ── */}
-      <div style={{ display: 'flex', gap: 6, background: '#F8FAFC', borderRadius: 16, padding: 6, border: '1px solid #E2E8F0' }}>
-        <button
-          onClick={() => { setActiveTab('sales'); setFilterStatus('all'); setFilterSettle('all'); setSearchQuery(''); }}
-          style={{
-            flex: 1, padding: '12px 20px', borderRadius: 12, border: 'none', fontSize: 13, fontWeight: 800, cursor: 'pointer',
-            background: activeTab === 'sales' ? '#FFFFFF' : 'transparent',
-            color: activeTab === 'sales' ? '#F59E0B' : '#64748B',
-            boxShadow: activeTab === 'sales' ? '0 4px 12px rgba(0,0,0,0.05)' : 'none',
-            transition: 'all 0.2s ease'
-          }}
-        >
-          B2C Sales Counter Statement ({currentSales.length})
-        </button>
-        <button
-          onClick={() => { setActiveTab('purchases'); setFilterStatus('all'); setFilterSettle('all'); setSearchQuery(''); }}
-          style={{
-            flex: 1, padding: '12px 20px', borderRadius: 12, border: 'none', fontSize: 13, fontWeight: 800, cursor: 'pointer',
-            background: activeTab === 'purchases' ? '#FFFFFF' : 'transparent',
-            color: activeTab === 'purchases' ? '#F59E0B' : '#64748B',
-            boxShadow: activeTab === 'purchases' ? '0 4px 12px rgba(0,0,0,0.05)' : 'none',
-            transition: 'all 0.2s ease'
-          }}
-        >
-          B2B Wholesale Purchases ({currentPurchases.length})
-        </button>
-        <button
-          onClick={() => { setActiveTab('audit'); }}
-          style={{
-            flex: 1, padding: '12px 20px', borderRadius: 12, border: 'none', fontSize: 13, fontWeight: 800, cursor: 'pointer',
-            background: activeTab === 'audit' ? '#FFFFFF' : 'transparent',
-            color: activeTab === 'audit' ? '#F59E0B' : '#64748B',
-            boxShadow: activeTab === 'audit' ? '0 4px 12px rgba(0,0,0,0.05)' : 'none',
-            transition: 'all 0.2s ease'
-          }}
-        >
-          💼 Fiscal Year Audit Report
-        </button>
-      </div>
-
-      {activeTab !== 'audit' ? (
-        <>
-          {/* ── Modern Search & Filter Controls ── */}
-          <div style={{
-            display: 'flex', gap: 16, padding: '16px 20px', background: '#FFFFFF', borderRadius: 18,
-            border: '1.5px solid #F1F5F9', flexWrap: 'wrap', alignItems: 'center', boxShadow: '0 2px 12px rgba(0,0,0,0.01)'
-          }}>
-            <div style={{ flex: 1, minWidth: 260, display: 'flex', alignItems: 'center', gap: 10, background: '#F8FAFC', padding: '10px 16px', borderRadius: 12, border: '1px solid #E2E8F0' }}>
-              <Search style={{ width: 16, height: 16, color: '#94A3B8' }} />
-              <input
-                ref={searchRef}
-                type="text"
-                placeholder={activeTab === 'sales' ? 'Search patient name, phone, or invoice UUID…' : 'Search wholesaler, address, or bill UUID…'}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%', fontSize: 13, color: '#334155', fontFamily: 'inherit' }}
-              />
-            </div>
-
-            {/* Order status filters */}
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              {['all', 'DELIVERED', 'PENDING', 'DISPATCHED', 'PICKING'].map(s => (
-                <button
-                  key={s}
-                  onClick={() => setFilterStatus(s)}
-                  style={{
-                    padding: '8px 16px', borderRadius: 20, fontSize: 11, fontWeight: 800, cursor: 'pointer', border: '1.5px solid',
-                    transition: 'all 0.15s ease', fontFamily: 'inherit',
-                    borderColor: filterStatus === s ? '#F59E0B' : '#E2E8F0',
-                    background: filterStatus === s ? '#FEF3C7' : '#FFFFFF',
-                    color: filterStatus === s ? '#B45309' : '#64748B'
-                  }}
-                >
-                  {s === 'all' ? 'All Statuses' : s}
-                </button>
-              ))}
-            </div>
-
-            {/* Settle status filters */}
-            {activeTab === 'purchases' && (
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                {['all', 'UNPAID', 'PENDING_VERIFICATION', 'VERIFIED'].map(s => {
-                  const m = s === 'all' ? null : SETTLE_META[s];
-                  return (
-                    <button
-                      key={s}
-                      onClick={() => setFilterSettle(s)}
-                      style={{
-                        padding: '8px 16px', borderRadius: 20, fontSize: 11, fontWeight: 800, cursor: 'pointer', border: '1.5px solid',
-                        transition: 'all 0.15s ease', fontFamily: 'inherit',
-                        borderColor: filterSettle === s ? (m?.color || '#3B82F6') : '#E2E8F0',
-                        background: filterSettle === s ? (m?.bg || 'rgba(59,130,246,0.1)') : '#FFFFFF',
-                        color: filterSettle === s ? (m?.color || '#3B82F6') : '#64748B'
-                      }}
-                    >
-                      {s === 'all' ? 'All Settlements' : m?.label}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-
-            <div style={{ fontSize: 12, fontWeight: 800, color: '#94A3B8', marginLeft: 'auto', background: '#F8FAFC', padding: '6px 12px', borderRadius: 8, border: '1px solid #E2E8F0' }}>
-              {filtered.length} Invoices · <span style={{ color: '#1E293B' }}>Rs. {totalFilteredRev.toLocaleString()}</span>
-            </div>
-          </div>
-
-          {/* ── Modern Premium Table ── */}
-          <div style={{ background: '#FFFFFF', borderRadius: 20, border: '1.5px solid #F1F5F9', overflow: 'hidden', boxShadow: '0 4px 20px rgba(0,0,0,0.02)' }}>
-            {filtered.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '80px 40px', color: '#94A3B8', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
-                <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#F8FAFC', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid #F1F5F9' }}>
-                  <Receipt style={{ width: 28, height: 28, color: '#CBD5E1' }} />
-                </div>
-                <div>
-                  <div style={{ fontSize: 15, fontWeight: 800, color: '#475569' }}>No fiscal statements matching criteria</div>
-                  <div style={{ fontSize: 12, color: '#94A3B8', marginTop: 4 }}>Try clearing queries or filtering another interval.</div>
-                </div>
-              </div>
-            ) : (
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 13 }}>
-                  <thead>
-                    <tr style={{ background: '#F8FAFC', borderBottom: '2px solid #F1F5F9' }}>
-                      <th style={{ padding: '16px 24px', color: '#64748B', fontWeight: 800, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Invoice UUID</th>
-                      <th style={{ padding: '16px 24px', color: '#64748B', fontWeight: 800, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{activeTab === 'sales' ? 'Recipient Patient' : 'Wholesaler Pharmacy'}</th>
-                      <th style={{ padding: '16px 24px', color: '#64748B', fontWeight: 800, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Items In Cart</th>
-                      <th style={{ padding: '16px 24px', color: '#64748B', fontWeight: 800, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Net Bill Value</th>
-                      <th style={{ padding: '16px 24px', color: '#64748B', fontWeight: 800, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Order Status</th>
-                      <th style={{ padding: '16px 24px', color: '#64748B', fontWeight: 800, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Accounting Status</th>
-                      <th style={{ padding: '16px 24px', color: '#64748B', fontWeight: 800, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Timestamp</th>
-                      <th style={{ padding: '16px 24px', color: '#64748B', fontWeight: 800, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center' }}>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filtered.map((item) => {
-                      const d = activeTab === 'sales' ? getB2CDetails(item.overrideJustification) : null;
-                      const sm = STATUS_META[item.status] || { color: '#64748B', bg: 'rgba(100,116,139,0.08)' };
-                      const settleKey = item.settleStatus || 'UNPAID';
-                      const pm = SETTLE_META[settleKey] || SETTLE_META.UNPAID;
-                      const PayIcon = pm.icon;
-                      const canSettle = activeTab === 'purchases'
-                        ? (item.status === 'DELIVERED' && (settleKey === 'UNPAID' || settleKey === 'REJECTED'))
-                        : (d && d.due > 0);
-
-                      // Highlight logic if search parameter exactly matches
-                      const isExactlyMatched = searchQuery && item.id.toLowerCase() === searchQuery.toLowerCase();
-
-                      return (
-                        <tr
-                          key={item.id}
-                          onClick={() => setSelectedOrder(item)}
-                          style={{
-                            borderBottom: '1px solid #F8FAFC', cursor: 'pointer', transition: 'all 0.15s ease',
-                            background: isExactlyMatched ? 'rgba(254,243,199,0.4)' : 'transparent'
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.background = isExactlyMatched ? 'rgba(254,243,199,0.5)' : '#F8FAFC';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.background = isExactlyMatched ? 'rgba(254,243,199,0.4)' : 'transparent';
-                          }}
-                        >
-                          <td style={{ padding: '16px 24px', fontFamily: 'monospace', fontWeight: 700, color: '#475569', fontSize: 12 }}>
-                            #{item.id.substring(0, 8).toUpperCase()}
-                            {isExactlyMatched && <span style={{ marginLeft: 6, background: '#F59E0B', color: '#FFFFFF', fontSize: 9, fontWeight: 900, padding: '2px 6px', borderRadius: 4 }}>TARGET</span>}
-                          </td>
-                          <td style={{ padding: '16px 24px' }}>
-                            <div style={{ fontWeight: 800, color: '#1E293B' }}>{d ? d.name : item.wholesaler?.companyName || '—'}</div>
-                            <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 3 }}>{d ? `📞 ${d.phone}` : item.wholesaler?.address || ''}</div>
-                          </td>
-                          <td style={{ padding: '16px 24px', color: '#475569', fontWeight: 600 }}>{item.items.length} medicine{item.items.length !== 1 ? 's' : ''}</td>
-                          <td style={{ padding: '16px 24px' }}>
-                            <div style={{ fontWeight: 900, color: '#1E293B' }}>Rs. {item.netAmount.toLocaleString()}</div>
-                            {item.discountAmount > 0 && <div style={{ fontSize: 11, color: '#EF4444', marginTop: 1 }}>-Rs. {item.discountAmount.toLocaleString()}</div>}
-                          </td>
-                          <td style={{ padding: '16px 24px' }}>
-                            <span style={{ padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 750, color: sm.color, background: sm.bg }}>
-                              {item.status}
-                            </span>
-                          </td>
-                          <td style={{ padding: '16px 24px' }}>
-                            {activeTab === 'purchases' ? (
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 800, color: pm.color, background: pm.bg, width: 'fit-content' }}>
-                                  <PayIcon style={{ width: 12, height: 12 }} />
-                                  {pm.label}
-                                </span>
-                                {settleKey === 'PENDING_VERIFICATION' && item.settleAmount && (
-                                  <div style={{ fontSize: 10, color: '#94A3B8' }}>Rs. {item.settleAmount.toLocaleString()} via {item.settleMethod}</div>
-                                )}
-                                {settleKey === 'VERIFIED' && item.settleAmount && (
-                                  <div style={{ fontSize: 10, color: '#10B981', fontWeight: 700 }}>✓ Rs. {item.settleAmount.toLocaleString()} verified</div>
-                                )}
-                                {settleKey === 'REJECTED' && (
-                                  <div style={{ fontSize: 10, color: '#DC2626', fontWeight: 700 }}>⚠ Settlement rejected</div>
-                                )}
-                              </div>
-                            ) : (
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                                {d && d.due > 0 ? (
-                                  <>
-                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 800, color: '#DC2626', background: 'rgba(220,38,38,0.08)', width: 'fit-content' }}>
-                                      <AlertTriangle style={{ width: 12, height: 12 }} />
-                                      Due: Rs. {d.due.toLocaleString()}
-                                    </span>
-                                    <div style={{ fontSize: 10, color: '#94A3B8' }}>Paid: Rs. {d.paid.toLocaleString()} ({d.method})</div>
-                                  </>
-                                ) : (
-                                  <>
-                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 800, color: '#059669', background: 'rgba(5,150,105,0.08)', width: 'fit-content' }}>
-                                      <CheckCircle style={{ width: 12, height: 12 }} />
-                                      Fully Paid
-                                    </span>
-                                    {d && <div style={{ fontSize: 10, color: '#94A3B8' }}>Paid: Rs. {d.paid.toLocaleString()} ({d.method})</div>}
-                                  </>
-                                )}
-                              </div>
-                            )}
-                          </td>
-                          <td style={{ padding: '16px 24px', color: '#64748B', fontSize: 12 }}>
-                            {new Date(item.createdAt).toLocaleDateString()}
-                            <div style={{ fontSize: 10, color: '#CBD5E1', marginTop: 2 }}>{new Date(item.createdAt).toLocaleTimeString()}</div>
-                          </td>
-                          <td style={{ padding: '16px 24px', textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
-                            <div style={{ display: 'flex', gap: 8, justifyContent: 'center', alignItems: 'center' }}>
-                              <button
-                                onClick={() => setSelectedOrder(item)}
-                                title="Inspect Details"
-                                style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: '8px', color: '#475569', cursor: 'pointer', display: 'flex', transition: 'all 0.15s ease' }}
-                                onMouseEnter={(e) => { e.currentTarget.style.background = '#E2E8F0'; }}
-                                onMouseLeave={(e) => { e.currentTarget.style.background = '#F8FAFC'; }}
-                              >
-                                <Eye style={{ width: 14, height: 14 }} />
-                              </button>
-                              <button
-                                onClick={() => printInvoice(item, activeTab === 'sales')}
-                                title="Print invoice receipt"
-                                style={{ background: 'rgba(245,158,11,0.05)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 8, padding: '8px', color: '#F59E0B', cursor: 'pointer', display: 'flex', transition: 'all 0.15s ease' }}
-                                onMouseEnter={(e) => { e.currentTarget.style.background = '#FEF3C7'; }}
-                                onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(245,158,11,0.05)'; }}
-                              >
-                                <Printer style={{ width: 14, height: 14 }} />
-                              </button>
-                              {canSettle && (
-                                <button
-                                  onClick={() => handleOpenSettle(item)}
-                                  style={{
-                                    display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px',
-                                    background: 'linear-gradient(135deg, #F59E0B, #D97706)', border: 'none',
-                                    borderRadius: 8, color: 'white', fontSize: 11, fontWeight: 800, cursor: 'pointer',
-                                    boxShadow: '0 4px 10px rgba(245,158,11,0.15)', transition: 'all 0.15s ease'
-                                  }}
-                                  onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.03)'; }}
-                                  onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; }}
-                                >
-                                  <DollarSign style={{ width: 12, height: 12 }} /> Settle
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-          {/* Audit Period Selector Panel */}
-          <div style={{
-            display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16,
-            background: '#FFFFFF', border: '1.5px solid #F1F5F9', borderRadius: 20, padding: '20px 24px',
-            boxShadow: '0 4px 15px rgba(0,0,0,0.01)'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <label style={{ fontSize: 13, fontWeight: 800, color: '#475569' }}>Select Fiscal Period:</label>
-              <select
-                value={selectedFY}
-                onChange={(e) => setSelectedFY(e.target.value as any)}
-                style={{
-                  padding: '10px 14px', borderRadius: 12, border: '1.5px solid #E2E8F0', outline: 'none',
-                  fontSize: 13, fontWeight: 700, color: '#1E293B', background: '#FFFFFF', cursor: 'pointer'
-                }}
-              >
-                <option value="26-27">FY 2026 - 2027 (Apr 2026 - Mar 2027)</option>
-                <option value="25-26">FY 2025 - 2026 (Apr 2025 - Mar 2026)</option>
-                <option value="24-25">FY 2024 - 2025 (Apr 2024 - Mar 2025)</option>
-                <option value="all">All Time Audited Ledger</option>
-              </select>
-            </div>
-            
-            <button
-              onClick={downloadCSVReport}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 8, padding: '11px 20px',
-                background: 'linear-gradient(135deg, #10B981, #059669)', border: 'none',
-                borderRadius: 12, color: 'white', fontSize: 13, fontWeight: 800, cursor: 'pointer',
-                boxShadow: '0 4px 14px rgba(16,185,129,0.25)', transition: 'all 0.15s ease'
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.02)'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; }}
-            >
-              📥 Export Excel Report (CSV)
+      {/* Returns Summary */}
+      {returns.length > 0 && (
+        <div style={card()}>
+          <div style={{ padding: '18px 24px', borderBottom: '1px solid #F1F5F9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h3 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: '#1E293B', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <RefreshCw style={{ width: 16, height: 16, color: '#F97316' }} /> Return Requests
+            </h3>
+            <button onClick={() => setActiveTab('returns')} style={{ fontSize: 12, color: '#3B82F6', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
+              View All <ChevronRight style={{ width: 14, height: 14 }} />
             </button>
           </div>
-
-          {/* Audit Performance Cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 20 }}>
+          <div style={{ padding: '12px 24px', display: 'flex', gap: 16, flexWrap: 'wrap' }}>
             {[
-              { label: 'Audited B2C Sales', val: auditMetrics.salesRev, color: '#10B981', bg: 'rgba(16,185,129,0.03)', border: 'rgba(16,185,129,0.12)' },
-              { label: 'Audited Procurement Spend', val: auditMetrics.purchaseCost, color: '#F97316', bg: 'rgba(249,115,22,0.03)', border: 'rgba(249,115,22,0.12)' },
-              { label: 'Estimated COGS (Cost of Goods)', val: auditMetrics.totalCogs, color: '#8B5CF6', bg: 'rgba(139,92,246,0.03)', border: 'rgba(139,92,246,0.12)' },
-              { label: 'Estimated Operating Net Income', val: auditMetrics.netIncome, color: auditMetrics.netIncome >= 0 ? '#3B82F6' : '#EF4444', bg: auditMetrics.netIncome >= 0 ? 'rgba(59,130,246,0.03)' : 'rgba(239,68,68,0.03)', border: auditMetrics.netIncome >= 0 ? 'rgba(59,130,246,0.12)' : 'rgba(239,68,68,0.12)' },
-            ].map((card, idx) => (
-              <div key={idx} style={{
-                background: card.bg, border: `1.5px solid ${card.border}`, borderRadius: 18, padding: '20px 24px',
-                display: 'flex', flexDirection: 'column', gap: 6, boxShadow: '0 2px 8px rgba(0,0,0,0.01)'
-              }}>
-                <span style={{ fontSize: 10, color: '#64748B', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{card.label}</span>
-                <span style={{ fontSize: 22, fontWeight: 950, color: card.color, fontFamily: 'monospace' }}>
-                  Rs. {card.val.toLocaleString()}
-                </span>
-                <span style={{ fontSize: 11, color: '#94A3B8' }}>Estimated for selected period</span>
+              { label: 'Pending', count: returns.filter(r => r.status === 'PENDING').length, color: '#F59E0B' },
+              { label: 'Approved', count: returns.filter(r => r.status === 'APPROVED').length, color: '#10B981' },
+              { label: 'Rejected', count: returns.filter(r => r.status === 'REJECTED').length, color: '#EF4444' },
+            ].map(s => (
+              <div key={s.label} style={{ display: 'flex', alignItems: 'center', gap: 8, background: `${s.color}10`, borderRadius: 10, padding: '8px 14px', border: `1px solid ${s.color}25` }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: s.color, display: 'block' }} />
+                <span style={{ fontSize: 13, fontWeight: 700, color: '#475569' }}>{s.label}:</span>
+                <span style={{ fontSize: 15, fontWeight: 900, color: s.color }}>{s.count}</span>
               </div>
             ))}
           </div>
-
-          {/* Audit Detailed Ledger Table */}
-          <div style={{ background: '#FFFFFF', borderRadius: 20, border: '1.5px solid #F1F5F9', overflow: 'hidden', boxShadow: '0 4px 20px rgba(0,0,0,0.02)' }}>
-            <div style={{ padding: '18px 24px', borderBottom: '1px solid #F1F5F9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ fontSize: 14, fontWeight: 900, color: '#1E293B', margin: 0 }}>Detailed Financial Transaction Registry</h3>
-              <span style={{ fontSize: 11, fontWeight: 800, color: '#94A3B8' }}>{auditedTransactions.length} Transactions Audited</span>
-            </div>
-            {auditedTransactions.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '60px 20px', color: '#94A3B8' }}>
-                No audited transactions found for selected fiscal period.
-              </div>
-            ) : (
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 13 }}>
-                  <thead>
-                    <tr style={{ background: '#F8FAFC', borderBottom: '2px solid #F1F5F9' }}>
-                      <th style={{ padding: '14px 20px', color: '#64748B', fontWeight: 800, fontSize: 11, textTransform: 'uppercase' }}>Date & Time</th>
-                      <th style={{ padding: '14px 20px', color: '#64748B', fontWeight: 800, fontSize: 11, textTransform: 'uppercase' }}>Invoice ID</th>
-                      <th style={{ padding: '14px 20px', color: '#64748B', fontWeight: 800, fontSize: 11, textTransform: 'uppercase' }}>Type</th>
-                      <th style={{ padding: '14px 20px', color: '#64748B', fontWeight: 800, fontSize: 11, textTransform: 'uppercase' }}>Entity</th>
-                      <th style={{ padding: '14px 20px', color: '#64748B', fontWeight: 800, fontSize: 11, textTransform: 'uppercase', textAlign: 'right' }}>Net Amount</th>
-                      <th style={{ padding: '14px 20px', color: '#64748B', fontWeight: 800, fontSize: 11, textTransform: 'uppercase', textAlign: 'right' }}>COGS Cost</th>
-                      <th style={{ padding: '14px 20px', color: '#64748B', fontWeight: 800, fontSize: 11, textTransform: 'uppercase', textAlign: 'right' }}>Net Profit</th>
-                      <th style={{ padding: '14px 20px', color: '#64748B', fontWeight: 800, fontSize: 11, textTransform: 'uppercase', textAlign: 'right' }}>Net Loss / Outflow</th>
-                      <th style={{ padding: '14px 20px', color: '#64748B', fontWeight: 800, fontSize: 11, textTransform: 'uppercase' }}>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {auditedTransactions.map((tx, idx) => (
-                      <tr key={idx} style={{ borderBottom: '1px solid #F8FAFC', transition: 'background 0.15s ease' }} onMouseEnter={(e) => { e.currentTarget.style.background = '#F8FAFC'; }} onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}>
-                        <td style={{ padding: '14px 20px', color: '#475569' }}>
-                          <div style={{ fontWeight: 700 }}>{tx.date}</div>
-                          <div style={{ fontSize: 10, color: '#94A3B8', marginTop: 2 }}>{tx.time}</div>
-                        </td>
-                        <td style={{ padding: '14px 20px', fontFamily: 'monospace', fontWeight: 700, color: '#64748B' }}>
-                          #{tx.id.substring(0, 8).toUpperCase()}
-                        </td>
-                        <td style={{ padding: '14px 20px' }}>
-                          <span style={{
-                            padding: '3px 8px', borderRadius: 6, fontSize: 10, fontWeight: 800,
-                            color: tx.rawType === 'sale' ? '#10B981' : '#F97316',
-                            background: tx.rawType === 'sale' ? 'rgba(16,185,129,0.08)' : 'rgba(249,115,22,0.08)'
-                          }}>
-                            {tx.type}
-                          </span>
-                        </td>
-                        <td style={{ padding: '14px 20px', fontWeight: 750, color: '#1E293B' }}>{tx.entity}</td>
-                        <td style={{ padding: '14px 20px', textAlign: 'right', fontWeight: 800, color: '#1E293B', fontFamily: 'monospace' }}>Rs. {tx.net.toLocaleString()}</td>
-                        <td style={{ padding: '14px 20px', textAlign: 'right', fontWeight: 700, color: '#64748B', fontFamily: 'monospace' }}>Rs. {tx.cogs.toLocaleString()}</td>
-                        <td style={{ padding: '14px 20px', textAlign: 'right', fontWeight: 800, color: tx.profit > 0 ? '#10B981' : '#CBD5E1', fontFamily: 'monospace' }}>
-                          {tx.profit > 0 ? `+Rs. ${tx.profit.toLocaleString()}` : '—'}
-                        </td>
-                        <td style={{ padding: '14px 20px', textAlign: 'right', fontWeight: 800, color: tx.loss > 0 ? '#EF4444' : '#CBD5E1', fontFamily: 'monospace' }}>
-                          {tx.loss > 0 ? `-Rs. ${tx.loss.toLocaleString()}` : '—'}
-                        </td>
-                        <td style={{ padding: '14px 20px' }}>
-                          <span style={{
-                            fontSize: 10, fontWeight: 750, color: tx.status.includes('Paid') || tx.status === 'VERIFIED' ? '#059669' : '#DC2626',
-                            background: tx.status.includes('Paid') || tx.status === 'VERIFIED' ? 'rgba(5,150,105,0.08)' : 'rgba(220,38,38,0.08)',
-                            padding: '3px 8px', borderRadius: 6
-                          }}>
-                            {tx.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
         </div>
       )}
+    </div>
+  );
 
-      {/* ── Invoice Detail Modal ── */}
+  // Purchase Table
+  const renderPurchases = () => (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* Filter Bar */}
+      <div style={{ ...card(), padding: '14px 20px', display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+        <div style={{ flex: 1, minWidth: 240, display: 'flex', alignItems: 'center', gap: 8, background: '#F8FAFC', borderRadius: 10, padding: '9px 14px', border: '1px solid #E2E8F0' }}>
+          <Search style={{ width: 15, height: 15, color: '#94A3B8' }} />
+          <input ref={searchRef} type="text" placeholder="Search invoice, wholesaler…" value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%', fontSize: 13, color: '#334155', fontFamily: 'inherit' }} />
+        </div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {(['all', 'UNPAID', 'PENDING_VERIFICATION', 'VERIFIED'] as const).map(s => {
+            const m = s !== 'all' ? SETTLE_META[s] : null;
+            return (
+              <button key={s} onClick={() => setFilterSettle(s)} style={{
+                padding: '7px 14px', borderRadius: 20, fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                border: `1.5px solid ${filterSettle === s ? (m?.color || '#3B82F6') : '#E2E8F0'}`,
+                background: filterSettle === s ? (m?.bg || 'rgba(59,130,246,0.08)') : '#FFFFFF',
+                color: filterSettle === s ? (m?.color || '#3B82F6') : '#64748B',
+              }}>
+                {s === 'all' ? 'All' : m?.label}
+              </button>
+            );
+          })}
+        </div>
+        <div style={{ fontSize: 12, color: '#94A3B8', fontWeight: 700, marginLeft: 'auto' }}>
+          {filteredPurchases.length} orders
+        </div>
+      </div>
+
+      <div style={card()}>
+        {filteredPurchases.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '60px 20px', color: '#94A3B8' }}>
+            <Package style={{ width: 40, height: 40, color: '#E2E8F0', margin: '0 auto 12px' }} />
+            <div style={{ fontSize: 14, fontWeight: 700 }}>No purchase orders found</div>
+          </div>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead>
+                <tr style={{ background: '#F8FAFC', borderBottom: '2px solid #F1F5F9' }}>
+                  {['Invoice', 'Wholesaler', 'Order Date', 'Net Amount', 'Advance Used', 'Pay Status', 'Due Amount', 'Actions'].map(h => (
+                    <th key={h} style={{ padding: '14px 18px', color: '#64748B', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filteredPurchases.map(p => {
+                  const st = p.settleStatus || 'UNPAID';
+                  const meta = SETTLE_META[st] || SETTLE_META.UNPAID;
+                  const SIcon = meta.icon;
+                  const effectivePaid = st === 'VERIFIED' ? (p.settleAmount || 0) : 0;
+                  const due = Math.max(p.netAmount - (p.advanceApplied || 0) - effectivePaid, 0);
+                  const canSettle = p.status === 'DELIVERED' && (st === 'UNPAID' || st === 'REJECTED');
+                  return (
+                    <tr key={p.id}
+                      onClick={() => { setSelectedOrder(p); setIsSaleModal(false); }}
+                      style={{ cursor: 'pointer', borderBottom: '1px solid #F8FAFC', transition: 'background 0.15s' }}
+                      onMouseEnter={e => e.currentTarget.style.background = '#F8FAFC'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                    >
+                      <td style={{ padding: '14px 18px', fontFamily: 'monospace', fontWeight: 700, color: '#475569', fontSize: 12 }}>
+                        #{p.id.substring(0, 8).toUpperCase()}
+                      </td>
+                      <td style={{ padding: '14px 18px' }}>
+                        <div style={{ fontWeight: 700, color: '#1E293B' }}>{p.wholesaler?.companyName || '—'}</div>
+                        <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>{p.wholesaler?.address || ''}</div>
+                      </td>
+                      <td style={{ padding: '14px 18px', color: '#64748B', fontSize: 12, whiteSpace: 'nowrap' }}>
+                        <div style={{ fontWeight: 600 }}>{new Date(p.createdAt).toLocaleDateString()}</div>
+                        <div style={{ fontSize: 10, color: '#CBD5E1' }}>{new Date(p.createdAt).toLocaleTimeString()}</div>
+                      </td>
+                      <td style={{ padding: '14px 18px', fontWeight: 800, color: '#1E293B', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
+                        {fmtRs(p.netAmount)}
+                        {p.discountAmount > 0 && <div style={{ fontSize: 11, color: '#10B981' }}>-{fmtRs(p.discountAmount)} disc</div>}
+                      </td>
+                      <td style={{ padding: '14px 18px', fontWeight: 700, color: '#8B5CF6', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
+                        {(p.advanceApplied || 0) > 0 ? fmtRs(p.advanceApplied) : <span style={{ color: '#CBD5E1' }}>—</span>}
+                      </td>
+                      <td style={{ padding: '14px 18px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, color: meta.color, background: meta.bg, width: 'fit-content' }}>
+                            <SIcon style={{ width: 11, height: 11 }} /> {meta.label}
+                          </span>
+                          {st === 'PENDING_VERIFICATION' && p.settleAmount && (
+                            <div style={{ fontSize: 10, color: '#94A3B8' }}>{fmtRs(p.settleAmount)} via {p.settleMethod}</div>
+                          )}
+                          {st === 'VERIFIED' && p.settleAmount && (
+                            <div style={{ fontSize: 10, color: '#10B981', fontWeight: 700 }}>✓ {fmtRs(p.settleAmount)} verified</div>
+                          )}
+                        </div>
+                      </td>
+                      <td style={{ padding: '14px 18px', fontFamily: 'monospace', fontWeight: 800, color: due > 0 ? '#EF4444' : '#10B981', whiteSpace: 'nowrap' }}>
+                        {due > 0 ? fmtRs(due) : '✓ Cleared'}
+                      </td>
+                      <td style={{ padding: '14px 18px' }} onClick={e => e.stopPropagation()}>
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                          <button onClick={() => { setSelectedOrder(p); setIsSaleModal(false); }} title="View Details"
+                            style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 7, padding: '7px', color: '#475569', cursor: 'pointer' }}>
+                            <Eye style={{ width: 13, height: 13 }} />
+                          </button>
+                          <button onClick={() => printInvoice(p, false)} title="Print"
+                            style={{ background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 7, padding: '7px', color: '#F59E0B', cursor: 'pointer' }}>
+                            <Printer style={{ width: 13, height: 13 }} />
+                          </button>
+                          {canSettle && (
+                            <button onClick={() => handleOpenSettle(p, false)}
+                              style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 10px', background: 'linear-gradient(135deg, #3B82F6, #1E40AF)', border: 'none', borderRadius: 7, color: '#FFFFFF', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                              <DollarSign style={{ width: 11, height: 11 }} /> Pay
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  // Sales Table
+  const renderSales = () => (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ ...card(), padding: '14px 20px', display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+        <div style={{ flex: 1, minWidth: 240, display: 'flex', alignItems: 'center', gap: 8, background: '#F8FAFC', borderRadius: 10, padding: '9px 14px', border: '1px solid #E2E8F0' }}>
+          <Search style={{ width: 15, height: 15, color: '#94A3B8' }} />
+          <input type="text" placeholder="Search patient name, phone, invoice…" value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%', fontSize: 13, color: '#334155', fontFamily: 'inherit' }} />
+        </div>
+        <div style={{ fontSize: 12, color: '#94A3B8', fontWeight: 700, marginLeft: 'auto' }}>
+          {filteredSales.length} sales
+        </div>
+      </div>
+
+      <div style={card()}>
+        {filteredSales.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '60px 20px', color: '#94A3B8' }}>
+            <Receipt style={{ width: 40, height: 40, color: '#E2E8F0', margin: '0 auto 12px' }} />
+            <div style={{ fontSize: 14, fontWeight: 700 }}>No B2C sales found</div>
+          </div>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead>
+                <tr style={{ background: '#F8FAFC', borderBottom: '2px solid #F1F5F9' }}>
+                  {['Invoice', 'Patient', 'Items', 'Net Amount', 'Paid', 'Due / Status', 'Date', 'Actions'].map(h => (
+                    <th key={h} style={{ padding: '14px 18px', color: '#64748B', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filteredSales.map(s => {
+                  const d = getB2CDetails(s.overrideJustification);
+                  const canSettle = d.due > 0;
+                  return (
+                    <tr key={s.id}
+                      onClick={() => { setSelectedOrder(s); setIsSaleModal(true); }}
+                      style={{ cursor: 'pointer', borderBottom: '1px solid #F8FAFC', transition: 'background 0.15s' }}
+                      onMouseEnter={e => e.currentTarget.style.background = '#F8FAFC'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                    >
+                      <td style={{ padding: '14px 18px', fontFamily: 'monospace', fontWeight: 700, color: '#475569', fontSize: 12 }}>
+                        #{s.id.substring(0, 8).toUpperCase()}
+                      </td>
+                      <td style={{ padding: '14px 18px' }}>
+                        <div style={{ fontWeight: 700, color: '#1E293B' }}>{d.name}</div>
+                        <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>📞 {d.phone}</div>
+                      </td>
+                      <td style={{ padding: '14px 18px', color: '#475569', fontWeight: 600 }}>{s.items.length} item{s.items.length !== 1 ? 's' : ''}</td>
+                      <td style={{ padding: '14px 18px', fontWeight: 800, color: '#1E293B', fontFamily: 'monospace' }}>
+                        {fmtRs(s.netAmount)}
+                      </td>
+                      <td style={{ padding: '14px 18px', fontWeight: 700, color: '#10B981', fontFamily: 'monospace' }}>
+                        {fmtRs(d.paid)} <div style={{ fontSize: 10, color: '#94A3B8' }}>{d.method}</div>
+                      </td>
+                      <td style={{ padding: '14px 18px' }}>
+                        {d.due > 0 ? (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, color: '#EF4444', background: 'rgba(239,68,68,0.08)' }}>
+                            <AlertTriangle style={{ width: 11, height: 11 }} /> Due: {fmtRs(d.due)}
+                          </span>
+                        ) : (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, color: '#10B981', background: 'rgba(16,185,129,0.08)' }}>
+                            <CheckCircle style={{ width: 11, height: 11 }} /> Fully Paid
+                          </span>
+                        )}
+                      </td>
+                      <td style={{ padding: '14px 18px', color: '#64748B', fontSize: 12, whiteSpace: 'nowrap' }}>
+                        {new Date(s.createdAt).toLocaleDateString()}
+                      </td>
+                      <td style={{ padding: '14px 18px' }} onClick={e => e.stopPropagation()}>
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button onClick={() => { setSelectedOrder(s); setIsSaleModal(true); }}
+                            style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 7, padding: '7px', color: '#475569', cursor: 'pointer' }}>
+                            <Eye style={{ width: 13, height: 13 }} />
+                          </button>
+                          <button onClick={() => printInvoice(s, true)}
+                            style={{ background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 7, padding: '7px', color: '#F59E0B', cursor: 'pointer' }}>
+                            <Printer style={{ width: 13, height: 13 }} />
+                          </button>
+                          {canSettle && (
+                            <button onClick={() => handleOpenSettle(s, true)}
+                              style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 10px', background: 'linear-gradient(135deg, #10B981, #059669)', border: 'none', borderRadius: 7, color: '#FFFFFF', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                              <DollarSign style={{ width: 11, height: 11 }} /> Collect
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  // Ledger Tab
+  const renderLedger = () => {
+    const reversedLedgers = [...ledgers].reverse();
+    const totalDebit = ledgers.reduce((s, l) => s + l.debit, 0);
+    const totalCredit = ledgers.reduce((s, l) => s + l.credit, 0);
+    const currentBalance = ledgers.length > 0 ? ledgers[ledgers.length - 1].balance : 0;
+
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+        {/* Ledger Summary Cards */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
+          {[
+            { label: 'Total Debits (You Owe)', val: totalDebit, color: '#EF4444', icon: ArrowUpLeft },
+            { label: 'Total Credits (Received)', val: totalCredit, color: '#10B981', icon: ArrowDownLeft },
+            { label: 'Current Balance', val: Math.abs(currentBalance), color: currentBalance > 0 ? '#EF4444' : '#10B981', icon: BookOpen,
+              sub: currentBalance > 0 ? 'You owe this amount' : currentBalance < 0 ? 'Wholesaler owes you' : 'Settled' },
+            { label: 'Advance Balance', val: totalAdvanceBalance, color: '#3B82F6', icon: PiggyBank, sub: 'Available for next order' },
+          ].map((c, i) => {
+            const Icon = c.icon;
+            return (
+              <div key={i} style={{ ...card(), padding: '18px 20px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 10, background: `${c.color}12`, border: `1px solid ${c.color}20`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Icon style={{ width: 18, height: 18, color: c.color }} />
+                  </div>
+                  <div style={{ fontSize: 10, color: '#94A3B8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{c.label}</div>
+                </div>
+                <div style={{ fontSize: 22, fontWeight: 900, color: c.color, fontFamily: 'monospace' }}>{fmtRs(c.val)}</div>
+                {(c as any).sub && <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 4 }}>{(c as any).sub}</div>}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Ledger Table */}
+        <div style={card()}>
+          <div style={{ padding: '16px 22px', borderBottom: '1px solid #F1F5F9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h3 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: '#1E293B', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <BookOpen style={{ width: 16, height: 16, color: '#3B82F6' }} /> Transaction Ledger
+            </h3>
+            <button onClick={exportLedgerCSV}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: 'linear-gradient(135deg, #10B981, #059669)', border: 'none', borderRadius: 10, color: '#FFFFFF', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+              <Download style={{ width: 13, height: 13 }} /> Export CSV
+            </button>
+          </div>
+
+          {reversedLedgers.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '60px 20px', color: '#94A3B8' }}>
+              <BookOpen style={{ width: 40, height: 40, color: '#E2E8F0', margin: '0 auto 12px' }} />
+              <div style={{ fontSize: 14, fontWeight: 700 }}>No ledger entries yet</div>
+              <div style={{ fontSize: 12, marginTop: 4 }}>Ledger entries will appear here as you make purchases and payments.</div>
+            </div>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                <thead>
+                  <tr style={{ background: '#F8FAFC', borderBottom: '2px solid #F1F5F9' }}>
+                    {['Date & Time', 'Type', 'Description', 'Party', 'Debit (Dr)', 'Credit (Cr)', 'Balance'].map(h => (
+                      <th key={h} style={{ padding: '13px 18px', color: '#64748B', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap', textAlign: h === 'Debit (Dr)' || h === 'Credit (Cr)' || h === 'Balance' ? 'right' : 'left' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {reversedLedgers.map((entry, idx) => {
+                    const meta = LEDGER_TYPE_META[entry.type] || { label: entry.type, color: '#64748B', bg: 'rgba(100,116,139,0.08)', icon: Activity, isDr: true };
+                    const EntryIcon = meta.icon;
+                    return (
+                      <tr key={entry.id} style={{ borderBottom: '1px solid #F8FAFC', transition: 'background 0.15s' }}
+                        onMouseEnter={e => e.currentTarget.style.background = '#F8FAFC'}
+                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                      >
+                        <td style={{ padding: '13px 18px', whiteSpace: 'nowrap' }}>
+                          <div style={{ fontWeight: 600, color: '#475569', fontSize: 12 }}>{new Date(entry.createdAt).toLocaleDateString()}</div>
+                          <div style={{ fontSize: 10, color: '#CBD5E1' }}>{new Date(entry.createdAt).toLocaleTimeString()}</div>
+                        </td>
+                        <td style={{ padding: '13px 18px' }}>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, color: meta.color, background: meta.bg }}>
+                            <EntryIcon style={{ width: 11, height: 11 }} /> {meta.label}
+                          </span>
+                        </td>
+                        <td style={{ padding: '13px 18px', color: '#475569', maxWidth: 280 }}>
+                          <div style={{ fontWeight: 600, fontSize: 12 }}>{entry.description}</div>
+                          {entry.orderId && (
+                            <div style={{ fontSize: 10, color: '#94A3B8', fontFamily: 'monospace', marginTop: 2 }}>
+                              Order: #{entry.orderId.substring(0, 8).toUpperCase()}
+                            </div>
+                          )}
+                        </td>
+                        <td style={{ padding: '13px 18px', fontWeight: 600, color: '#64748B', fontSize: 12 }}>
+                          {entry.oppositePartyName}
+                        </td>
+                        <td style={{ padding: '13px 18px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 800, color: entry.debit > 0 ? '#EF4444' : '#CBD5E1', whiteSpace: 'nowrap' }}>
+                          {entry.debit > 0 ? fmtRs(entry.debit) : '—'}
+                        </td>
+                        <td style={{ padding: '13px 18px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 800, color: entry.credit > 0 ? '#10B981' : '#CBD5E1', whiteSpace: 'nowrap' }}>
+                          {entry.credit > 0 ? fmtRs(entry.credit) : '—'}
+                        </td>
+                        <td style={{ padding: '13px 18px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 900, color: entry.balance > 0 ? '#EF4444' : entry.balance < 0 ? '#10B981' : '#64748B', whiteSpace: 'nowrap' }}>
+                          {entry.balance === 0 ? '—' : entry.balance > 0 ? `${fmtRs(entry.balance)} Dr` : `${fmtRs(Math.abs(entry.balance))} Cr`}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr style={{ background: '#F8FAFC', borderTop: '2px solid #E2E8F0' }}>
+                    <td colSpan={4} style={{ padding: '14px 18px', fontWeight: 800, fontSize: 13, color: '#475569' }}>TOTALS</td>
+                    <td style={{ padding: '14px 18px', textAlign: 'right', fontWeight: 900, color: '#EF4444', fontFamily: 'monospace' }}>{fmtRs(totalDebit)}</td>
+                    <td style={{ padding: '14px 18px', textAlign: 'right', fontWeight: 900, color: '#10B981', fontFamily: 'monospace' }}>{fmtRs(totalCredit)}</td>
+                    <td style={{ padding: '14px 18px', textAlign: 'right', fontWeight: 900, color: currentBalance > 0 ? '#EF4444' : '#10B981', fontFamily: 'monospace' }}>
+                      {currentBalance === 0 ? 'Settled' : currentBalance > 0 ? `${fmtRs(currentBalance)} Dr` : `${fmtRs(Math.abs(currentBalance))} Cr`}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  // Returns Tab
+  const renderReturns = () => (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={card()}>
+        {returns.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '60px 20px', color: '#94A3B8' }}>
+            <RefreshCw style={{ width: 40, height: 40, color: '#E2E8F0', margin: '0 auto 12px' }} />
+            <div style={{ fontSize: 14, fontWeight: 700 }}>No return requests</div>
+          </div>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead>
+                <tr style={{ background: '#F8FAFC', borderBottom: '2px solid #F1F5F9' }}>
+                  {['Return ID', 'Order', 'Wholesaler', 'Items', 'Billing Adj.', 'Status', 'Requested', 'Reason'].map(h => (
+                    <th key={h} style={{ padding: '13px 18px', color: '#64748B', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {returns.map(r => {
+                  let items: ReturnRequestItem[] = [];
+                  try { items = JSON.parse(r.itemsJson); } catch {}
+                  const statusColors: Record<string, { color: string; bg: string }> = {
+                    PENDING:  { color: '#F59E0B', bg: 'rgba(245,158,11,0.08)' },
+                    APPROVED: { color: '#10B981', bg: 'rgba(16,185,129,0.08)' },
+                    REJECTED: { color: '#EF4444', bg: 'rgba(239,68,68,0.08)' },
+                  };
+                  const sc = statusColors[r.status] || statusColors.PENDING;
+                  return (
+                    <tr key={r.id} style={{ borderBottom: '1px solid #F8FAFC', transition: 'background 0.15s' }}
+                      onMouseEnter={e => e.currentTarget.style.background = '#F8FAFC'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                    >
+                      <td style={{ padding: '14px 18px', fontFamily: 'monospace', fontWeight: 700, color: '#475569', fontSize: 12 }}>
+                        #{r.id.substring(0, 8).toUpperCase()}
+                      </td>
+                      <td style={{ padding: '14px 18px', fontFamily: 'monospace', fontWeight: 600, color: '#64748B', fontSize: 12 }}>
+                        #{r.orderId.substring(0, 8).toUpperCase()}
+                      </td>
+                      <td style={{ padding: '14px 18px', fontWeight: 700, color: '#1E293B' }}>
+                        {r.order?.wholesaler?.companyName || '—'}
+                      </td>
+                      <td style={{ padding: '14px 18px', color: '#64748B', fontWeight: 600 }}>
+                        {items.length} item{items.length !== 1 ? 's' : ''}
+                      </td>
+                      <td style={{ padding: '14px 18px' }}>
+                        {r.adjustBilling ? (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700, color: '#8B5CF6', background: 'rgba(139,92,246,0.08)' }}>
+                            <CheckCircle style={{ width: 10, height: 10 }} /> Yes
+                          </span>
+                        ) : (
+                          <span style={{ color: '#94A3B8', fontSize: 11 }}>No</span>
+                        )}
+                      </td>
+                      <td style={{ padding: '14px 18px' }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, color: sc.color, background: sc.bg }}>
+                          {r.status === 'PENDING' && <Clock style={{ width: 11, height: 11 }} />}
+                          {r.status === 'APPROVED' && <CheckCircle style={{ width: 11, height: 11 }} />}
+                          {r.status === 'REJECTED' && <X style={{ width: 11, height: 11 }} />}
+                          {r.status}
+                        </span>
+                      </td>
+                      <td style={{ padding: '14px 18px', color: '#64748B', fontSize: 12, whiteSpace: 'nowrap' }}>
+                        {new Date(r.createdAt).toLocaleDateString()}
+                      </td>
+                      <td style={{ padding: '14px 18px', color: '#475569', fontSize: 12, maxWidth: 200 }}>
+                        <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {r.reason || '—'}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  /* ─── Main Render ─── */
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24, padding: '24px 0', maxWidth: 1280, margin: '0 auto' }}>
+
+      {/* ─ Page Header ─ */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
+        <div>
+          <h1 style={{ fontSize: 24, fontWeight: 900, color: '#1E293B', margin: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 40, height: 40, borderRadius: 12, background: 'linear-gradient(135deg, #1E40AF, #3B82F6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Receipt style={{ width: 20, height: 20, color: '#FFFFFF' }} />
+            </div>
+            Billing & Ledger
+          </h1>
+          <p style={{ fontSize: 13, color: '#64748B', margin: '6px 0 0', paddingLeft: 50 }}>
+            Comprehensive financial statements, ledger, returns & payment management
+          </p>
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={fetchBillingData}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 16px', background: '#F8FAFC', border: '1.5px solid #E2E8F0', borderRadius: 10, color: '#475569', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+            <RefreshCw style={{ width: 14, height: 14 }} /> Refresh
+          </button>
+        </div>
+      </div>
+
+      {/* ─ Tabs Navigation ─ */}
+      <div style={{ background: '#F8FAFC', borderRadius: 14, padding: 5, border: '1px solid #E2E8F0', display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+        {([
+          { id: 'overview', label: 'Overview', icon: BarChart2 },
+          { id: 'purchases', label: `B2B Purchases (${purchases.length})`, icon: Package },
+          { id: 'sales', label: `B2C Sales (${sales.length})`, icon: Receipt },
+          { id: 'ledger', label: 'Ledger Account', icon: BookOpen },
+          { id: 'returns', label: `Returns (${returns.length})`, icon: RefreshCw },
+        ] as const).map(tab => {
+          const TabIcon = tab.icon;
+          const isActive = activeTab === tab.id;
+          return (
+            <button key={tab.id} onClick={() => { setActiveTab(tab.id); setSearchQuery(''); setFilterStatus('all'); setFilterSettle('all'); }}
+              style={tabBtnStyle(isActive)}>
+              <TabIcon style={{ width: 14, height: 14 }} />
+              {tab.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* ─ Tab Content ─ */}
+      {activeTab === 'overview'   && renderOverview()}
+      {activeTab === 'purchases'  && renderPurchases()}
+      {activeTab === 'sales'      && renderSales()}
+      {activeTab === 'ledger'     && renderLedger()}
+      {activeTab === 'returns'    && renderReturns()}
+
+      {/* ─ Order Detail Modal ─ */}
       {selectedOrder && (() => {
-        const isSale = activeTab === 'sales';
+        const isSale = isSaleModal;
         const d = isSale ? getB2CDetails(selectedOrder.overrideJustification) : null;
-        const sm = STATUS_META[selectedOrder.status] || { color: '#64748B', bg: 'rgba(100,116,139,0.08)' };
+        const sm = STATUS_COLORS[selectedOrder.status] || { color: '#64748B', bg: 'rgba(100,116,139,0.08)' };
         const settleKey = selectedOrder.settleStatus || 'UNPAID';
         const pm = SETTLE_META[settleKey] || SETTLE_META.UNPAID;
         const PayIcon = pm.icon;
-        const canSettle = !isSale
-          ? (selectedOrder.status === 'DELIVERED' && settleKey === 'UNPAID')
-          : (d && d.due > 0);
-        return (
-          <div style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(15,23,42,0.35)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-            <div style={{ width: '100%', maxWidth: 580, background: '#FFFFFF', borderRadius: 20, border: '1.5px solid #F1F5F9', overflow: 'hidden', boxShadow: '0 24px 60px rgba(0,0,0,0.12)', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
+        const effectivePaid = settleKey === 'VERIFIED' ? (selectedOrder.settleAmount || 0) : 0;
+        const dueAmount = isSale ? (d?.due || 0) : Math.max(selectedOrder.netAmount - (selectedOrder.advanceApplied || 0) - effectivePaid, 0);
+        const canSettle = isSale ? (d && d.due > 0) : (selectedOrder.status === 'DELIVERED' && (settleKey === 'UNPAID' || settleKey === 'REJECTED'));
 
-              {/* Modal Header */}
-              <div style={{ padding: '20px 24px', borderBottom: '1px solid #F1F5F9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+        return (
+          <div style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(15,23,42,0.4)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+            <div style={{ width: '100%', maxWidth: 620, background: '#FFFFFF', borderRadius: 22, border: '1.5px solid #F1F5F9', overflow: 'hidden', boxShadow: '0 32px 80px rgba(0,0,0,0.14)', maxHeight: '92vh', display: 'flex', flexDirection: 'column' }}>
+              {/* Header */}
+              <div style={{ padding: '20px 24px', borderBottom: '1px solid #F1F5F9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'linear-gradient(135deg, rgba(30,64,175,0.03), rgba(59,130,246,0.02))' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div style={{ width: 40, height: 40, borderRadius: 12, background: 'rgba(245,158,11,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Receipt style={{ width: 20, height: 20, color: '#F59E0B' }} />
+                  <div style={{ width: 42, height: 42, borderRadius: 13, background: 'linear-gradient(135deg, #1E40AF, #3B82F6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Receipt style={{ width: 20, height: 20, color: '#FFFFFF' }} />
                   </div>
                   <div>
                     <h3 style={{ fontSize: 16, fontWeight: 900, color: '#1E293B', margin: 0 }}>
-                      {isSale ? 'B2C Sales Statement' : 'B2B Purchase Bill'}
+                      {isSale ? 'B2C Sales Invoice' : 'B2B Purchase Order'}
                     </h3>
-                    <p style={{ fontSize: 12, color: '#94A3B8', margin: 0, fontFamily: 'monospace' }}>#{selectedOrder.id.toUpperCase()}</p>
+                    <p style={{ fontSize: 11, color: '#94A3B8', margin: 0, fontFamily: 'monospace' }}>
+                      #{selectedOrder.id.toUpperCase()}
+                    </p>
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <span style={{ padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, color: sm.color, background: sm.bg }}>{selectedOrder.status}</span>
-                  {!isSale ? (
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 800, color: pm.color, background: pm.bg }}>
+                  <span style={{ padding: '4px 10px', borderRadius: 8, fontSize: 11, fontWeight: 700, color: sm.color, background: sm.bg }}>{selectedOrder.status}</span>
+                  {!isSale && (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, color: pm.color, background: pm.bg }}>
                       <PayIcon style={{ width: 10, height: 10 }} /> {pm.label}
                     </span>
-                  ) : (
-                    d && (
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 800, color: d.due > 0 ? '#DC2626' : '#059669', background: d.due > 0 ? 'rgba(220,38,38,0.08)' : 'rgba(5,150,105,0.08)' }}>
-                        {d.due > 0 ? <AlertTriangle style={{ width: 10, height: 10 }} /> : <CheckCircle style={{ width: 10, height: 10 }} />}
-                        {d.due > 0 ? `Due: Rs. ${d.due}` : 'Fully Paid'}
-                      </span>
-                    )
                   )}
-                  <button onClick={() => setSelectedOrder(null)} style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: '6px', cursor: 'pointer', color: '#64748B' }}>
-                    <X style={{ width: 16, height: 16 }} />
+                  {isSale && d && (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, color: d.due > 0 ? '#EF4444' : '#10B981', background: d.due > 0 ? 'rgba(239,68,68,0.08)' : 'rgba(16,185,129,0.08)' }}>
+                      {d.due > 0 ? <AlertTriangle style={{ width: 10, height: 10 }} /> : <CheckCircle style={{ width: 10, height: 10 }} />}
+                      {d.due > 0 ? `Due: ${fmtRs(d.due)}` : 'Paid'}
+                    </span>
+                  )}
+                  <button onClick={() => setSelectedOrder(null)} style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: '7px', cursor: 'pointer', color: '#64748B' }}>
+                    <X style={{ width: 15, height: 15 }} />
                   </button>
                 </div>
               </div>
 
-              {/* Modal Body */}
+              {/* Body */}
               <div style={{ padding: 24, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 18 }}>
-                {/* Meta info */}
+                {/* Info Grid */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                   {[
-                    { icon: Calendar, label: 'Timestamp', val: new Date(selectedOrder.createdAt).toLocaleString() },
-                    { icon: Hash, label: 'Status Code', val: selectedOrder.status },
+                    { icon: Calendar, label: 'Date', val: new Date(selectedOrder.createdAt).toLocaleString() },
+                    { icon: Hash,     label: 'Status', val: selectedOrder.status },
                     isSale
-                      ? { icon: User, label: 'Patient Name', val: d?.name || 'Walk-in Customer' }
+                      ? { icon: User,     label: 'Patient',  val: d?.name || 'Walk-in Customer' }
                       : { icon: Building, label: 'Wholesaler', val: selectedOrder.wholesaler?.companyName || '—' },
                     isSale
-                      ? { icon: Phone, label: 'Phone', val: d?.phone || 'N/A' }
+                      ? { icon: Phone, label: 'Phone',   val: d?.phone || 'N/A' }
                       : { icon: Phone, label: 'Contact', val: selectedOrder.wholesaler?.phone || '—' },
-                  ].map((row, index) => {
+                  ].map((row, i) => {
                     if (!row) return null;
-                    const RowIcon = row.icon;
+                    const RI = row.icon;
                     return (
-                      <div key={index} style={{ background: '#F8FAFC', borderRadius: 10, padding: '11px 14px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 3 }}>
-                          <RowIcon style={{ width: 11, height: 11, color: '#94A3B8' }} />
+                      <div key={i} style={{ background: '#F8FAFC', borderRadius: 10, padding: '11px 14px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 4 }}>
+                          <RI style={{ width: 11, height: 11, color: '#94A3B8' }} />
                           <span style={{ fontSize: 10, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase' }}>{row.label}</span>
                         </div>
                         <div style={{ fontSize: 13, fontWeight: 700, color: '#1E293B' }}>{row.val}</div>
@@ -1086,78 +1063,69 @@ export default function BillingClient({ initialSales, initialPurchases }: Billin
                   })}
                 </div>
 
-                {/* Settlement details */}
-                {!isSale ? (
-                  <div style={{ background: settleKey === 'VERIFIED' ? 'rgba(5,150,105,0.05)' : settleKey === 'PENDING_VERIFICATION' ? 'rgba(217,119,6,0.05)' : 'rgba(220,38,38,0.05)', border: `1px solid ${pm.color}30`, borderRadius: 12, padding: '14px 16px' }}>
-                    <div style={{ fontSize: 11, fontWeight: 800, color: pm.color, textTransform: 'uppercase', marginBottom: 8 }}>Payment Settlement Status</div>
-                    <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
-                      <div>
-                        <div style={{ fontSize: 10, color: '#94A3B8' }}>Status</div>
-                        <div style={{ fontWeight: 800, color: pm.color, marginTop: 2, display: 'flex', alignItems: 'center', gap: 4 }}>
-                          <PayIcon style={{ width: 13, height: 13 }} /> {pm.label}
+                {/* Financial Breakdown */}
+                {!isSale && (
+                  <div style={{ background: dueAmount > 0 ? 'rgba(239,68,68,0.04)' : 'rgba(16,185,129,0.04)', border: `1px solid ${dueAmount > 0 ? 'rgba(239,68,68,0.15)' : 'rgba(16,185,129,0.15)'}`, borderRadius: 14, padding: '16px 18px' }}>
+                    <div style={{ fontSize: 11, fontWeight: 800, color: dueAmount > 0 ? '#EF4444' : '#10B981', textTransform: 'uppercase', marginBottom: 12 }}>Payment Breakdown</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {[
+                        { label: 'Order Total', val: selectedOrder.netAmount, color: '#1E293B' },
+                        { label: 'Advance Applied', val: -(selectedOrder.advanceApplied || 0), color: '#8B5CF6', hide: !selectedOrder.advanceApplied },
+                        { label: 'Settlement Paid', val: -(selectedOrder.settleAmount || 0), color: '#10B981', hide: !selectedOrder.settleAmount },
+                        { label: 'Outstanding Due', val: dueAmount, color: dueAmount > 0 ? '#EF4444' : '#10B981', bold: true },
+                      ].filter(row => !row.hide).map((row, i, arr) => (
+                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', ...(i === arr.length - 1 ? { borderTop: '1px solid rgba(0,0,0,0.06)', paddingTop: 8, marginTop: 4 } : {}) }}>
+                          <span style={{ fontSize: 13, fontWeight: row.bold ? 800 : 600, color: '#475569' }}>{row.label}</span>
+                          <span style={{ fontSize: 14, fontWeight: row.bold ? 900 : 700, color: row.color, fontFamily: 'monospace' }}>
+                            {row.val < 0 ? `-${fmtRs(Math.abs(row.val))}` : fmtRs(row.val)}
+                          </span>
                         </div>
-                      </div>
-                      {selectedOrder.settleAmount ? (
-                        <div>
-                           <div style={{ fontSize: 10, color: '#94A3B8' }}>Amount Settled</div>
-                          <div style={{ fontWeight: 800, color: '#1E293B', marginTop: 2 }}>Rs. {selectedOrder.settleAmount.toLocaleString()}</div>
-                        </div>
-                      ) : null}
-                      {selectedOrder.settleMethod && settleKey !== 'UNPAID' ? (
-                        <div>
-                          <div style={{ fontSize: 10, color: '#94A3B8' }}>Method</div>
-                          <div style={{ fontWeight: 700, color: '#475569', marginTop: 2 }}>{selectedOrder.settleMethod}</div>
-                        </div>
-                      ) : null}
-                      <div>
-                        <div style={{ fontSize: 10, color: '#94A3B8' }}>Outstanding</div>
-                        <div style={{ fontWeight: 900, color: '#DC2626', marginTop: 2 }}>
-                          Rs. {(selectedOrder.netAmount - (selectedOrder.settleAmount || 0)).toLocaleString()}
-                        </div>
-                      </div>
+                      ))}
+                    </div>
+                    <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      <div style={{ fontSize: 11, color: '#64748B' }}>Payment Status:</div>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700, color: pm.color, background: pm.bg }}>
+                        <PayIcon style={{ width: 10, height: 10 }} /> {pm.label}
+                      </span>
+                      {settleKey === 'PENDING_VERIFICATION' && (
+                        <span style={{ fontSize: 11, color: '#94A3B8' }}>{fmtRs(selectedOrder.settleAmount || 0)} via {selectedOrder.settleMethod}</span>
+                      )}
                     </div>
                   </div>
-                ) : (
-                  d && (
-                    <div style={{ background: d.due === 0 ? 'rgba(5,150,105,0.05)' : 'rgba(220,38,38,0.05)', border: `1px solid ${d.due === 0 ? '#059669' : '#DC2626'}30`, borderRadius: 12, padding: '14px 16px' }}>
-                      <div style={{ fontSize: 11, fontWeight: 800, color: d.due === 0 ? '#059669' : '#DC2626', textTransform: 'uppercase', marginBottom: 8 }}>B2C Payment Details</div>
-                      <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
-                        <div>
-                          <div style={{ fontSize: 10, color: '#94A3B8' }}>Status</div>
-                          <div style={{ fontWeight: 800, color: d.due === 0 ? '#059669' : '#DC2626', marginTop: 2 }}>
-                            {d.due === 0 ? 'Fully Paid' : 'Pending Due'}
-                          </div>
-                        </div>
-                        <div>
-                          <div style={{ fontSize: 10, color: '#94A3B8' }}>Amount Paid</div>
-                          <div style={{ fontWeight: 800, color: '#1E293B', marginTop: 2 }}>Rs. {d.paid.toLocaleString()}</div>
-                        </div>
-                        <div>
-                          <div style={{ fontSize: 10, color: '#94A3B8' }}>Method</div>
-                          <div style={{ fontWeight: 700, color: '#475569', marginTop: 2 }}>{d.method}</div>
-                        </div>
-                        <div>
-                          <div style={{ fontSize: 10, color: '#94A3B8' }}>Outstanding Due</div>
-                          <div style={{ fontWeight: 900, color: '#DC2626', marginTop: 2 }}>Rs. {d.due.toLocaleString()}</div>
-                        </div>
-                      </div>
-                    </div>
-                  )
                 )}
 
-                {/* Line items */}
+                {isSale && d && (
+                  <div style={{ background: d.due === 0 ? 'rgba(16,185,129,0.04)' : 'rgba(239,68,68,0.04)', border: `1px solid ${d.due === 0 ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)'}`, borderRadius: 14, padding: '16px 18px' }}>
+                    <div style={{ fontSize: 11, fontWeight: 800, color: d.due === 0 ? '#10B981' : '#EF4444', textTransform: 'uppercase', marginBottom: 12 }}>B2C Payment Summary</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+                      {[
+                        { label: 'Total Bill', val: fmtRs(selectedOrder.netAmount), color: '#1E293B' },
+                        { label: 'Paid', val: fmtRs(d.paid), color: '#10B981' },
+                        { label: 'Outstanding', val: fmtRs(d.due), color: d.due > 0 ? '#EF4444' : '#10B981' },
+                      ].map((g, i) => (
+                        <div key={i} style={{ textAlign: 'center' }}>
+                          <div style={{ fontSize: 10, color: '#94A3B8', fontWeight: 700, marginBottom: 4 }}>{g.label}</div>
+                          <div style={{ fontSize: 16, fontWeight: 900, color: g.color, fontFamily: 'monospace' }}>{g.val}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{ marginTop: 10, fontSize: 11, color: '#64748B' }}>Method: <strong>{d.method}</strong></div>
+                  </div>
+                )}
+
+                {/* Items */}
                 <div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', marginBottom: 10 }}>Medicines</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', marginBottom: 10, letterSpacing: '0.05em' }}>Medicines / Items</div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    {selectedOrder.items.map((item) => (
-                      <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: '#F8FAFC', borderRadius: 8 }}>
+                    {selectedOrder.items.map(item => (
+                      <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '11px 14px', background: '#F8FAFC', borderRadius: 10, border: '1px solid #F1F5F9' }}>
                         <div>
                           <div style={{ fontWeight: 700, color: '#1E293B', fontSize: 13 }}>{item.product.name}</div>
-                          <div style={{ fontSize: 11, color: '#94A3B8', fontFamily: 'monospace' }}>{item.product.sku}</div>
+                          <div style={{ fontSize: 10, color: '#94A3B8', fontFamily: 'monospace', marginTop: 2 }}>{item.product.sku}</div>
                         </div>
                         <div style={{ textAlign: 'right' }}>
-                          <div style={{ fontWeight: 800, color: '#1E293B' }}>Rs. {(item.quantity * item.pricePerUnit).toLocaleString()}</div>
-                          <div style={{ fontSize: 11, color: '#94A3B8' }}>{item.quantity} × Rs. {item.pricePerUnit.toLocaleString()}</div>
+                          <div style={{ fontWeight: 800, color: '#1E293B' }}>{fmtRs(item.quantity * item.pricePerUnit)}</div>
+                          <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 1 }}>{item.quantity} × {fmtRs(item.pricePerUnit)}</div>
                         </div>
                       </div>
                     ))}
@@ -1165,41 +1133,43 @@ export default function BillingClient({ initialSales, initialPurchases }: Billin
                 </div>
 
                 {/* Totals */}
-                <div style={{ background: '#F8FAFC', borderRadius: 12, padding: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#64748B' }}>
-                    <span>Gross subtotal:</span><span>Rs. {selectedOrder.totalAmount.toLocaleString()}</span>
-                  </div>
-                  {selectedOrder.discountAmount > 0 && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#EF4444' }}>
-                      <span>Discount:</span><span>-Rs. {selectedOrder.discountAmount.toLocaleString()}</span>
+                <div style={{ background: '#F8FAFC', borderRadius: 12, padding: 16 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#64748B' }}>
+                      <span>Gross Total:</span><span>{fmtRs(selectedOrder.totalAmount)}</span>
                     </div>
-                  )}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 900, color: '#1E293B', borderTop: '1px solid #E2E8F0', paddingTop: 8, marginTop: 4 }}>
-                    <span>Net Bill Value:</span>
-                    <span style={{ color: '#F59E0B' }}>Rs. {selectedOrder.netAmount.toLocaleString()}</span>
+                    {selectedOrder.discountAmount > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#EF4444' }}>
+                        <span>Discount:</span><span>-{fmtRs(selectedOrder.discountAmount)}</span>
+                      </div>
+                    )}
+                    {(selectedOrder.advanceApplied || 0) > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#8B5CF6' }}>
+                        <span>Advance Applied:</span><span>-{fmtRs(selectedOrder.advanceApplied)}</span>
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 900, color: '#1E293B', borderTop: '1px solid #E2E8F0', paddingTop: 8, marginTop: 4 }}>
+                      <span>Net Bill:</span>
+                      <span style={{ color: '#1E40AF' }}>{fmtRs(selectedOrder.netAmount)}</span>
+                    </div>
                   </div>
                 </div>
               </div>
 
-              {/* Modal Footer */}
+              {/* Footer */}
               <div style={{ padding: '16px 24px', borderTop: '1px solid #F1F5F9', display: 'flex', gap: 10, flexShrink: 0 }}>
                 <button onClick={() => setSelectedOrder(null)} style={{ flex: 1, padding: '11px', borderRadius: 10, border: '1.5px solid #E2E8F0', fontSize: 13, fontWeight: 700, cursor: 'pointer', background: '#FFFFFF', color: '#475569' }}>
                   Close
                 </button>
                 {canSettle && (
-                  <button
-                    onClick={() => { setSelectedOrder(null); handleOpenSettle(selectedOrder); }}
-                    style={{ flex: 1, padding: '11px', borderRadius: 10, border: 'none', fontSize: 13, fontWeight: 800, cursor: 'pointer', background: 'linear-gradient(135deg, #7C3AED, #8B5CF6)', color: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
-                  >
-                    <DollarSign style={{ width: 15, height: 15 }} /> Settle Payment
+                  <button onClick={() => { setSelectedOrder(null); handleOpenSettle(selectedOrder, isSale); }}
+                    style={{ flex: 1, padding: '11px', borderRadius: 10, border: 'none', fontSize: 13, fontWeight: 800, cursor: 'pointer', background: 'linear-gradient(135deg, #1E40AF, #3B82F6)', color: '#FFFFFF' }}>
+                    💳 Settle Payment
                   </button>
                 )}
-                <button
-                  onClick={() => printInvoice(selectedOrder, isSale)}
-                  style={{ flex: 2, padding: '11px', borderRadius: 10, border: 'none', fontSize: 13, fontWeight: 800, cursor: 'pointer', background: '#F59E0B', color: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
-                >
-                  <Printer style={{ width: 15, height: 15 }} />
-                  Print Receipt
+                <button onClick={() => printInvoice(selectedOrder, isSale)}
+                  style={{ flex: 2, padding: '11px', borderRadius: 10, border: 'none', fontSize: 13, fontWeight: 800, cursor: 'pointer', background: 'linear-gradient(135deg, #F59E0B, #D97706)', color: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                  <Printer style={{ width: 15, height: 15 }} /> Print Invoice
                 </button>
               </div>
             </div>
@@ -1207,107 +1177,105 @@ export default function BillingClient({ initialSales, initialPurchases }: Billin
         );
       })()}
 
-      {/* ── Settle Payment Modal ── */}
+      {/* ─ Settle Payment Modal ─ */}
       {settleOrder && (() => {
-        const isB2C = activeTab === 'sales';
-        const b2cDetails = isB2C ? getB2CDetails(settleOrder.overrideJustification) : null;
-        const maxSettleVal = b2cDetails ? b2cDetails.due : settleOrder.netAmount;
+        const b2cDetails = settleIsB2C ? getB2CDetails(settleOrder.overrideJustification) : null;
+        const st = settleOrder.settleStatus || 'UNPAID';
+        const maxVal = settleIsB2C
+          ? (b2cDetails?.due || 0)
+          : Math.max(settleOrder.netAmount - (settleOrder.advanceApplied || 0) - (st === 'VERIFIED' ? (settleOrder.settleAmount || 0) : 0), 0);
+
         return (
-          <div style={{ position: 'fixed', inset: 0, zIndex: 400, background: 'rgba(15,23,42,0.5)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-            <div style={{ width: '100%', maxWidth: 460, background: '#FFFFFF', borderRadius: 20, overflow: 'hidden', boxShadow: '0 32px 80px rgba(0,0,0,0.18)' }}>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 400, background: 'rgba(15,23,42,0.55)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+            <div style={{ width: '100%', maxWidth: 460, background: '#FFFFFF', borderRadius: 22, overflow: 'hidden', boxShadow: '0 40px 100px rgba(0,0,0,0.2)' }}>
               {/* Header */}
-              <div style={{ padding: '20px 24px', borderBottom: '1px solid #F1F5F9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'linear-gradient(135deg, rgba(124,58,237,0.05), rgba(139,92,246,0.03))' }}>
+              <div style={{ padding: '20px 24px', borderBottom: '1px solid #F1F5F9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'linear-gradient(135deg, rgba(30,64,175,0.05), rgba(59,130,246,0.02))' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div style={{ width: 40, height: 40, borderRadius: 12, background: 'linear-gradient(135deg, #7C3AED, #8B5CF6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <div style={{ width: 42, height: 42, borderRadius: 13, background: 'linear-gradient(135deg, #1E40AF, #3B82F6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <DollarSign style={{ width: 20, height: 20, color: '#FFFFFF' }} />
                   </div>
                   <div>
                     <h3 style={{ fontSize: 15, fontWeight: 900, color: '#1E293B', margin: 0 }}>
-                      {isB2C ? 'Settle Patient Due' : 'Settle B2B Payment'}
+                      {settleIsB2C ? 'Collect Patient Due' : 'Submit B2B Payment'}
                     </h3>
                     <p style={{ fontSize: 11, color: '#94A3B8', margin: 0, fontFamily: 'monospace' }}>
-                      #{settleOrder.id.substring(0, 8).toUpperCase()} · {isB2C ? b2cDetails?.name : settleOrder.wholesaler?.companyName}
+                      #{settleOrder.id.substring(0, 8).toUpperCase()} · {settleIsB2C ? b2cDetails?.name : settleOrder.wholesaler?.companyName}
                     </p>
                   </div>
                 </div>
-                <button onClick={() => setSettleOrder(null)} style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: '6px', cursor: 'pointer', color: '#64748B' }}>
-                  <X style={{ width: 16, height: 16 }} />
+                <button onClick={() => setSettleOrder(null)} style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: '7px', cursor: 'pointer', color: '#64748B' }}>
+                  <X style={{ width: 15, height: 15 }} />
                 </button>
               </div>
 
               {/* Body */}
               <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
-                {/* Bill summary */}
-                <div style={{ background: '#F8FAFC', borderRadius: 12, padding: '14px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                {/* Amount info */}
+                <div style={{ background: '#F8FAFC', borderRadius: 14, padding: '16px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
                     <div style={{ fontSize: 11, color: '#94A3B8', fontWeight: 700 }}>
-                      {isB2C ? 'Total Outstanding Due' : 'Total Bill Amount'}
+                      {settleIsB2C ? 'Patient Outstanding Due' : 'Amount Due to Wholesaler'}
                     </div>
-                    <div style={{ fontSize: 22, fontWeight: 900, color: '#1E293B', fontFamily: 'monospace', marginTop: 2 }}>
-                      Rs. {maxSettleVal.toLocaleString()}
+                    <div style={{ fontSize: 28, fontWeight: 900, color: '#EF4444', fontFamily: 'monospace', marginTop: 4 }}>
+                      {fmtRs(maxVal)}
                     </div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: 11, color: '#94A3B8', fontWeight: 700 }}>Items</div>
-                    <div style={{ fontSize: 16, fontWeight: 800, color: '#475569', marginTop: 2 }}>{settleOrder.items.length} medicines</div>
+                    <div style={{ fontSize: 11, color: '#94A3B8', fontWeight: 700 }}>Invoice Total</div>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: '#475569', marginTop: 4, fontFamily: 'monospace' }}>{fmtRs(settleOrder.netAmount)}</div>
                   </div>
                 </div>
 
-                {/* Amount input */}
+                {/* Amount Input */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <label style={{ fontSize: 11, fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>Settlement Amount (Rs.)</label>
-                  <input
-                    type="number"
-                    value={settleAmount}
-                    onChange={(e) => setSettleAmountVal(e.target.value)}
-                    min={1}
-                    max={maxSettleVal}
-                    style={{ padding: '12px 14px', borderRadius: 10, border: '1.5px solid #E2E8F0', fontSize: 16, fontWeight: 800, outline: 'none', fontFamily: 'monospace' }}
+                  <label style={{ fontSize: 11, fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    Payment Amount (Rs.)
+                  </label>
+                  <input type="number" value={settleAmount} onChange={e => setSettleAmountVal(e.target.value)}
+                    min={1} max={maxVal}
+                    style={{ padding: '13px 16px', borderRadius: 12, border: '2px solid #E2E8F0', fontSize: 20, fontWeight: 800, outline: 'none', fontFamily: 'monospace', color: '#1E293B', transition: 'border-color 0.2s' }}
+                    onFocus={e => e.target.style.borderColor = '#3B82F6'}
+                    onBlur={e => e.target.style.borderColor = '#E2E8F0'}
                   />
-                  <div style={{ fontSize: 11, color: '#94A3B8' }}>Enter the amount paid. Partial payments are allowed.</div>
+                  <div style={{ fontSize: 11, color: '#94A3B8' }}>
+                    Partial payments allowed • Max: {fmtRs(maxVal)}
+                    {!settleIsB2C && (
+                      <span style={{ display: 'block', marginTop: 2, color: '#F59E0B' }}>
+                        ⚡ Will be submitted for wholesaler verification
+                      </span>
+                    )}
+                  </div>
                 </div>
 
-                {/* Payment method */}
+                {/* Payment Method */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <label style={{ fontSize: 11, fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>Payment Method</label>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+                  <label style={{ fontSize: 11, fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Payment Method</label>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
                     {PAYMENT_METHODS.map(m => {
                       const MIcon = m.icon;
                       const selected = settleMethod === m.id;
-                      const isEnabled = isB2C ? true : m.enabled;
+                      const isEnabled = settleIsB2C ? true : m.enabled;
                       return (
-                        <button
-                          key={m.id}
-                          disabled={!isEnabled}
-                          onClick={() => isEnabled && setSettleMethod(m.id)}
+                        <button key={m.id} disabled={!isEnabled} onClick={() => isEnabled && setSettleMethod(m.id)}
                           style={{
-                            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '10px',
-                            borderRadius: 10, border: '1.5px solid',
-                            borderColor: selected ? '#7C3AED' : isEnabled ? '#E2E8F0' : '#F1F5F9',
-                            background: selected ? 'rgba(124,58,237,0.08)' : isEnabled ? '#F8FAFC' : '#F8FAFC',
-                            color: selected ? '#7C3AED' : isEnabled ? '#475569' : '#CBD5E1',
+                            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, padding: '10px 8px',
+                            borderRadius: 10, border: `1.5px solid ${selected ? '#1E40AF' : isEnabled ? '#E2E8F0' : '#F1F5F9'}`,
+                            background: selected ? 'rgba(30,64,175,0.08)' : '#F8FAFC',
+                            color: selected ? '#1E40AF' : isEnabled ? '#475569' : '#CBD5E1',
                             cursor: isEnabled ? 'pointer' : 'not-allowed',
-                            fontSize: 11, fontWeight: 800, fontFamily: 'inherit', opacity: isEnabled ? 1 : 0.5,
-                            transition: 'all 0.15s',
-                          }}
-                        >
+                            fontSize: 10, fontWeight: 800, fontFamily: 'inherit', opacity: isEnabled ? 1 : 0.5,
+                          }}>
                           <MIcon style={{ width: 16, height: 16 }} />
                           {m.label}
-                          {!isEnabled && <span style={{ fontSize: 9, color: '#94A3B8', fontWeight: 600 }}>N/A</span>}
                         </button>
                       );
                     })}
-                  </div>
-                  <div style={{ fontSize: 10, color: '#94A3B8' }}>
-                    {isB2C
-                      ? '💡 Patient payment method for this settlement.'
-                      : '💡 Only Cash and COD are available for B2B settlements. Other methods require wholesaler setup.'}
                   </div>
                 </div>
 
                 {settleError && (
                   <div style={{ padding: '10px 14px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8, color: '#DC2626', fontSize: 12, fontWeight: 600 }}>
-                    {settleError}
+                    ⚠ {settleError}
                   </div>
                 )}
               </div>
@@ -1317,13 +1285,10 @@ export default function BillingClient({ initialSales, initialPurchases }: Billin
                 <button onClick={() => setSettleOrder(null)} style={{ flex: 1, padding: '12px', borderRadius: 10, border: '1.5px solid #E2E8F0', fontSize: 13, fontWeight: 700, cursor: 'pointer', background: '#FFFFFF', color: '#475569' }}>
                   Cancel
                 </button>
-                <button
-                  onClick={handleSubmitSettlement}
-                  disabled={settleLoading}
-                  style={{ flex: 2, padding: '12px', borderRadius: 10, border: 'none', fontSize: 13, fontWeight: 800, cursor: settleLoading ? 'not-allowed' : 'pointer', background: 'linear-gradient(135deg, #7C3AED, #8B5CF6)', color: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, opacity: settleLoading ? 0.7 : 1 }}
-                >
+                <button onClick={handleSubmitSettlement} disabled={settleLoading}
+                  style={{ flex: 2, padding: '12px', borderRadius: 10, border: 'none', fontSize: 13, fontWeight: 800, cursor: settleLoading ? 'not-allowed' : 'pointer', background: 'linear-gradient(135deg, #1E40AF, #3B82F6)', color: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, opacity: settleLoading ? 0.7 : 1 }}>
                   <ShieldCheck style={{ width: 16, height: 16 }} />
-                  {settleLoading ? 'Submitting…' : isB2C ? `Confirm Rs. ${parseFloat(settleAmount || '0').toLocaleString()} Settlement` : `Submit Rs. ${parseFloat(settleAmount || '0').toLocaleString()} for Verification`}
+                  {settleLoading ? 'Processing…' : `Confirm ${fmtRs(parseFloat(settleAmount || '0'))}`}
                 </button>
               </div>
             </div>

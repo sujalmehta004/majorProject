@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { sendOtpEmail } from '@/lib/mailer';
 
 export async function POST(request: Request) {
   try {
@@ -49,18 +50,20 @@ export async function POST(request: Request) {
       }
     });
 
+    // Send OTP email
+    await sendOtpEmail(email.toLowerCase(), otpCode);
+
     // Record audit log
     await db.systemAuditLog.create({
       data: {
         action: 'SEND_OTP_ONBOARDING',
-        details: `Generated onboarding verification OTP code: "${otpCode}" for ${email.toLowerCase()}`,
+        details: `Generated and sent onboarding verification OTP code to ${email.toLowerCase()}`,
       },
     });
 
     return NextResponse.json({ 
       success: true, 
-      message: 'Verification code sent (simulated).',
-      otpCode // Return code in response for sandbox testing/verification
+      message: 'Verification code has been sent to your email.'
     });
   } catch (error: any) {
     console.error('Error sending OTP:', error);

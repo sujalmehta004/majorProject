@@ -105,8 +105,21 @@ export default async function RetailerDashboard() {
     orderBy: { updatedAt: 'desc' },
   });
 
+  const returnRequests = await db.returnRequest.findMany({
+    where: {
+      retailerId: profile.id,
+      status: 'PENDING',
+    },
+    include: {
+      order: true,
+      wholesaler: true,
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+
   const serializedLogs = JSON.parse(JSON.stringify(auditLogs));
   const serializedRejected = JSON.parse(JSON.stringify(rejectedSettlements));
+  const serializedReturns = JSON.parse(JSON.stringify(returnRequests));
 
   return (
     <RetailerLayout
@@ -137,6 +150,7 @@ export default async function RetailerDashboard() {
         }}
         auditLogs={serializedLogs}
         rejectedSettlements={serializedRejected}
+        pendingReturns={serializedReturns}
       />
     </RetailerLayout>
   );

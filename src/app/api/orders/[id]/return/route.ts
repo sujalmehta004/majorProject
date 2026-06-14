@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getSessionUser } from '@/lib/auth';
-import { broadcastToWholesaler } from '@/app/api/events/route';
+import { broadcastToWholesaler, broadcastToRetailer } from '@/app/api/events/route';
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -34,6 +34,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       include: {
         items: { include: { allocations: true } },
         retailer: true,
+        wholesaler: true,
       },
     });
 
@@ -49,24 +50,54 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     // For each returned item, refund value = returned_qty * (pricePerUnit * tabletsPerBox)
     let refundValue = 0;
 
-    if (adjustBilling) {
-      for (const returnItem of finalItems) {
-        const { orderItemId, quantity } = returnItem;
-        const orderItem = order.items.find(i => i.id === orderItemId);
-        if (!orderItem) continue;
+    for (const returnItem of finalItems) {
+      const { orderItemId, quantity } = returnItem;
+      const orderItem = order.items.find(i => i.id === orderItemId);
+      if (!orderItem) continue;
 
-        // quantity in order is in base units (tablets); returnItem.quantity is boxes
-        // pricePerUnit is per tablet, so refund = quantity_boxes * tabletsPerBox * pricePerUnit
-        // But actually the returnItem.quantity from UI is in boxes; convert to tablets via allocations
-        const product = await db.product.findUnique({ where: { id: orderItem.productId } });
-        const tabletsPerBox = product ? product.tabletsPerStrip * product.stripsPerBox : 1;
-        const tabletsReturned = quantity * tabletsPerBox;
-        const itemRefund = Math.min(tabletsReturned, orderItem.quantity) * orderItem.pricePerUnit;
-        refundValue += itemRefund;
-      }
+      const product = await db.product.findUnique({ where: { id: orderItem.productId } });
+      const tabletsPerBox = product ? product.tabletsPerStrip * product.stripsPerBox : 1;
+      const tabletsReturned = quantity * tabletsPerBox;
+      const itemRefund = Math.min(tabletsReturned, orderItem.quantity) * orderItem.pricePerUnit;
+      refundValue += itemRefund;
     }
 
-    // Process each return item
+    const isIntakeDone = order.status === 'DELIVERED';
+
+    if (isIntakeDone) {
+      // Create ReturnRequest and wait for Retailer approval
+      await db.returnRequest.create({
+        data: {
+          orderId,
+          wholesalerId,
+          retailerId: order.retailerId,
+          itemsJson: JSON.stringify(finalItems),
+          reason: reason || 'Not specified',
+          adjustBilling,
+          status: 'PENDING',
+        },
+      });
+
+      // Record system log
+      await db.systemAuditLog.create({
+        data: {
+          action: 'RETURN_REQUEST_CREATED',
+          userId: user.userId,
+          details: `Return request submitted for DELIVERED Order ${orderId.substring(0, 8).toUpperCase()} — ${order.retailer.pharmacyName}. Awaiting retailer verification.`,
+        },
+      });
+
+      // Broadcast update to retailer
+      broadcastToRetailer(order.retailerId, 'RETURN_REQUEST_CREATED', { orderId });
+
+      return NextResponse.json({
+        success: true,
+        message: 'Return request submitted successfully. Awaiting retailer verification.',
+        pendingVerification: true,
+      });
+    }
+
+    // Process each return item immediately (since intake is not done yet)
     await db.$transaction(async (tx) => {
       for (const returnItem of finalItems) {
         const { orderItemId, quantity } = returnItem;
@@ -97,7 +128,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
       // Credit advance balance if adjustBilling is requested
       if (adjustBilling && refundValue > 0) {
-        // Upsert relation so advance balance is updated for this wholesaler-retailer pair
         await tx.wholesalerRetailerRelation.upsert({
           where: {
             wholesalerId_retailerId: {
@@ -108,12 +138,57 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           create: {
             wholesalerId,
             retailerId: order.retailerId,
-            creditLimit: 0,
+            creditLimit: 200000,
             advanceBalance: refundValue,
           },
           update: {
             advanceBalance: { increment: refundValue },
           },
+        });
+
+        // Log to Wholesaler Ledger
+        const { createLedgerEntry } = await import('@/lib/ledger');
+        await createLedgerEntry(tx, {
+          partyType: 'WHOLESALER',
+          partyId: wholesalerId,
+          oppositePartyName: order.retailer.pharmacyName,
+          type: 'RETURN',
+          credit: refundValue,
+          description: `Items returned from Order #${orderId.substring(0, 8).toUpperCase()}. Credit adjusted to advance balance.`,
+          orderId,
+        });
+
+        // Log to Retailer Ledger
+        await createLedgerEntry(tx, {
+          partyType: 'RETAILER',
+          partyId: order.retailerId,
+          oppositePartyName: order.wholesaler?.companyName || 'Wholesaler',
+          type: 'RETURN',
+          credit: refundValue,
+          description: `Items returned from Order #${orderId.substring(0, 8).toUpperCase()}. Balance adjusted to advance refund.`,
+          orderId,
+        });
+      } else {
+        // Log basic Return transaction
+        const { createLedgerEntry } = await import('@/lib/ledger');
+        await createLedgerEntry(tx, {
+          partyType: 'WHOLESALER',
+          partyId: wholesalerId,
+          oppositePartyName: order.retailer.pharmacyName,
+          type: 'RETURN',
+          credit: refundValue,
+          description: `Items returned from Order #${orderId.substring(0, 8).toUpperCase()}`,
+          orderId,
+        });
+
+        await createLedgerEntry(tx, {
+          partyType: 'RETAILER',
+          partyId: order.retailerId,
+          oppositePartyName: order.wholesaler?.companyName || 'Wholesaler',
+          type: 'RETURN',
+          credit: refundValue,
+          description: `Items returned from Order #${orderId.substring(0, 8).toUpperCase()}`,
+          orderId,
         });
       }
 

@@ -34,6 +34,7 @@ interface DashboardClientProps {
   };
   auditLogs: AuditLog[];
   rejectedSettlements?: any[];
+  pendingReturns?: any[];
 }
 
 const CustomTooltip = ({ active, payload, label }: any) => {
@@ -52,7 +53,28 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   return null;
 };
 
-export default function DashboardClient({ profileId, metrics, auditLogs, rejectedSettlements = [] }: DashboardClientProps) {
+export default function DashboardClient({ profileId, metrics, auditLogs, rejectedSettlements = [], pendingReturns = [] }: DashboardClientProps) {
+  const [returnAlerts, setReturnAlerts] = useState<any[]>(pendingReturns);
+  const [returnVerifyLoading, setReturnVerifyLoading] = useState<string | null>(null);
+
+  const handleVerifyReturn = async (requestId: string, status: 'APPROVED' | 'REJECTED') => {
+    setReturnVerifyLoading(requestId);
+    try {
+      const res = await fetch(`/api/retailer/returns/${requestId}/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Verification failed');
+      setReturnAlerts(prev => prev.filter(r => r.id !== requestId));
+    } catch (err: any) {
+      alert(err.message || 'Verification failed');
+    } finally {
+      setReturnVerifyLoading(null);
+    }
+  };
+
   const [showConfig, setShowConfig] = useState(false);
   const [showAlertModal, setShowAlertModal] = useState(false);
   const [showQuickOrderModal, setShowQuickOrderModal] = useState(false);
@@ -203,6 +225,95 @@ export default function DashboardClient({ profileId, metrics, auditLogs, rejecte
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 28, padding: '24px 0' }}>
+
+      {/* ── Pending Return Verification Alerts Panel ── */}
+      {returnAlerts.length > 0 && (
+        <div
+          style={{
+            background: 'linear-gradient(135deg, rgba(245,158,11,0.07), rgba(217,119,6,0.04))',
+            border: '1.5px solid rgba(245,158,11,0.4)',
+            borderRadius: 16,
+            overflow: 'hidden',
+          }}
+        >
+          {/* Header */}
+          <div style={{ padding: '14px 20px', background: 'rgba(245,158,11,0.1)', borderBottom: '1px solid rgba(245,158,11,0.15)', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(245,158,11,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Clock style={{ width: 16, height: 16, color: '#D97706' }} />
+            </div>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 900, color: '#92400E' }}>
+                Pending Return Verification Request
+              </div>
+              <div style={{ fontSize: 11, color: '#D97706', marginTop: 1 }}>
+                Wholesaler(s) have requested returns on {returnAlerts.length} delivered order{returnAlerts.length !== 1 ? 's' : ''}. Please verify to sync stock.
+              </div>
+            </div>
+            <div style={{ marginLeft: 'auto', background: '#D97706', color: 'white', fontSize: 11, fontWeight: 900, borderRadius: 20, padding: '2px 10px' }}>
+              Action Required
+            </div>
+          </div>
+
+          {/* Return Request Items */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+            {returnAlerts.map((r: any, idx: number) => (
+              <div
+                key={r.id}
+                style={{
+                  padding: '16px 20px',
+                  borderBottom: idx < returnAlerts.length - 1 ? '1px solid rgba(245,158,11,0.1)' : 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 16,
+                  flexWrap: 'wrap',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 200 }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(245,158,11,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Package style={{ width: 16, height: 16, color: '#D97706' }} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: '#1E293B' }}>
+                      {r.wholesaler?.companyName}
+                    </div>
+                    <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>
+                      Order Ref: #{r.orderId.substring(0, 8).toUpperCase()}
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ flex: 1, minWidth: 200, fontSize: 12, color: '#475569' }}>
+                  <strong>Reason:</strong> {r.reason || 'None specified'}<br/>
+                  <span style={{ fontSize: 11, color: '#94A3B8' }}>Submitted on: {new Date(r.createdAt).toLocaleDateString()}</span>
+                </div>
+
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <button
+                    disabled={!!returnVerifyLoading}
+                    onClick={() => handleVerifyReturn(r.id, 'APPROVED')}
+                    style={{
+                      padding: '8px 14px', borderRadius: 8, background: '#10B981', color: 'white', border: 'none',
+                      fontSize: 11, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6
+                    }}
+                  >
+                    {returnVerifyLoading === r.id ? 'Processing...' : 'Verify return'}
+                  </button>
+                  <button
+                    disabled={!!returnVerifyLoading}
+                    onClick={() => handleVerifyReturn(r.id, 'REJECTED')}
+                    style={{
+                      padding: '8px 14px', borderRadius: 8, background: 'none', color: '#EF4444', border: '1.5px solid #EF4444',
+                      fontSize: 11, fontWeight: 800, cursor: 'pointer'
+                    }}
+                  >
+                    Reject
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* ── Rejected Settlement Alerts Panel ── */}
       {rejectedSettlements.length > 0 && (

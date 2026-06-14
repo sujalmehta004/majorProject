@@ -81,8 +81,34 @@ export default async function RetailerBillingPage() {
     orderBy: { createdAt: 'desc' },
   });
 
-  const serializedSales = JSON.parse(JSON.stringify(sales));
-  const serializedPurchases = JSON.parse(JSON.stringify(purchases));
+  // Load wholesaler relations (advance balances)
+  const relations = await db.wholesalerRetailerRelation.findMany({
+    where: { retailerId: profile.id },
+    include: { wholesaler: true },
+  });
+
+  // Load retailer ledger entries
+  const ledgers = await db.ledgerEntry.findMany({
+    where: {
+      partyType: 'RETAILER',
+      partyId: profile.id,
+    },
+    orderBy: { createdAt: 'asc' }, // asc for running balance display
+  });
+
+  // Load return requests for this retailer
+  const returnRequests = await db.returnRequest.findMany({
+    where: { retailerId: profile.id },
+    include: {
+      order: {
+        include: {
+          wholesaler: true,
+          items: { include: { product: true } },
+        },
+      },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
 
   return (
     <RetailerLayout
@@ -99,7 +125,14 @@ export default async function RetailerBillingPage() {
         registrationNumber: profile.registrationNumber,
       }}
     >
-      <BillingClient initialSales={serializedSales} initialPurchases={serializedPurchases} profileId={profile.id} />
+      <BillingClient
+        initialSales={JSON.parse(JSON.stringify(sales))}
+        initialPurchases={JSON.parse(JSON.stringify(purchases))}
+        initialRelations={JSON.parse(JSON.stringify(relations))}
+        initialLedgers={JSON.parse(JSON.stringify(ledgers))}
+        initialReturnRequests={JSON.parse(JSON.stringify(returnRequests))}
+        profileId={profile.id}
+      />
     </RetailerLayout>
   );
 }
