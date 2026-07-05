@@ -33,11 +33,14 @@ export default async function WholesalerBillingPage() {
   }
 
   // Load all B2B orders and wholesaler-own POS orders (exclude retailer B2C POS sales)
+  // NOTE: We use OR with null check because Prisma's NOT { contains } silently drops NULL rows in PostgreSQL
   const orders = await db.order.findMany({
     where: {
       wholesalerId: profile.id,
-      // Exclude retailer-side B2C POS sales — those belong only to the retailer's billing view
-      NOT: { overrideJustification: { contains: 'B2C POS' } },
+      OR: [
+        { overrideJustification: null },
+        { NOT: { overrideJustification: { contains: 'B2C POS' } } }
+      ]
     },
     include: {
       retailer: true,

@@ -49,7 +49,11 @@ export default async function WholesalerCustomers() {
       orders: {
         where: {
           wholesalerId: profile.id,
-          NOT: { overrideJustification: { contains: 'B2C POS' } }
+          // NULL check needed: Prisma's NOT { contains } drops NULL rows in PostgreSQL
+          OR: [
+            { overrideJustification: null },
+            { NOT: { overrideJustification: { contains: 'B2C POS' } } }
+          ]
         },
         include: {
           items: {

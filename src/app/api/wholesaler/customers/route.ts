@@ -41,7 +41,11 @@ export async function GET(request: NextRequest) {
         orders: {
           where: {
             wholesalerId: wholesalerProfileId,
-            NOT: { overrideJustification: { contains: 'B2C POS' } }
+            // NULL check needed: Prisma's NOT { contains } drops NULL rows in PostgreSQL
+            OR: [
+              { overrideJustification: null },
+              { NOT: { overrideJustification: { contains: 'B2C POS' } } }
+            ]
           },
           include: {
             b2bSettlements: true,

@@ -15,6 +15,7 @@ interface Batch {
   availableBaseUnits: number;
   sellingPrice?: number;
   buyingPrice?: number;
+  rack?: string | null;
 }
 
 interface Product {
@@ -38,6 +39,7 @@ interface CartItem {
   pricePerBox: number;
   qtyBoxes: number;
   totalAmount: number;
+  rack?: string | null;
 }
 
 interface POSClientProps {
@@ -281,6 +283,7 @@ export default function POSClient({ products }: POSClientProps) {
             pricePerBox,
             qtyBoxes: baseUnits / tabletsPerBox,
             totalAmount,
+            rack: selectedBatch.rack,
           },
         ];
       }
@@ -492,32 +495,57 @@ export default function POSClient({ products }: POSClientProps) {
               />
 
               {showSuggestions && searchQuery && (
-                <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#FFFFFF', border: '1.5px solid #E2E8F0', borderRadius: 12, boxShadow: '0 12px 30px rgba(0,0,0,0.1)', zIndex: 50, maxHeight: 220, overflowY: 'auto', marginTop: 6 }}>
+                <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#FFFFFF', border: '1.5px solid #E2E8F0', borderRadius: 12, boxShadow: '0 12px 30px rgba(0,0,0,0.1)', zIndex: 50, maxHeight: 320, overflowY: 'auto', marginTop: 6 }}>
                   {filteredProducts.length === 0 ? (
                     <div style={{ padding: 14, fontSize: 12, color: '#94A3B8', textAlign: 'center' }}>No medicines found</div>
                   ) : (
-                    filteredProducts.map((p) => (
-                      <div
-                        key={p.id}
-                        onClick={() => {
-                          setSelectedProductId(p.id);
-                          setSelectedBatchId(p.batches[0]?.id || '');
-                          setSearchQuery('');
-                          setShowSuggestions(false);
-                        }}
-                        style={{ padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid #F1F5F9', fontSize: 13, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
-                        onMouseEnter={(e) => (e.currentTarget.style.background = '#F8FAFC')}
-                        onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
-                      >
-                        <div>
-                          <div style={{ fontWeight: 800, color: '#1E293B' }}>{p.name}</div>
-                          <div style={{ fontSize: 11, color: '#94A3B8' }}>SKU: {p.sku} · {p.category}</div>
-                        </div>
-                        <span style={{ fontSize: 12, color: '#D97706', fontWeight: 700, background: '#FEF3C7', padding: '2px 8px', borderRadius: 6 }}>
-                          {p.batches.reduce((sum, b) => sum + b.availableBaseUnits, 0)} units
-                        </span>
-                      </div>
-                    ))
+                    filteredProducts.map((p) => {
+                        const totalUnits = p.batches.reduce((sum, b) => sum + b.availableBaseUnits, 0);
+                        const nearestExpiry = p.batches.reduce<string | null>((min, b) => {
+                          if (!min) return b.expiryDate;
+                          return new Date(b.expiryDate) < new Date(min) ? b.expiryDate : min;
+                        }, null);
+                        const racks = [...new Set(p.batches.map(b => b.rack).filter(Boolean))] as string[];
+                        return (
+                          <div
+                            key={p.id}
+                            onClick={() => {
+                              setSelectedProductId(p.id);
+                              setSelectedBatchId(p.batches[0]?.id || '');
+                              setSearchQuery('');
+                              setShowSuggestions(false);
+                            }}
+                            style={{ padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid #F1F5F9', fontSize: 13 }}
+                            onMouseEnter={(e) => (e.currentTarget.style.background = '#F8FAFC')}
+                            onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
+                          >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                              <div style={{ flex: 1 }}>
+                                <div style={{ fontWeight: 800, color: '#1E293B' }}>{p.name}</div>
+                                <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>SKU: {p.sku} · {p.category}</div>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 5 }}>
+                                  <span style={{ fontSize: 10, background: '#F1F5F9', color: '#475569', padding: '1px 7px', borderRadius: 4, fontWeight: 600 }}>
+                                    {p.batches.length} batch{p.batches.length !== 1 ? 'es' : ''}
+                                  </span>
+                                  {nearestExpiry && (
+                                    <span style={{ fontSize: 10, background: new Date(nearestExpiry) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) ? '#FEF3C7' : '#F0FDF4', color: new Date(nearestExpiry) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) ? '#92400E' : '#15803D', padding: '1px 7px', borderRadius: 4, fontWeight: 700 }}>
+                                      Exp: {new Date(nearestExpiry).toLocaleDateString()}
+                                    </span>
+                                  )}
+                                  {racks.map(rack => (
+                                    <span key={rack} style={{ fontSize: 10, background: '#FCD34D', color: '#78350F', padding: '1px 7px', borderRadius: 4, fontWeight: 900, fontFamily: 'monospace' }}>
+                                      📍 {rack}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                              <span style={{ fontSize: 12, color: '#D97706', fontWeight: 700, background: '#FEF3C7', padding: '2px 8px', borderRadius: 6, flexShrink: 0, marginLeft: 10 }}>
+                                {totalUnits} units
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })
                   )}
                 </div>
               )}
@@ -592,6 +620,13 @@ export default function POSClient({ products }: POSClientProps) {
                     />
                   </div>
                 </div>
+                {selectedBatch.rack && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: '#FEF3C7', border: '1.5px solid #FDE68A', borderRadius: 8 }}>
+                    <svg style={{ width: 13, height: 13, color: '#B45309', flexShrink: 0 }} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                    <span style={{ fontSize: 11, fontWeight: 800, color: '#92400E' }}>Rack Location:</span>
+                    <span style={{ fontSize: 12, fontWeight: 900, color: '#B45309', fontFamily: 'monospace', background: '#FCD34D', padding: '1px 8px', borderRadius: 6 }}>{selectedBatch.rack}</span>
+                  </div>
+                )}
                 <button
                   id="add-to-basket-btn"
                   type="button"
@@ -631,6 +666,12 @@ export default function POSClient({ products }: POSClientProps) {
                       <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>
                         Batch: <span style={{ fontFamily: 'monospace', fontWeight: 700 }}>{item.batchNumber}</span>
                       </div>
+                      {item.rack && (
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 3 }}>
+                          <span style={{ fontSize: 9, fontWeight: 800, color: '#92400E' }}>RACK:</span>
+                          <span style={{ fontSize: 10, fontWeight: 900, fontFamily: 'monospace', background: '#FCD34D', color: '#78350F', padding: '0px 6px', borderRadius: 4 }}>{item.rack}</span>
+                        </div>
+                      )}
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                       {/* Quantity adjustments */}

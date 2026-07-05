@@ -33,6 +33,7 @@ interface RetailerInventory {
   createdAt: string;
   buyingPrice: number;
   sellingPrice: number;
+  rack?: string | null;
 }
 
 interface InventoryClientProps {
@@ -81,6 +82,7 @@ export default function InventoryClient({ profileId, allProducts: initialProduct
   const [batchNumber, setBatchNumber] = useState('');
   const [quantity, setQuantity] = useState('');
   const [expiryDate, setExpiryDate] = useState('');
+  const [rack, setRack] = useState('');
   
   const [formError, setFormError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -95,6 +97,7 @@ export default function InventoryClient({ profileId, allProducts: initialProduct
   const [editQty, setEditQty] = useState('');
   const [editBuyingPrice, setEditBuyingPrice] = useState('');
   const [editSellingPrice, setEditSellingPrice] = useState('');
+  const [editRack, setEditRack] = useState('');
 
   // Detail Modal
   const [detailBatch, setDetailBatch] = useState<RetailerInventory | null>(null);
@@ -268,6 +271,7 @@ export default function InventoryClient({ profileId, allProducts: initialProduct
         batchNumber,
         quantity: calculatedQty,
         expiryDate,
+        rack: rack || undefined,
       };
 
       if (intakeMode === 'select') {
@@ -290,6 +294,7 @@ export default function InventoryClient({ profileId, allProducts: initialProduct
         setBatchNumber('');
         setQuantity('');
         setExpiryDate('');
+        setRack('');
         setShowNewCategoryInput(false);
         setCustomCategory('');
         
@@ -311,7 +316,8 @@ export default function InventoryClient({ profileId, allProducts: initialProduct
         editingItem.id,
         parseInt(editQty),
         parseFloat(editBuyingPrice) || 0,
-        parseFloat(editSellingPrice) || 0
+        parseFloat(editSellingPrice) || 0,
+        editRack
       );
       if (res.success) {
         setEditingItem(null);
@@ -584,6 +590,7 @@ export default function InventoryClient({ profileId, allProducts: initialProduct
                 </th>
                 <th style={{ padding: '14px 20px', color: '#64748B', fontWeight: 700 }}>Buying Price</th>
                 <th style={{ padding: '14px 20px', color: '#64748B', fontWeight: 700 }}>Selling Price</th>
+                <th style={{ padding: '14px 20px', color: '#64748B', fontWeight: 700 }}>Rack</th>
                 <th style={{ padding: '14px 20px', color: '#64748B', fontWeight: 700, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('expiry')}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>Expiry <SortIcon k="expiry" /></span>
                 </th>
@@ -638,6 +645,9 @@ export default function InventoryClient({ profileId, allProducts: initialProduct
                       <div style={{ fontSize: 10, color: '#94A3B8', marginTop: 2 }}>per box</div>
                     </td>
                     <td style={{ padding: '16px 20px' }}>
+                      <div style={{ fontWeight: 700, color: '#64748B', background: item.rack ? '#F1F5F9' : 'transparent', padding: item.rack ? '2px 8px' : 0, borderRadius: 6, display: 'inline-block', fontSize: 12 }}>{item.rack || '—'}</div>
+                    </td>
+                    <td style={{ padding: '16px 20px' }}>
                       <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 6, background: expiryStatus.bg }}>
                         <span style={{ fontSize: 11, fontWeight: 700, color: expiryStatus.color }}>{expiryStatus.label}</span>
                       </div>
@@ -658,6 +668,7 @@ export default function InventoryClient({ profileId, allProducts: initialProduct
                             setEditQty(String(item.quantity));
                             setEditBuyingPrice(String(item.buyingPrice || ''));
                             setEditSellingPrice(String(item.sellingPrice || ''));
+                            setEditRack(item.rack || '');
                           }}
                           style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 6, padding: '6px', color: '#3B82F6', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
                           title="Edit quantity"
@@ -724,6 +735,7 @@ export default function InventoryClient({ profileId, allProducts: initialProduct
                     { icon: Calendar, label: 'Ingested', val: new Date(detailBatch.createdAt).toLocaleDateString() },
                     { icon: DollarSign, label: 'Buying Price (Box)', val: `Rs. ${detailBatch.buyingPrice?.toFixed(2) || '0.00'}`, mono: true },
                     { icon: DollarSign, label: 'Selling Price (Box)', val: `Rs. ${detailBatch.sellingPrice?.toFixed(2) || '0.00'}`, mono: true },
+                    { icon: Building, label: 'Rack / Location', val: detailBatch.rack || '— Not assigned' },
                   ].map((row) => {
                     const RowIcon = row.icon;
                     return (
@@ -765,6 +777,7 @@ export default function InventoryClient({ profileId, allProducts: initialProduct
                     setEditQty(String(detailBatch.quantity));
                     setEditBuyingPrice(String(detailBatch.buyingPrice || ''));
                     setEditSellingPrice(String(detailBatch.sellingPrice || ''));
+                    setEditRack(detailBatch.rack || '');
                     setDetailBatch(null);
                   }}
                   style={{ flex: 1, padding: '11px', borderRadius: 10, border: '1.5px solid #E2E8F0', fontSize: 13, fontWeight: 700, cursor: 'pointer', background: '#FFFFFF', color: '#475569' }}
@@ -965,10 +978,10 @@ export default function InventoryClient({ profileId, allProducts: initialProduct
 
       {/* ── Full Page Intake Modal ── */}
       {showAddModal && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(15,23,42,0.45)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ position: 'fixed', left: 0, top: 0, width: '100vw', height: '100vh', zIndex: 200, background: 'rgba(15,23,42,0.45)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
           <form
             onSubmit={handleAddInventory}
-            style={{ width: '100vw', height: '100vh', background: '#FFFFFF', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+            style={{ width: '100%', maxWidth: 760, maxHeight: '85vh', background: '#FFFFFF', borderRadius: 20, border: '1.5px solid #F1F5F9', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 24px 60px rgba(0,0,0,0.12)', margin: 'auto' }}
           >
             {/* Header */}
             <div style={{ padding: '24px 40px', borderBottom: '1px solid #F1F5F9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'linear-gradient(135deg, rgba(245,158,11,0.03), transparent)', flexShrink: 0 }}>
@@ -986,8 +999,8 @@ export default function InventoryClient({ profileId, allProducts: initialProduct
               </button>
             </div>
 
-            {/* Fullscreen Body */}
-            <div style={{ padding: '40px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 32, flex: 1, maxWidth: 800, margin: '0 auto', width: '100%' }}>
+            {/* Scrollable Body */}
+            <div style={{ padding: '24px 40px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 24, flex: 1, width: '100%' }}>
               {formError && (
                 <div style={{ padding: '14px 20px', background: 'rgba(239,68,68,0.06)', borderRadius: 12, border: '1px solid rgba(239,68,68,0.2)', color: '#EF4444', fontSize: 14, fontWeight: 600 }}>
                   {formError}
@@ -1119,7 +1132,7 @@ export default function InventoryClient({ profileId, allProducts: initialProduct
                   Batch Registration Details
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     <label style={{ fontSize: 11, fontWeight: 800, color: '#64748B', textTransform: 'uppercase' }}>Batch Number</label>
                     <input
@@ -1136,6 +1149,16 @@ export default function InventoryClient({ profileId, allProducts: initialProduct
                       type="date"
                       value={expiryDate}
                       onChange={(e) => setExpiryDate(e.target.value)}
+                      style={{ padding: '12px 14px', borderRadius: 12, border: '1.5px solid #E2E8F0', outline: 'none', fontSize: 13 }}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <label style={{ fontSize: 11, fontWeight: 800, color: '#64748B', textTransform: 'uppercase' }}>Rack Number / Location</label>
+                    <input
+                      type="text"
+                      value={rack}
+                      onChange={(e) => setRack(e.target.value)}
+                      placeholder="e.g. A-4"
                       style={{ padding: '12px 14px', borderRadius: 12, border: '1.5px solid #E2E8F0', outline: 'none', fontSize: 13 }}
                     />
                   </div>
@@ -1235,6 +1258,16 @@ export default function InventoryClient({ profileId, allProducts: initialProduct
                   step="0.01"
                   value={editSellingPrice}
                   onChange={(e) => setEditSellingPrice(e.target.value)}
+                  style={{ padding: '12px', borderRadius: 8, border: '1.5px solid #E2E8F0', outline: 'none', fontSize: 15, fontWeight: 700, textAlign: 'center' }}
+                />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Rack Number / Location</label>
+                <input
+                  type="text"
+                  value={editRack}
+                  onChange={(e) => setEditRack(e.target.value)}
+                  placeholder="e.g. A-4"
                   style={{ padding: '12px', borderRadius: 8, border: '1.5px solid #E2E8F0', outline: 'none', fontSize: 15, fontWeight: 700, textAlign: 'center' }}
                 />
               </div>

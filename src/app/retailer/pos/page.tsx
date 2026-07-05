@@ -88,6 +88,7 @@ export default async function RetailerPOSPage() {
       availableBaseUnits: item.quantity,
       sellingPrice: item.sellingPrice || 0,
       buyingPrice: item.buyingPrice || 0,
+      rack: item.rack || null,
     });
   });
 

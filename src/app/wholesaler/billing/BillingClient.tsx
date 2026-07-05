@@ -900,6 +900,16 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
   const fiscalRevenue = fiscalOrders.filter(o => o.status === 'DELIVERED').reduce((s, o) => s + o.netAmount, 0);
   const fiscalProfit = fiscalOrders.filter(o => o.status === 'DELIVERED').reduce((s, o) => s + getOrderProfit(o), 0);
 
+  // Supplier bills for the same fiscal year — treated as procurement expenses
+  const fiscalSupplierBills = supplierBills.filter(b =>
+    new Date(b.billDate).getFullYear() === fiscalYear
+  );
+  const totalProcurement = fiscalSupplierBills.reduce((s, b) => s + b.totalAmount, 0);
+  const paidToSuppliers = fiscalSupplierBills.reduce((s, b) => s + b.paidAmount, 0);
+  const supplierDueBalance = totalProcurement - paidToSuppliers;
+  // Net profit after deducting supplier procurement costs (only for DELIVERED orders)
+  const netProfitAfterCosts = fiscalRevenue - totalProcurement;
+
   // Filtered orders for transaction table
   const filteredOrders = orders.filter(o => {
     // Exclude retailer-side B2C POS sales — those belong only to the retailer's billing view
@@ -1383,15 +1393,20 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
             const totalDiscount = fiscalOrders.reduce((s, o) => s + o.discountAmount, 0);
             const grossBilled = fiscalOrders.reduce((s, o) => s + o.totalAmount, 0);
             const profitMarginPct = fiscalRevenue > 0 ? ((fiscalProfit / fiscalRevenue) * 100).toFixed(1) : '0';
+            const netMarginPct = fiscalRevenue > 0 ? ((netProfitAfterCosts / fiscalRevenue) * 100).toFixed(1) : '0';
             const kpis = [
-              { label: 'Net Revenue', val: `Rs. ${fiscalRevenue.toLocaleString()}`, bg: '#F0F9FF', border: '#BAE6FD', col: '#0369A1' },
+              { label: 'Sales Revenue', val: `Rs. ${fiscalRevenue.toLocaleString()}`, bg: '#F0F9FF', border: '#BAE6FD', col: '#0369A1' },
               { label: 'Gross Profit', val: `Rs. ${fiscalProfit.toLocaleString()}`, bg: '#ECFDF5', border: '#A7F3D0', col: '#047857' },
-              { label: 'Total Invoices', val: String(fiscalOrders.length), bg: '#FFF7ED', border: '#FED7AA', col: '#C2410C' },
-              { label: 'Total Discount', val: `Rs. ${totalDiscount.toFixed(2)}`, bg: '#FAF5FF', border: '#DDD6FE', col: '#7C3AED' },
+              { label: 'Total Procurement', val: `Rs. ${totalProcurement.toLocaleString()}`, bg: '#FFF1F2', border: '#FECDD3', col: '#BE123C' },
+              { label: 'Paid to Suppliers', val: `Rs. ${paidToSuppliers.toLocaleString()}`, bg: '#FFF7ED', border: '#FED7AA', col: '#C2410C' },
+              { label: 'Supplier Due', val: `Rs. ${supplierDueBalance.toLocaleString()}`, bg: '#FEF3C7', border: '#FDE68A', col: '#B45309' },
+              { label: 'Net Profit (After Costs)', val: `Rs. ${netProfitAfterCosts.toLocaleString()}`, bg: netProfitAfterCosts >= 0 ? '#ECFDF5' : '#FFF1F2', border: netProfitAfterCosts >= 0 ? '#A7F3D0' : '#FECDD3', col: netProfitAfterCosts >= 0 ? '#047857' : '#BE123C' },
+              { label: 'Total Orders', val: String(fiscalOrders.length), bg: '#FAF5FF', border: '#DDD6FE', col: '#7C3AED' },
+              { label: 'Supplier Bills', val: String(fiscalSupplierBills.length), bg: '#F0F9FF', border: '#BAE6FD', col: '#0EA5E9' },
               { label: 'Delivered Orders', val: String(deliveredOrders.length), bg: '#ECFDF5', border: '#A7F3D0', col: '#059669' },
               { label: 'Pending / Other', val: String(pendingOrders.length), bg: '#FFF7ED', border: '#FED7AA', col: '#EA580C' },
-              { label: 'Gross Billed', val: `Rs. ${grossBilled.toFixed(2)}`, bg: '#EFF6FF', border: '#BFDBFE', col: '#1D4ED8' },
-              { label: 'Profit Margin', val: `${profitMarginPct}%`, bg: '#F0F9FF', border: '#BAE6FD', col: '#0EA5E9' },
+              { label: 'Total Discount', val: `Rs. ${totalDiscount.toFixed(2)}`, bg: '#FAF5FF', border: '#DDD6FE', col: '#7C3AED' },
+              { label: 'Net Margin', val: `${netMarginPct}%`, bg: '#F0F9FF', border: '#BAE6FD', col: '#0EA5E9' },
             ];
             return (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20 }}>
@@ -1405,29 +1420,33 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
             );
           })()}
 
-          {/* ── Monthly Breakdown Chart ── */}
-          {fiscalOrders.length > 0 && (() => {
+          {/* ── Monthly Breakdown Chart (Revenue + Procurement) ── */}
+          {(fiscalOrders.length > 0 || fiscalSupplierBills.length > 0) && (() => {
             const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
             const monthlyData = MONTHS.map((label, idx) => {
               const monthOrders = fiscalOrders.filter(o => new Date(o.createdAt).getMonth() === idx);
               const revenue = monthOrders.filter(o => o.status === 'DELIVERED').reduce((s, o) => s + o.netAmount, 0);
               const profit = monthOrders.filter(o => o.status === 'DELIVERED').reduce((s, o) => s + getOrderProfit(o), 0);
-              return { label, revenue, profit, count: monthOrders.length };
+              const procurement = fiscalSupplierBills
+                .filter(b => new Date(b.billDate).getMonth() === idx)
+                .reduce((s, b) => s + b.totalAmount, 0);
+              return { label, revenue, profit, procurement, count: monthOrders.length };
             });
             return (
               <div style={{ marginBottom: 20, background: '#FAFCFF', border: '1.5px solid #E0F2FE', borderRadius: 14, padding: 18 }}>
                 <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: '#475569', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <BarChart2 style={{ width: 12, height: 12, color: '#0EA5E9' }} /> Monthly Revenue &amp; Profit Breakdown — {fiscalYear}
+                  <BarChart2 style={{ width: 12, height: 12, color: '#0EA5E9' }} /> Monthly Revenue, Profit & Procurement — {fiscalYear}
                 </div>
-                <ResponsiveContainer width="100%" height={200}>
+                <ResponsiveContainer width="100%" height={220}>
                   <ComposedChart data={monthlyData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
                     <XAxis dataKey="label" tick={{ fontSize: 9, fill: '#94A3B8', fontWeight: 600 }} />
                     <YAxis tick={{ fontSize: 9, fill: '#94A3B8' }} tickFormatter={(v) => `Rs.${(v/1000).toFixed(0)}k`} />
                     <Tooltip content={<CustomTooltip />} />
                     <Legend wrapperStyle={{ fontSize: 10, fontWeight: 700 }} />
-                    <Bar dataKey="revenue" name="Revenue" fill="#0EA5E9" radius={[3, 3, 0, 0]} />
-                    <Bar dataKey="profit" name="Profit" fill="#10B981" radius={[3, 3, 0, 0]} />
+                    <Bar dataKey="revenue" name="Sales Revenue" fill="#0EA5E9" radius={[3, 3, 0, 0]} />
+                    <Bar dataKey="procurement" name="Procurement Cost" fill="#EF4444" radius={[3, 3, 0, 0]} />
+                    <Bar dataKey="profit" name="Gross Profit" fill="#10B981" radius={[3, 3, 0, 0]} />
                   </ComposedChart>
                 </ResponsiveContainer>
               </div>
@@ -1464,7 +1483,7 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
                       </tr>
                     ))}
                     <tr style={{ background: '#1E293B' }}>
-                      <td colSpan={4} style={{ fontSize: 11, fontWeight: 800, color: 'white', padding: '12px 16px' }}>FISCAL YEAR TOTALS</td>
+                      <td colSpan={4} style={{ fontSize: 11, fontWeight: 800, color: 'white', padding: '12px 16px' }}>FISCAL YEAR SALES TOTALS</td>
                       <td style={{ fontFamily: 'monospace', fontWeight: 800, color: '#FCD34D' }}>Rs. {fiscalOrders.reduce((s, o) => s + o.totalAmount, 0).toFixed(2)}</td>
                       <td style={{ fontFamily: 'monospace', fontWeight: 800, color: '#FCA5A5' }}>- Rs. {fiscalOrders.reduce((s, o) => s + o.discountAmount, 0).toFixed(2)}</td>
                       <td style={{ fontFamily: 'monospace', fontWeight: 800, color: '#6EE7B7' }}>Rs. {fiscalRevenue.toFixed(2)}</td>
@@ -1474,6 +1493,59 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
                 )}
               </tbody>
             </table>
+          </div>
+
+          {/* ── Supplier Bills Table for Fiscal Year ── */}
+          <div style={{ marginTop: 24 }}>
+            <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: '#BE123C', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Receipt style={{ width: 12, height: 12 }} /> Supplier Procurement Bills — {fiscalYear}
+            </div>
+            <div className="table-wrapper">
+              <table className="data-table">
+                <thead><tr>
+                  <th>Bill Date</th><th>Bill #</th><th>Supplier</th><th>Status</th>
+                  <th style={{ textAlign: 'right' }}>Total Amount</th>
+                  <th style={{ textAlign: 'right' }}>Paid</th>
+                  <th style={{ textAlign: 'right' }}>Outstanding</th>
+                </tr></thead>
+                <tbody>
+                  {fiscalSupplierBills.length === 0 ? (
+                    <tr><td colSpan={7} style={{ padding: '24px', textAlign: 'center', color: '#94A3B8', fontStyle: 'italic' }}>No supplier bills for fiscal year {fiscalYear}.</td></tr>
+                  ) : (
+                    <>
+                      {fiscalSupplierBills.map(b => {
+                        const due = Math.max(b.totalAmount - b.paidAmount, 0);
+                        return (
+                          <tr key={b.id} style={{ cursor: 'pointer' }} onClick={() => setDetailSupplierBill(b)}>
+                            <td style={{ fontFamily: 'monospace', fontSize: 11 }}>{new Date(b.billDate).toLocaleDateString()}</td>
+                            <td style={{ fontFamily: 'monospace', fontWeight: 700, color: '#BE123C' }}>{b.billNumber}</td>
+                            <td style={{ fontWeight: 700 }}>{b.supplier?.name}</td>
+                            <td>
+                              <span style={{ fontSize: 9, fontWeight: 800, padding: '2px 8px', borderRadius: 99,
+                                background: b.status === 'PAID' ? '#ECFDF5' : b.status === 'PARTIAL' ? '#FFF7ED' : '#FFF1F2',
+                                color: b.status === 'PAID' ? '#059669' : b.status === 'PARTIAL' ? '#C2410C' : '#BE123C' }}>
+                                {b.status}
+                              </span>
+                            </td>
+                            <td style={{ textAlign: 'right', fontFamily: 'monospace', fontWeight: 700 }}>Rs. {b.totalAmount.toFixed(2)}</td>
+                            <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#059669', fontWeight: 700 }}>Rs. {b.paidAmount.toFixed(2)}</td>
+                            <td style={{ textAlign: 'right', fontFamily: 'monospace', fontWeight: 900, color: due > 0 ? '#DC2626' : '#94A3B8' }}>
+                              {due > 0 ? `Rs. ${due.toFixed(2)}` : '✓ Cleared'}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      <tr style={{ background: '#7F1D1D' }}>
+                        <td colSpan={4} style={{ fontSize: 11, fontWeight: 800, color: 'white', padding: '12px 16px' }}>PROCUREMENT TOTALS</td>
+                        <td style={{ textAlign: 'right', fontFamily: 'monospace', fontWeight: 800, color: '#FCA5A5' }}>Rs. {totalProcurement.toFixed(2)}</td>
+                        <td style={{ textAlign: 'right', fontFamily: 'monospace', fontWeight: 800, color: '#6EE7B7' }}>Rs. {paidToSuppliers.toFixed(2)}</td>
+                        <td style={{ textAlign: 'right', fontFamily: 'monospace', fontWeight: 800, color: '#FDE68A' }}>Rs. {supplierDueBalance.toFixed(2)}</td>
+                      </tr>
+                    </>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}

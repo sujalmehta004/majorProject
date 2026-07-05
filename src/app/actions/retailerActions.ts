@@ -53,6 +53,7 @@ export async function ingestInventoryBatchAction(data: {
   batchNumber: string;
   quantity: number;
   expiryDate: string;
+  rack?: string;
 }) {
   const { user, retailer } = await assertRetailer();
 
@@ -105,6 +106,7 @@ export async function ingestInventoryBatchAction(data: {
         increment: qty,
       },
       expiryDate: expDate,
+      rack: data.rack || undefined,
     },
     create: {
       retailerId: retailer.id,
@@ -112,6 +114,7 @@ export async function ingestInventoryBatchAction(data: {
       batchNumber: data.batchNumber,
       quantity: qty,
       expiryDate: expDate,
+      rack: data.rack || null,
     },
     include: {
       product: true,
@@ -131,7 +134,7 @@ export async function ingestInventoryBatchAction(data: {
   return { success: true, inventoryItem };
 }
 
-export async function updateInventoryQuantityAction(id: string, quantity: number, buyingPrice?: number, sellingPrice?: number) {
+export async function updateInventoryQuantityAction(id: string, quantity: number, buyingPrice?: number, sellingPrice?: number, rack?: string) {
   const { user, retailer } = await assertRetailer();
 
   const item = await db.retailerInventory.update({
@@ -140,6 +143,7 @@ export async function updateInventoryQuantityAction(id: string, quantity: number
       quantity: parseInt(String(quantity)),
       ...(buyingPrice !== undefined ? { buyingPrice: parseFloat(String(buyingPrice)) } : {}),
       ...(sellingPrice !== undefined ? { sellingPrice: parseFloat(String(sellingPrice)) } : {}),
+      ...(rack !== undefined ? { rack } : {}),
     },
     include: {
       product: true,
