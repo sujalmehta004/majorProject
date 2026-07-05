@@ -42,7 +42,7 @@ export default async function RetailerBillingPage() {
   }
 
   // Load B2C sales
-  const sales = await db.order.findMany({
+  const salesRaw = await db.order.findMany({
     where: {
       retailerId: profile.id,
       overrideJustification: { contains: 'B2C POS' },
@@ -57,6 +57,48 @@ export default async function RetailerBillingPage() {
     },
     orderBy: { createdAt: 'desc' },
   });
+
+  const consumerSales = await db.consumerOrder.findMany({
+    where: {
+      retailerId: profile.id,
+      status: 'DELIVERED',
+    },
+    include: {
+      items: {
+        include: {
+          product: true,
+        },
+      },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  const mappedConsumerSales = consumerSales.map((c) => ({
+    id: c.id,
+    wholesaler: null,
+    status: c.status,
+    totalAmount: c.totalAmount,
+    discountAmount: 0,
+    netAmount: c.totalAmount,
+    advanceApplied: 0,
+    overrideJustification: `B2C POS: ${c.buyerName} (Online) | Phone: ${c.buyerPhone} | Method: COD | Paid: Rs. ${c.totalAmount} | Due: Rs. 0`,
+    createdAt: c.createdAt,
+    items: c.items.map((item) => ({
+      id: item.id,
+      quantity: item.quantity,
+      pricePerUnit: item.pricePerUnit,
+      product: {
+        name: item.product.name,
+        sku: item.product.sku,
+      },
+    })),
+    b2bSettlements: [],
+  }));
+
+  const sales = [
+    ...salesRaw,
+    ...mappedConsumerSales,
+  ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
   // Load B2B purchases
   const purchases = await db.order.findMany({

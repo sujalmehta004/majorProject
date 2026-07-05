@@ -155,3 +155,86 @@ export async function sendInvoiceEmail(to: string, order: any) {
 
   return transporter.sendMail(mailOptions);
 }
+
+export async function sendConsumerOrderConfirmation(to: string, order: any) {
+  const itemsHtml = order.items.map((item: any) => `
+    <tr>
+      <td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${item.product.name}</td>
+      <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: center;">${item.quantity} units</td>
+      <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: right;">Rs. ${item.pricePerUnit.toFixed(2)}</td>
+      <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: right;">Rs. ${(item.quantity * item.pricePerUnit).toFixed(2)}</td>
+    </tr>
+  `).join('');
+
+  const mailOptions = {
+    from: '"MedHub" <sujalmehta.prof@gmail.com>',
+    to: to,
+    subject: `Order Confirmation - Tracker: ${order.trackingCode}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
+        <h2 style="color: #0ea5e9; text-align: center;">Order Confirmed!</h2>
+        <p>Hello <strong>${order.buyerName}</strong>,</p>
+        <p>Your order has been successfully placed at <strong>${order.retailer.pharmacyName}</strong>.</p>
+        <p><strong>Tracking Code:</strong> <span style="font-family: monospace; font-size: 16px; background: #f0f9ff; padding: 4px 8px; border: 1px solid #bae6fd; border-radius: 4px; color: #0ea5e9; font-weight: bold;">${order.trackingCode}</span></p>
+        
+        <table style="width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 13px;">
+          <thead>
+            <tr style="background: #f8fafc;">
+              <th style="padding: 10px; text-align: left; border-bottom: 2px solid #e2e8f0;">Medicine</th>
+              <th style="padding: 10px; text-align: center; border-bottom: 2px solid #e2e8f0;">Qty</th>
+              <th style="padding: 10px; text-align: right; border-bottom: 2px solid #e2e8f0;">Unit Price</th>
+              <th style="padding: 10px; text-align: right; border-bottom: 2px solid #e2e8f0;">Subtotal</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${itemsHtml}
+          </tbody>
+        </table>
+        
+        <div style="text-align: right; margin-top: 15px; font-size: 15px; font-weight: bold; color: #1e293b;">
+          Total Payable (COD): Rs. ${order.totalAmount.toFixed(2)}
+        </div>
+        
+        <div style="margin-top: 20px; padding: 12px; background: #fffbeb; border: 1px solid #fef3c7; border-radius: 6px; font-size: 12px; color: #b45309;">
+          📍 <strong>Delivery Address:</strong> ${order.deliveryAddress}<br/>
+          📞 <strong>Phone:</strong> ${order.buyerPhone}
+        </div>
+        
+        <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+        <p style="font-size: 11px; color: #94a3b8; text-align: center;">You can track this order on the MedHub landing page using your unique code.</p>
+      </div>
+    `,
+  };
+
+  return transporter.sendMail(mailOptions);
+}
+
+export async function sendConsumerOrderStatusUpdate(to: string, order: any, newStatus: string) {
+  const mailOptions = {
+    from: '"MedHub" <sujalmehta.prof@gmail.com>',
+    to: to,
+    subject: `Order Status Update [${newStatus}] - Tracker: ${order.trackingCode}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
+        <h2 style="color: #0ea5e9; text-align: center;">Order Status: ${newStatus}</h2>
+        <p>Hello <strong>${order.buyerName}</strong>,</p>
+        <p>The status of your order <strong>${order.trackingCode}</strong> has changed.</p>
+        
+        <div style="text-align: center; margin: 25px 0;">
+          <span style="font-size: 18px; font-weight: bold; background-color: #f0fdf4; padding: 10px 20px; border: 1px solid #bbf7d0; color: #16a34a; border-radius: 6px; text-transform: uppercase;">
+            ${newStatus}
+          </span>
+        </div>
+        
+        <p><strong>Pharmacy:</strong> ${order.retailer.pharmacyName}</p>
+        <p><strong>Total Amount:</strong> Rs. ${order.totalAmount.toFixed(2)} (${order.paymentMethod})</p>
+        
+        <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+        <p style="font-size: 11px; color: #94a3b8; text-align: center;">Thank you for choosing MedHub!</p>
+      </div>
+    `,
+  };
+
+  return transporter.sendMail(mailOptions);
+}
+

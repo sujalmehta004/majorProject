@@ -31,6 +31,9 @@ interface DashboardClientProps {
     creditLimit: number;
     lifetimeSpend: number;
     pharmacyName: string;
+    consumerOrderPending?: number;
+    consumerOrderShipped?: number;
+    consumerOrderDelivered?: number;
   };
   auditLogs: AuditLog[];
   rejectedSettlements?: any[];
@@ -160,6 +163,18 @@ export default function DashboardClient({ profileId, metrics, auditLogs, rejecte
       borderColor: 'rgba(16,185,129,0.2)',
       link: '/retailer/billing',
       trend: Number(marginPct) > 0 ? 'up' : 'down',
+    },
+    {
+      title: 'B2C Online Orders',
+      value: ((metrics.consumerOrderPending || 0) + (metrics.consumerOrderShipped || 0)).toLocaleString(),
+      unit: 'Active',
+      delta: `${metrics.consumerOrderDelivered || 0} delivered · ${metrics.consumerOrderShipped || 0} shipped · ${metrics.consumerOrderPending || 0} pending`,
+      icon: ShoppingBag,
+      color: '#EC4899',
+      bg: 'rgba(236,72,153,0.06)',
+      borderColor: 'rgba(236,72,153,0.2)',
+      link: '/retailer/orders',
+      trend: 'neutral',
     },
     {
       title: 'Near Expiry Batches',

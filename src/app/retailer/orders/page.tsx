@@ -88,8 +88,22 @@ export default async function RetailerOrdersPage() {
     orderBy: { companyName: 'asc' },
   });
 
+  // Fetch B2C online consumer orders placed at this retailer
+  const consumerOrders = await db.consumerOrder.findMany({
+    where: { retailerId: profile.id },
+    include: {
+      items: {
+        include: {
+          product: true,
+        },
+      },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+
   const serializedOrders = JSON.parse(JSON.stringify(orders));
   const serializedWholesalers = JSON.parse(JSON.stringify(wholesalers));
+  const serializedConsumerOrders = JSON.parse(JSON.stringify(consumerOrders));
 
   return (
     <RetailerLayout
@@ -110,6 +124,7 @@ export default async function RetailerOrdersPage() {
         initialOrders={serializedOrders}
         wholesalers={serializedWholesalers}
         profileId={profile.id}
+        initialConsumerOrders={serializedConsumerOrders}
       />
     </RetailerLayout>
   );

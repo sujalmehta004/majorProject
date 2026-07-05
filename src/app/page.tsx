@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Shield, Activity, MapPin, Award, ArrowRight, CheckCircle, HeartPulse, Sparkles, Globe, Cpu, Zap, Package, Users } from 'lucide-react';
+import { Shield, Activity, MapPin, Award, ArrowRight, CheckCircle, HeartPulse, Sparkles, Globe, Cpu, Zap, Package, Users, ShoppingBag } from 'lucide-react';
 import Link from 'next/link';
 import NetworkCanvas from '@/components/NetworkCanvas';
 
@@ -90,15 +90,6 @@ export default function LandingPage() {
 
         {/* Nav Actions */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Link href="/superadmin/matrix-dashboard" style={{
-            padding: '8px 16px', borderRadius: 10,
-            border: '1.5px solid #DDD6FE', background: '#F5F3FF',
-            color: '#7C3AED', fontSize: 11, fontWeight: 700,
-            textTransform: 'uppercase', letterSpacing: '0.05em',
-            textDecoration: 'none', transition: 'all 0.2s',
-          }}>
-            Matrix Control
-          </Link>
           <Link href="/login" style={{
             padding: '8px 16px', borderRadius: 10,
             border: '1.5px solid #E0F2FE', background: 'rgba(255,255,255,0.9)',
@@ -167,6 +158,18 @@ export default function LandingPage() {
 
         {/* CTA Buttons */}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, justifyContent: 'center' }}>
+          <Link href="/buy-medicine" style={{
+            padding: '14px 28px', borderRadius: 12,
+            background: 'linear-gradient(135deg, #EC4899, #F59E0B)',
+            color: 'white', fontSize: 12, fontWeight: 700,
+            textTransform: 'uppercase', letterSpacing: '0.06em',
+            textDecoration: 'none',
+            boxShadow: '0 4px 20px rgba(236,72,153,0.35)',
+            display: 'flex', alignItems: 'center', gap: 6,
+            transition: 'all 0.2s',
+          }}>
+            Buy Medicine <ShoppingBag style={{ width: 14, height: 14 }} />
+          </Link>
           <Link href="/register" style={{
             padding: '14px 28px', borderRadius: 12,
             background: 'linear-gradient(135deg, #0EA5E9, #6366F1)',
@@ -178,29 +181,6 @@ export default function LandingPage() {
             transition: 'all 0.2s',
           }}>
             Get Started <ArrowRight style={{ width: 14, height: 14 }} />
-          </Link>
-          <Link href="/login" style={{
-            padding: '14px 28px', borderRadius: 12,
-            background: 'rgba(255,255,255,0.9)',
-            border: '1.5px solid #E0F2FE',
-            color: '#1E293B', fontSize: 12, fontWeight: 700,
-            textTransform: 'uppercase', letterSpacing: '0.06em',
-            textDecoration: 'none',
-            display: 'flex', alignItems: 'center', gap: 6,
-            transition: 'all 0.2s',
-          }}>
-            Terminal Login
-          </Link>
-          <Link href="/superadmin/matrix-dashboard" style={{
-            padding: '14px 28px', borderRadius: 12,
-            background: 'linear-gradient(135deg, #7C3AED, #4F46E5)',
-            color: 'white', fontSize: 12, fontWeight: 700,
-            textTransform: 'uppercase', letterSpacing: '0.06em',
-            textDecoration: 'none',
-            boxShadow: '0 4px 20px rgba(124,58,237,0.3)',
-            transition: 'all 0.2s',
-          }}>
-            Matrix Control Center
           </Link>
         </div>
 

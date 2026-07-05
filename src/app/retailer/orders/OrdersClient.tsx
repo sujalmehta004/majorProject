@@ -10,6 +10,7 @@ import {
   Clock, AlertTriangle, DollarSign
 } from 'lucide-react';
 import { confirmB2BDeliveryAction } from '@/app/actions/retailerActions';
+import { updateConsumerOrderStatusAction, saveDeliveryFeeSettingsAction, getDeliveryFeeSettingsAction } from '@/app/actions/consumerActions';
 import { useRealtimeEvent, broadcastUpdate } from '@/lib/events';
 
 interface Batch {
@@ -71,6 +72,7 @@ interface OrdersClientProps {
   initialOrders: Order[];
   wholesalers: Wholesaler[];
   profileId: string;
+  initialConsumerOrders: any[];
 }
 
 const STATUS_META: Record<string, { color: string; bg: string; icon: any }> = {
@@ -79,14 +81,17 @@ const STATUS_META: Record<string, { color: string; bg: string; icon: any }> = {
   DISPATCHED: { color: '#8B5CF6', bg: 'rgba(139,92,246,0.08)', icon: Truck },
   DELIVERED: { color: '#10B981', bg: 'rgba(16,185,129,0.08)', icon: CheckCircle },
   RETURNED: { color: '#EF4444', bg: 'rgba(239,68,68,0.08)', icon: X },
+  SHIPPED: { color: '#8B5CF6', bg: 'rgba(139,92,246,0.08)', icon: Truck },
+  FAILED: { color: '#EF4444', bg: 'rgba(239,68,68,0.08)', icon: X },
 };
 
-export default function OrdersClient({ initialOrders, wholesalers, profileId }: OrdersClientProps) {
+export default function OrdersClient({ initialOrders, wholesalers, profileId, initialConsumerOrders }: OrdersClientProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
 
-  const [activeTab, setActiveTab] = useState<'tracker' | 'order' | 'intake'>('tracker');
+  const [activeTab, setActiveTab] = useState<'tracker' | 'order' | 'intake' | 'online'>('tracker');
   const [orders, setOrders] = useState<Order[]>(initialOrders);
+  const [consumerOrders, setConsumerOrders] = useState<any[]>(initialConsumerOrders || []);
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterSearch, setFilterSearch] = useState('');
 
@@ -98,6 +103,12 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId }: 
   const [barcodeLoading, setBarcodeLoading] = useState(false);
   const [barcodeMessage, setBarcodeMessage] = useState({ text: '', isError: false });
   const [intakeBarcodeVerification, setIntakeBarcodeVerification] = useState('');
+
+  // Delivery fee settings state
+  const [deliveryTiers, setDeliveryTiers] = useState<{ maxKm: number; fee: number }[]>([]);
+  const [deliverySettingsSaving, setDeliverySettingsSaving] = useState(false);
+  const [deliverySettingsMsg, setDeliverySettingsMsg] = useState({ text: '', isError: false });
+  const [deliverySettingsLoaded, setDeliverySettingsLoaded] = useState(false);
 
   // Order Placement State
   const [selectedWholesalerId, setSelectedWholesalerId] = useState('');
@@ -129,13 +140,10 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId }: 
     es.onmessage = (e) => {
       try {
         const parsed = JSON.parse(e.data);
-        if (parsed.type === 'ORDER_UPDATE') {
+        if (parsed.type === 'ORDER_UPDATE' || parsed.type === 'CONSUMER_ORDER_UPDATE') {
           fetchOrders();
         }
       } catch (err) {}
-    };
-    es.onerror = () => {
-      es.close();
     };
     return () => {
       es.close();
@@ -148,6 +156,9 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId }: 
       const data = await res.json();
       if (data.success) {
         setOrders(data.orders);
+        if (data.consumerOrders) {
+          setConsumerOrders(data.consumerOrders);
+        }
       }
     } catch (e) {
       console.error(e);
@@ -263,6 +274,57 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId }: 
       alert(err.message || 'Error confirming package intake');
     } finally {
       setBarcodeLoading(false);
+    }
+  };
+
+  const handleUpdateConsumerStatus = async (orderId: string, nextStatus: string) => {
+    try {
+      setBarcodeLoading(true);
+      const res = await updateConsumerOrderStatusAction(orderId, nextStatus);
+      if (res.success) {
+        alert(`Order status successfully updated to ${nextStatus}!`);
+        await fetchOrders();
+        broadcastUpdate('CONSUMER_ORDER_UPDATE');
+        broadcastUpdate('BILLING_UPDATE');
+        broadcastUpdate('INVENTORY_UPDATE');
+      } else {
+        alert(res.error || 'Failed to update order status');
+      }
+    } catch (err: any) {
+      alert(err.message || 'An error occurred');
+    } finally {
+      setBarcodeLoading(false);
+    }
+  };
+
+  const loadDeliverySettings = async () => {
+    if (deliverySettingsLoaded) return;
+    try {
+      const res = await getDeliveryFeeSettingsAction(profileId);
+      if (res.success) {
+        const tiers = JSON.parse(res.deliveryFeesJson || '[]');
+        setDeliveryTiers(tiers);
+        setDeliverySettingsLoaded(true);
+      }
+    } catch (e) {
+      console.error('Failed to load delivery settings', e);
+    }
+  };
+
+  const saveDeliverySettings = async () => {
+    setDeliverySettingsSaving(true);
+    setDeliverySettingsMsg({ text: '', isError: false });
+    try {
+      const res = await saveDeliveryFeeSettingsAction(profileId, JSON.stringify(deliveryTiers));
+      if (res.success) {
+        setDeliverySettingsMsg({ text: '✓ Delivery fee settings saved successfully!', isError: false });
+      } else {
+        setDeliverySettingsMsg({ text: res.error || 'Failed to save settings', isError: true });
+      }
+    } catch (e: any) {
+      setDeliverySettingsMsg({ text: e.message || 'Error saving settings', isError: true });
+    } finally {
+      setDeliverySettingsSaving(false);
     }
   };
 
@@ -401,6 +463,16 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId }: 
     return matchesStatus && matchesSearch;
   });
 
+  const filteredConsumer = consumerOrders.filter((o) => {
+    const matchesStatus = filterStatus === 'all' || o.status === filterStatus;
+    const matchesSearch =
+      o.trackingCode.toLowerCase().includes(filterSearch.toLowerCase()) ||
+      o.buyerName.toLowerCase().includes(filterSearch.toLowerCase()) ||
+      o.buyerEmail.toLowerCase().includes(filterSearch.toLowerCase()) ||
+      o.buyerPhone.toLowerCase().includes(filterSearch.toLowerCase());
+    return matchesStatus && matchesSearch;
+  });
+
   const cartTotal = cart.reduce((sum, item) => sum + item.qtyBoxes * item.pricePerBox, 0);
 
   const printOrderVoucher = (order: Order) => {
@@ -506,6 +578,12 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId }: 
             style={{ padding: '10px 16px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s', background: activeTab === 'intake' ? '#F59E0B' : '#FFFFFF', border: activeTab === 'intake' ? 'none' : '1.5px solid #E2E8F0', color: activeTab === 'intake' ? '#FFFFFF' : '#475569' }}
           >
             Barcode Package Intake
+          </button>
+          <button
+            onClick={() => setActiveTab('online')}
+            style={{ padding: '10px 16px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s', background: activeTab === 'online' ? '#10B981' : '#FFFFFF', border: activeTab === 'online' ? 'none' : '1.5px solid #E2E8F0', color: activeTab === 'online' ? '#FFFFFF' : '#475569' }}
+          >
+            Online B2C Orders
           </button>
         </div>
       </div>
@@ -851,6 +929,269 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId }: 
               {barcodeMessage.text}
             </div>
           )}
+        </div>
+      )}
+
+      {activeTab === 'online' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+          {/* Delivery Fee Settings Panel */}
+          <div style={{ background: '#FFFFFF', borderRadius: 16, border: '1.5px solid #F1F5F9', overflow: 'hidden' }}>
+            <div
+              style={{ padding: '14px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', background: '#F8FAFC', borderBottom: deliverySettingsLoaded ? '1px solid #F1F5F9' : 'none' }}
+              onClick={async () => {
+                if (!deliverySettingsLoaded) {
+                  const res = await getDeliveryFeeSettingsAction(profileId);
+                  if (res.success) {
+                    setDeliveryTiers(JSON.parse(res.deliveryFeesJson || '[]'));
+                    setDeliverySettingsLoaded(true);
+                  }
+                } else {
+                  setDeliverySettingsLoaded(false);
+                }
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(16,185,129,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <DollarSign style={{ width: 18, height: 18, color: '#10B981' }} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: '#1E293B' }}>Delivery Fee Settings</div>
+                  <div style={{ fontSize: 11, color: '#94A3B8' }}>Set km radius tiers and delivery charges for online orders</div>
+                </div>
+              </div>
+              <span style={{ fontSize: 12, color: '#64748B' }}>{deliverySettingsLoaded ? '▲ Collapse' : '▼ Expand'}</span>
+            </div>
+
+            {deliverySettingsLoaded && (
+              <div style={{ padding: '18px 20px' }}>
+                <div style={{ marginBottom: 12, fontSize: 12, color: '#64748B' }}>
+                  Add tiers below — e.g. "Up to 5 km → Free (Rs. 0)", "Up to 10 km → Rs. 100". Customers beyond all tiers pay the last tier's fee.
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {deliveryTiers.map((tier, idx) => (
+                    <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 10, alignItems: 'center', background: '#F8FAFC', padding: '10px 14px', borderRadius: 10, border: '1px solid #E2E8F0' }}>
+                      <div>
+                        <label style={{ fontSize: 10, fontWeight: 800, color: '#64748B', textTransform: 'uppercase', display: 'block', marginBottom: 3 }}>Up to (km)</label>
+                        <input
+                          type="number" min="0.1" step="0.5"
+                          value={tier.maxKm}
+                          onChange={e => {
+                            const updated = [...deliveryTiers];
+                            updated[idx] = { ...updated[idx], maxKm: parseFloat(e.target.value) || 0 };
+                            setDeliveryTiers(updated);
+                          }}
+                          style={{ width: '100%', padding: '7px 10px', borderRadius: 7, border: '1px solid #CBD5E1', fontSize: 13, outline: 'none' }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: 10, fontWeight: 800, color: '#64748B', textTransform: 'uppercase', display: 'block', marginBottom: 3 }}>Delivery Fee (Rs.)</label>
+                        <input
+                          type="number" min="0"
+                          value={tier.fee}
+                          onChange={e => {
+                            const updated = [...deliveryTiers];
+                            updated[idx] = { ...updated[idx], fee: parseFloat(e.target.value) || 0 };
+                            setDeliveryTiers(updated);
+                          }}
+                          style={{ width: '100%', padding: '7px 10px', borderRadius: 7, border: '1px solid #CBD5E1', fontSize: 13, outline: 'none' }}
+                          placeholder="0 = Free"
+                        />
+                      </div>
+                      <button
+                        onClick={() => setDeliveryTiers(deliveryTiers.filter((_, i) => i !== idx))}
+                        style={{ background: '#FEE2E2', color: '#EF4444', border: 'none', borderRadius: 8, padding: '8px 10px', cursor: 'pointer', marginTop: 18 }}
+                      >
+                        <X style={{ width: 13, height: 13 }} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{ display: 'flex', gap: 10, marginTop: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <button
+                    onClick={() => setDeliveryTiers([...deliveryTiers, { maxKm: 5, fee: 0 }])}
+                    style={{ padding: '8px 14px', background: '#F1F5F9', color: '#475569', border: '1px solid #E2E8F0', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    + Add Tier
+                  </button>
+                  <button
+                    onClick={saveDeliverySettings}
+                    disabled={deliverySettingsSaving}
+                    style={{ padding: '8px 18px', background: '#10B981', color: '#FFFFFF', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 800, cursor: 'pointer' }}
+                  >
+                    {deliverySettingsSaving ? 'Saving...' : 'Save Fee Settings'}
+                  </button>
+                  {deliverySettingsMsg.text && (
+                    <span style={{ fontSize: 12, fontWeight: 700, color: deliverySettingsMsg.isError ? '#EF4444' : '#10B981' }}>
+                      {deliverySettingsMsg.text}
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Filters */}
+          <div style={{ display: 'flex', gap: 12, padding: '14px 18px', background: '#FFFFFF', borderRadius: 14, border: '1.5px solid #F1F5F9', flexWrap: 'wrap', alignItems: 'center' }}>
+            <div style={{ flex: 1, minWidth: 200, display: 'flex', alignItems: 'center', gap: 8, background: '#F8FAFC', padding: '8px 14px', borderRadius: 8, border: '1px solid #E2E8F0' }}>
+              <Search style={{ width: 14, height: 14, color: '#94A3B8' }} />
+              <input
+                type="text"
+                placeholder="Search tracker code, customer name, email, phone…"
+                value={filterSearch}
+                onChange={(e) => setFilterSearch(e.target.value)}
+                style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%', fontSize: 12, color: '#334155' }}
+              />
+            </div>
+
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 12, outline: 'none', background: '#F8FAFC', color: '#475569', fontWeight: 600 }}
+            >
+              <option value="all">All Orders</option>
+              <option value="PENDING">PENDING</option>
+              <option value="SHIPPED">SHIPPED</option>
+              <option value="DELIVERED">DELIVERED</option>
+              <option value="FAILED">FAILED</option>
+              <option value="RETURNED">RETURNED</option>
+            </select>
+
+            <div style={{ fontSize: 12, color: '#94A3B8', fontWeight: 600 }}>
+              {filteredConsumer.length} matching entries
+            </div>
+          </div>
+
+          {/* Cards/List */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 16 }}>
+            {filteredConsumer.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '80px', color: '#94A3B8', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, background: '#FFFFFF', borderRadius: 16, border: '1.5px solid #F1F5F9' }}>
+                <ShoppingBag style={{ width: 48, height: 48, color: '#E2E8F0' }} />
+                <div style={{ fontSize: 14, fontWeight: 600 }}>No B2C online orders found</div>
+              </div>
+            ) : (
+              filteredConsumer.map((order) => {
+                const sm = STATUS_META[order.status] || { color: '#64748B', bg: 'rgba(100,116,139,0.08)', icon: AlertCircle };
+                const StatusIcon = sm.icon;
+
+                return (
+                  <div key={order.id} style={{ background: '#FFFFFF', borderRadius: 16, border: '1.5px solid #F1F5F9', padding: 20, boxShadow: '0 2px 8px rgba(0,0,0,0.02)', display: 'flex', flexDirection: 'column', gap: 16 }}>
+                    {/* Top Row */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, borderBottom: '1px solid #F1F5F9', paddingBottom: 12 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <span style={{ fontSize: 15, fontWeight: 900, color: '#1E293B', fontFamily: 'monospace' }}>
+                          {order.trackingCode}
+                        </span>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, color: sm.color, background: sm.bg }}>
+                          <StatusIcon style={{ width: 12, height: 12 }} />
+                          {order.status}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 12, color: '#94A3B8' }}>
+                        {new Date(order.createdAt).toLocaleString()}
+                      </div>
+                    </div>
+
+                    {/* Middle Row: Content */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(200px, 1.2fr) minmax(250px, 2fr)', gap: 24 }}>
+                      {/* Customer & Delivery Details */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        <div style={{ fontSize: 10, color: '#94A3B8', fontWeight: 800, textTransform: 'uppercase' }}>Customer & Delivery</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: '#F8FAFC', padding: 12, borderRadius: 10, fontSize: 12 }}>
+                          <div><strong>Name:</strong> {order.buyerName}</div>
+                          <div><strong>Email:</strong> {order.buyerEmail}</div>
+                          <div><strong>Phone:</strong> {order.buyerPhone}</div>
+                          <div style={{ marginTop: 4, paddingTop: 4, borderTop: '1px solid #E2E8F0' }}>
+                            <strong>Address:</strong> {order.deliveryAddress}
+                          </div>
+                          {(order.latitude && order.longitude) && (
+                            <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>
+                              Coords: {order.latitude.toFixed(5)}, {order.longitude.toFixed(5)}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Items List */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        <div style={{ fontSize: 10, color: '#94A3B8', fontWeight: 800, textTransform: 'uppercase' }}>Items Ordered</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          {order.items.map((item: any) => (
+                            <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#F8FAFC', padding: '8px 12px', borderRadius: 8, fontSize: 12 }}>
+                              <div>
+                                <span style={{ fontWeight: 700, color: '#1E293B' }}>{item.product.name}</span>
+                                <span style={{ color: '#94A3B8', fontSize: 10, marginLeft: 6 }}>{item.product.sku}</span>
+                              </div>
+                              <div style={{ textAlign: 'right' }}>
+                                <span style={{ fontWeight: 800, color: '#334155' }}>Rs. {(item.quantity * item.pricePerUnit).toLocaleString()}</span>
+                                <div style={{ fontSize: 10, color: '#94A3B8' }}>{item.quantity} base units @ Rs. {item.pricePerUnit}</div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Bottom Row: Total & Actions */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, borderTop: '1px solid #F1F5F9', paddingTop: 14 }}>
+                      <div>
+                        <div style={{ fontSize: 10, color: '#94A3B8', fontWeight: 800 }}>TOTAL AMOUNT (COD)</div>
+                        <div style={{ fontSize: 18, fontWeight: 900, color: '#10B981', marginTop: 2 }}>
+                          Rs. {order.totalAmount.toLocaleString()}
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        {order.status === 'PENDING' && (
+                          <>
+                            <button
+                              onClick={() => handleUpdateConsumerStatus(order.id, 'SHIPPED')}
+                              disabled={barcodeLoading}
+                              style={{ padding: '8px 14px', background: '#8B5CF6', color: '#FFFFFF', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+                            >
+                              <Truck style={{ width: 14, height: 14 }} /> Ship Order
+                            </button>
+                            <button
+                              onClick={() => handleUpdateConsumerStatus(order.id, 'FAILED')}
+                              disabled={barcodeLoading}
+                              style={{ padding: '8px 14px', background: '#EF4444', color: '#FFFFFF', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 800, cursor: 'pointer' }}
+                            >
+                              Cancel Order
+                            </button>
+                          </>
+                        )}
+                        {order.status === 'SHIPPED' && (
+                          <>
+                            <button
+                              onClick={() => handleUpdateConsumerStatus(order.id, 'DELIVERED')}
+                              disabled={barcodeLoading}
+                              style={{ padding: '8px 14px', background: '#10B981', color: '#FFFFFF', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+                            >
+                              <CheckCircle style={{ width: 14, height: 14 }} /> Deliver Order
+                            </button>
+                            <button
+                              onClick={() => handleUpdateConsumerStatus(order.id, 'FAILED')}
+                              disabled={barcodeLoading}
+                              style={{ padding: '8px 14px', background: '#EF4444', color: '#FFFFFF', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 800, cursor: 'pointer' }}
+                            >
+                              Mark Failed
+                            </button>
+                          </>
+                        )}
+                        {order.status === 'DELIVERED' && (
+                          <div style={{ fontSize: 11, color: '#10B981', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <CheckCircle style={{ width: 13, height: 13 }} /> Order Completed
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
         </div>
       )}
 

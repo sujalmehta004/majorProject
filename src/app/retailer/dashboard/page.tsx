@@ -78,7 +78,7 @@ export default async function RetailerDashboard() {
     },
   });
 
-  // Load B2C sales
+  // Load B2C sales (POS)
   const sales = await db.order.findMany({
     where: {
       retailerId: profile.id,
@@ -86,7 +86,24 @@ export default async function RetailerDashboard() {
     },
   });
 
-  let totalSalesRevenue = sales.reduce((sum, s) => sum + s.netAmount, 0);
+  // Load B2C online (consumer) orders
+  const consumerOrderPending = await db.consumerOrder.count({
+    where: { retailerId: profile.id, status: 'PENDING' },
+  });
+  const consumerOrderShipped = await db.consumerOrder.count({
+    where: { retailerId: profile.id, status: 'SHIPPED' },
+  });
+  const consumerOrderDelivered = await db.consumerOrder.count({
+    where: { retailerId: profile.id, status: 'DELIVERED' },
+  });
+  const consumerDeliveredRevenue = await db.consumerOrder.aggregate({
+    where: { retailerId: profile.id, status: 'DELIVERED' },
+    _sum: { totalAmount: true },
+  });
+
+  const totalSalesRevenue =
+    sales.reduce((sum, s) => sum + s.netAmount, 0) +
+    (consumerDeliveredRevenue._sum.totalAmount || 0);
 
   const auditLogs = await db.systemAuditLog.findMany({
     take: 6,
@@ -147,6 +164,9 @@ export default async function RetailerDashboard() {
           creditLimit: profile.creditLimit,
           lifetimeSpend: profile.lifetimeSpend,
           pharmacyName: profile.pharmacyName,
+          consumerOrderPending,
+          consumerOrderShipped,
+          consumerOrderDelivered,
         }}
         auditLogs={serializedLogs}
         rejectedSettlements={serializedRejected}

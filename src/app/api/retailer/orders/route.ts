@@ -57,7 +57,19 @@ export async function GET(request: Request) {
       orderBy: { createdAt: 'desc' },
     });
 
-    return NextResponse.json({ success: true, orders });
+    const consumerOrders = await db.consumerOrder.findMany({
+      where: { retailerId: retailerId },
+      include: {
+        items: {
+          include: {
+            product: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return NextResponse.json({ success: true, orders, consumerOrders });
   } catch (error: any) {
     console.error('Error fetching retailer orders:', error);
     return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });

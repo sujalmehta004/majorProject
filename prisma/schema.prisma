@@ -102,6 +102,7 @@ model RetailerProfile {
   longitude          Float
   creditLimit        Float               @default(200000) // Rs. 200,000 credit limit by default
   lifetimeSpend      Float               @default(0)      // for client tier loyalty tracking
+  deliveryFeesJson   String              @default("[]")   // JSON array of {maxKm: number, fee: number}
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
 
@@ -112,6 +113,7 @@ model RetailerProfile {
   staff              User[]              @relation("RetailerStaff")
   wholesalerRelations WholesalerRetailerRelation[]
   returnRequests     ReturnRequest[]
+  consumerOrders     ConsumerOrder[]
 }
 
 model ClinicProfile {
@@ -149,6 +151,7 @@ model Product {
   orderItems      OrderItem[]
   retailStock     RetailerInventory[]
   inTransitLogs   InTransitLog[]
+  consumerOrderItems ConsumerOrderItem[]
 
   @@unique([wholesalerId, sku])
   @@unique([retailerId, sku])
@@ -371,5 +374,38 @@ model B2BSettlement {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 }
+
+model ConsumerOrder {
+  id              String              @id @default(uuid())
+  trackingCode    String              @unique // Unique short code like MH-XXXXXX
+  retailerId      String
+  retailer        RetailerProfile     @relation(fields: [retailerId], references: [id], onDelete: Cascade)
+  buyerName       String
+  buyerEmail      String
+  buyerPhone      String
+  deliveryAddress String
+  latitude        Float?
+  longitude       Float?
+  paymentMethod   String              @default("COD") // e.g. "COD" (Cash on Delivery)
+  status          String              @default("PENDING") // PENDING, SHIPPED, DELIVERED, FAILED
+  totalAmount     Float
+  deliveryFee     Float               @default(0)
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  items           ConsumerOrderItem[]
+}
+
+model ConsumerOrderItem {
+  id              String        @id @default(uuid())
+  consumerOrderId String
+  consumerOrder   ConsumerOrder @relation(fields: [consumerOrderId], references: [id], onDelete: Cascade)
+  productId       String
+  product         Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  quantity        Int           // raw base units ordered
+  pricePerUnit    Float         // selling price per unit at order time
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
+
 
 
