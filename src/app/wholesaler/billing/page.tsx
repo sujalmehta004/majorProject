@@ -32,9 +32,13 @@ export default async function WholesalerBillingPage() {
     redirect('/subscription-expired');
   }
 
-  // Load all order logs for this wholesaler to perform financial analytics
+  // Load all B2B orders and wholesaler-own POS orders (exclude retailer B2C POS sales)
   const orders = await db.order.findMany({
-    where: { wholesalerId: profile.id },
+    where: {
+      wholesalerId: profile.id,
+      // Exclude retailer-side B2C POS sales — those belong only to the retailer's billing view
+      NOT: { overrideJustification: { contains: 'B2C POS' } },
+    },
     include: {
       retailer: true,
       b2bSettlements: true,

@@ -3,12 +3,25 @@ import { db } from '@/lib/db';
 import { getSessionUser } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
 
-function triggerRevalidation() {
+import { broadcastToRetailer, broadcastToWholesaler } from '@/app/api/events/route';
+
+async function triggerRevalidation(orderId?: string) {
   try {
     revalidatePath('/wholesaler/billing');
     revalidatePath('/wholesaler/customers');
     revalidatePath('/retailer/billing');
     revalidatePath('/retailer/dashboard');
+
+    if (orderId) {
+      const order = await db.order.findUnique({
+        where: { id: orderId },
+        select: { wholesalerId: true, retailerId: true }
+      });
+      if (order) {
+        broadcastToWholesaler(order.wholesalerId, 'BILLING_UPDATE');
+        broadcastToRetailer(order.retailerId, 'BILLING_UPDATE');
+      }
+    }
   } catch (e) {
     console.error('Revalidation failed:', e);
   }
@@ -124,7 +137,7 @@ export async function POST(request: Request) {
           },
         });
 
-        triggerRevalidation();
+        triggerRevalidation(orderId);
         return NextResponse.json({ success: true, order: updatedOrder });
       }
 
@@ -177,14 +190,14 @@ export async function POST(request: Request) {
             });
           });
 
-          triggerRevalidation();
+          triggerRevalidation(orderId);
           return NextResponse.json({ success: true, order: updated });
         } else {
           const updated = await db.order.update({
             where: { id: orderId },
             data: { settleStatus: 'REJECTED' },
           });
-          triggerRevalidation();
+          triggerRevalidation(orderId);
           return NextResponse.json({ success: true, order: updated });
         }
       }
@@ -254,7 +267,7 @@ export async function POST(request: Request) {
         },
       });
 
-      triggerRevalidation();
+      triggerRevalidation(currentOrderId);
       return NextResponse.json({ success: true, order: updatedOrder });
     } else {
       // Reject
@@ -294,7 +307,7 @@ export async function POST(request: Request) {
         },
       });
 
-      triggerRevalidation();
+      triggerRevalidation(currentOrderId);
       return NextResponse.json({ success: true, order: updatedOrder });
     }
   } catch (error: any) {

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getSessionUser } from '@/lib/auth';
 import { OrderStatus } from '@prisma/client';
+import { broadcastToWholesaler } from '@/app/api/events/route';
 
 export async function POST(request: Request) {
   try {
@@ -174,8 +175,23 @@ export async function POST(request: Request) {
           discountAmount,
           netAmount,
           overrideJustification: customerInfoStr,
+          settleStatus: effectivePaidAmount >= netAmount ? 'VERIFIED' : effectivePaidAmount > 0 ? 'PARTIALLY_PAID' : 'UNPAID',
+          settleAmount: effectivePaidAmount,
+          settleMethod: paymentMethod,
         },
       });
+
+      // Create B2BSettlement record for any payment made at POS
+      if (effectivePaidAmount > 0) {
+        await tx.b2BSettlement.create({
+          data: {
+            orderId: newOrder.id,
+            amount: effectivePaidAmount,
+            method: paymentMethod,
+            status: 'VERIFIED',
+          },
+        });
+      }
 
       // Create Order Items and apply FIFO Allocation
       for (const item of computedItems) {
@@ -273,6 +289,9 @@ export async function POST(request: Request) {
         }
       }
     });
+
+    // Broadcast live update to wholesaler clients
+    broadcastToWholesaler(wholesalerProfileId, 'BILLING_UPDATE');
 
     return NextResponse.json({
       success: true,

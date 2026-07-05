@@ -47,7 +47,10 @@ export default async function WholesalerCustomers() {
     include: {
       user: true,
       orders: {
-        where: { wholesalerId: profile.id },
+        where: {
+          wholesalerId: profile.id,
+          NOT: { overrideJustification: { contains: 'B2C POS' } }
+        },
         include: {
           items: {
             include: {

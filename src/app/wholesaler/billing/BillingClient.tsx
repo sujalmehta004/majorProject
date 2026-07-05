@@ -576,7 +576,11 @@ export default function BillingClient({ profileId, initialOrders, initialSupplie
       const res = await fetch(`/api/orders?wholesalerId=${profileId}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to fetch bills');
-      setOrders(data.orders);
+      // Exclude retailer B2C POS orders — they belong on the retailer billing page only
+      const b2bOrders = (data.orders || []).filter(
+        (o: any) => !o.overrideJustification?.includes('B2C POS')
+      );
+      setOrders(b2bOrders);
     } catch (err: any) {
       setError(err.message || 'Failed to sync billing data.');
     } finally {
@@ -611,7 +615,11 @@ export default function BillingClient({ profileId, initialOrders, initialSupplie
   }, [activeTab]);
 
   useSSEListener(profileId, (type) => {
-    if (type === 'ORDER_CREATED' || type === 'ORDER_STATUS_CHANGED' || type === 'INVENTORY_UPDATED' || type === 'SUPPLIER_UPDATED') {
+    if (
+      type === 'ORDER_CREATED' || type === 'ORDER_STATUS_CHANGED' ||
+      type === 'INVENTORY_UPDATED' || type === 'SUPPLIER_UPDATED' ||
+      type === 'BILLING_UPDATE'
+    ) {
       fetchOrders();
       fetchSupplierBills();
     }
@@ -885,12 +893,18 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
     }
   };
 
-  const fiscalOrders = orders.filter(o => new Date(o.createdAt).getFullYear() === fiscalYear);
+  const fiscalOrders = orders.filter(o => 
+    new Date(o.createdAt).getFullYear() === fiscalYear &&
+    !o.overrideJustification?.includes('B2C POS')
+  );
   const fiscalRevenue = fiscalOrders.filter(o => o.status === 'DELIVERED').reduce((s, o) => s + o.netAmount, 0);
   const fiscalProfit = fiscalOrders.filter(o => o.status === 'DELIVERED').reduce((s, o) => s + getOrderProfit(o), 0);
 
   // Filtered orders for transaction table
   const filteredOrders = orders.filter(o => {
+    // Exclude retailer-side B2C POS sales — those belong only to the retailer's billing view
+    if (o.overrideJustification?.includes('B2C POS')) return false;
+
     const matchStatus = filterStatus === 'all' || o.status === filterStatus;
     const matchSearch = !filterSearch ||
       o.retailer.pharmacyName.toLowerCase().includes(filterSearch.toLowerCase()) ||

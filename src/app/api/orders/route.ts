@@ -360,6 +360,7 @@ export async function GET(request: Request) {
           },
         },
         wholesaler: true,
+        b2bSettlements: true,
         items: {
           include: {
             product: true,

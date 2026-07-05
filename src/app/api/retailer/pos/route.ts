@@ -111,6 +111,9 @@ export async function POST(request: Request) {
           discountAmount: 0,
           netAmount,
           overrideJustification: customerDetails,
+          settleStatus: paidAmount >= netAmount ? 'VERIFIED' : paidAmount > 0 ? 'PARTIALLY_PAID' : 'UNPAID',
+          settleAmount: Math.min(paidAmount, netAmount),
+          settleMethod: paymentMethod || 'CASH',
         },
       });
 

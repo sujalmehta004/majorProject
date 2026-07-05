@@ -28,6 +28,15 @@ interface Order {
   createdAt: string;
   overrideJustification?: string | null;
   items?: OrderItem[];
+  settleStatus?: string | null;
+  settleAmount?: number | null;
+  b2bSettlements?: Array<{
+    id: string;
+    amount: number;
+    method?: string | null;
+    status: string;
+    createdAt: string;
+  }>;
 }
 
 const getWalkInName = (justification?: string | null) => {
@@ -134,7 +143,11 @@ export default function CustomerClient({ customers: initialCustomers, wholesaler
 
   // Re-fetch or refresh on SSE update
   useSSEListener(wholesalerId, (type) => {
-    if (type === 'ORDER_CREATED' || type === 'ORDER_STATUS_CHANGED' || type === 'RETAILER_UPDATED') {
+    if (
+      type === 'ORDER_CREATED' || type === 'ORDER_STATUS_CHANGED' || 
+      type === 'RETAILER_UPDATED' || type === 'BILLING_UPDATE' ||
+      type === 'INVENTORY_UPDATED'
+    ) {
       router.refresh();
     }
   });

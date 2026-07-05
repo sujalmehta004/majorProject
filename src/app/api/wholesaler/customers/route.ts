@@ -39,8 +39,12 @@ export async function GET(request: NextRequest) {
       include: {
         user: true,
         orders: {
-          where: { wholesalerId: wholesalerProfileId },
+          where: {
+            wholesalerId: wholesalerProfileId,
+            NOT: { overrideJustification: { contains: 'B2C POS' } }
+          },
           include: {
+            b2bSettlements: true,
             items: {
               include: {
                 product: true

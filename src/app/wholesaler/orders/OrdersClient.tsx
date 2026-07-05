@@ -170,8 +170,11 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
 
   // Orders filter
   const filteredOrders = orders.filter(o => {
-    // Exclude walkin customer data
-    const isWalkin = o.retailer.pharmacyName === 'Walk-in Customer (POS)' || o.retailer.registrationNumber === 'WALKIN-POS-SECURE';
+    // Exclude walk-in customer data and retailer B2C POS billing
+    const isWalkin = o.retailer.pharmacyName === 'Walk-in Customer (POS)' || 
+                     o.retailer.registrationNumber === 'WALKIN-POS-SECURE' ||
+                     o.overrideJustification?.includes('Walk-in Customer') ||
+                     o.overrideJustification?.includes('B2C POS');
     if (isWalkin) return false;
 
     const matchStatus = filterStatus === 'all' || o.status === filterStatus;
