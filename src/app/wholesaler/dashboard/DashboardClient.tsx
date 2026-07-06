@@ -298,8 +298,17 @@ export default function DashboardClient({
                   <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>{s.retailer?.pharmacyName || "Retailer"}</div>
                   <div style={{ fontSize: 11, color: "#6B7280" }}>Order #{s.id.substring(0, 8).toUpperCase()} · {s.items?.length || 0} medicines</div>
                 </div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "#7C3AED" }}>Rs. {s.settleAmount?.toLocaleString()}</div>
-                <span style={{ fontSize: 11, color: "#6B7280" }}>{s.settleMethod || "CASH"}</span>
+                {(() => {
+                  const pendingSettle = (s.b2bSettlements || []).find((x: any) => x.status === 'PENDING');
+                  const amt = pendingSettle ? pendingSettle.amount : (s.settleAmount || 0);
+                  const method = pendingSettle ? pendingSettle.method : (s.settleMethod || 'CASH');
+                  return (
+                    <>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "#7C3AED" }}>Rs. {amt.toLocaleString()}</div>
+                      <span style={{ fontSize: 11, color: "#6B7280" }}>{method}</span>
+                    </>
+                  );
+                })()}
                 <div style={{ display: "flex", gap: 6 }}>
                   <button
                     onClick={() => handleVerifySettlement(s.id, false)}

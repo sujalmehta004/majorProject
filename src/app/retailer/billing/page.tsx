@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { Suspense } from 'react';
 import { db } from '@/lib/db';
 import { getSessionUser } from '@/lib/auth';
 import { redirect } from 'next/navigation';
@@ -169,14 +169,16 @@ export default async function RetailerBillingPage() {
         registrationNumber: profile.registrationNumber,
       }}
     >
-      <BillingClient
-        initialSales={JSON.parse(JSON.stringify(sales))}
-        initialPurchases={JSON.parse(JSON.stringify(purchases))}
-        initialRelations={JSON.parse(JSON.stringify(relations))}
-        initialLedgers={JSON.parse(JSON.stringify(ledgers))}
-        initialReturnRequests={JSON.parse(JSON.stringify(returnRequests))}
-        profileId={profile.id}
-      />
+      <Suspense fallback={<div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Loading billing…</div>}>
+        <BillingClient
+          initialSales={JSON.parse(JSON.stringify(sales))}
+          initialPurchases={JSON.parse(JSON.stringify(purchases))}
+          initialRelations={JSON.parse(JSON.stringify(relations))}
+          initialLedgers={JSON.parse(JSON.stringify(ledgers))}
+          initialReturnRequests={JSON.parse(JSON.stringify(returnRequests))}
+          profileId={profile.id}
+        />
+      </Suspense>
     </RetailerLayout>
   );
 }

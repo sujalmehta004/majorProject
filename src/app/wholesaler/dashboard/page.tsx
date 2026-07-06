@@ -140,6 +140,7 @@ export default async function WholesalerDashboard() {
     },
     include: {
       retailer: true,
+      b2bSettlements: true,
       items: {
         include: {
           product: true,
@@ -156,6 +157,7 @@ export default async function WholesalerDashboard() {
     },
     include: {
       retailer: true,
+      b2bSettlements: true,
       items: {
         include: {
           product: true,

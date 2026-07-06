@@ -3,7 +3,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   ShoppingBag, Search, Plus, Trash2, Printer, CheckCircle,
-  AlertCircle, Layers, X, DollarSign, User, Phone, Check, RefreshCw
+  AlertCircle, Layers, X, DollarSign, User, Phone, Check,
+  Minus, Package, Receipt, Barcode, ArrowRight, MapPin,
+  Clock, CreditCard, Banknote, Smartphone, ChevronDown
 } from 'lucide-react';
 import { createPOSSaleAction } from '@/app/actions/retailerActions';
 import { broadcastUpdate } from '@/lib/events';
@@ -25,7 +27,7 @@ interface Product {
   category: string;
   tabletsPerStrip: number;
   stripsPerBox: number;
-  pricePerBox?: number; // Optional: price hint from server
+  pricePerBox?: number;
   batches: Batch[];
 }
 
@@ -46,12 +48,23 @@ interface POSClientProps {
   products: Product[];
 }
 
+const inputStyle: React.CSSProperties = {
+  padding: '9px 12px',
+  borderRadius: 8,
+  border: '1px solid var(--card-border)',
+  outline: 'none',
+  fontSize: 13,
+  width: '100%',
+  background: 'var(--card-bg)',
+  color: 'var(--text-primary)',
+  boxSizing: 'border-box' as const,
+};
+
 export default function POSClient({ products }: POSClientProps) {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
-  
-  // Search and select product/batch states
+
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedProductId, setSelectedProductId] = useState('');
   const [selectedBatchId, setSelectedBatchId] = useState('');
@@ -60,21 +73,19 @@ export default function POSClient({ products }: POSClientProps) {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [barcodeInput, setBarcodeInput] = useState('');
 
-  // Advanced payment inputs
   const [paymentMethod, setPaymentMethod] = useState('CASH');
   const [paymentStatusType, setPaymentStatusType] = useState<'FULL' | 'HALF' | 'UNPAID'>('FULL');
   const [paidAmountInput, setPaidAmountInput] = useState('');
   const [discountPercent, setDiscountPercent] = useState('0');
-  const [taxPercent, setTaxPercent] = useState('0'); // default 0% or custom
+  const [taxPercent, setTaxPercent] = useState('0');
 
-  // Statuses
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
   const [receipt, setReceipt] = useState<any | null>(null);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const suggestionsRef = useRef<HTMLDivElement>(null);
 
   const selectedProduct = products.find((p) => p.id === selectedProductId);
   const selectedBatch = selectedProduct?.batches.find((b) => b.id === selectedBatchId);
@@ -85,214 +96,100 @@ export default function POSClient({ products }: POSClientProps) {
   );
 
   const calculateCartSummary = () => {
-    let subtotal = 0;
-    cart.forEach((item) => {
-      subtotal += item.totalAmount;
-    });
-
+    const subtotal = cart.reduce((s, item) => s + item.totalAmount, 0);
     const discPct = parseFloat(discountPercent) || 0;
     const taxPct = parseFloat(taxPercent) || 0;
-
     const discountAmount = subtotal * (discPct / 100);
     const taxAmount = (subtotal - discountAmount) * (taxPct / 100);
     const netAmount = subtotal - discountAmount + taxAmount;
-
     return { subtotal, discountAmount, taxAmount, netAmount };
   };
 
   const { subtotal, discountAmount, taxAmount, netAmount } = calculateCartSummary();
 
-  // Manage UOM pricing and base units calculations
   const getProductPricePerBox = (product: Product, batchId?: string) => {
     if (batchId) {
       const b = product.batches.find((x) => x.id === batchId);
-      if (b && b.sellingPrice && b.sellingPrice > 0) {
-        return b.sellingPrice;
-      }
+      if (b && b.sellingPrice && b.sellingPrice > 0) return b.sellingPrice;
     }
-    // Use pre-computed price hint from server if available, else fallback
     if (product.pricePerBox && product.pricePerBox > 0) return product.pricePerBox;
-    return 100; // fallback
+    return 100;
   };
 
-  // Keyboard Shortcuts Hook
+  // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'F9') {
-        e.preventDefault();
-        searchInputRef.current?.focus();
-      }
-      if (e.key === 'F8') {
-        e.preventDefault();
-        setPaymentMethod((prev) => {
-          if (prev === 'CASH') return 'MOBILE_BANKING';
-          if (prev === 'MOBILE_BANKING') return 'CARD';
-          return 'CASH';
-        });
-      }
-      if (e.key === 'F7') {
-        e.preventDefault();
-        setPaymentStatusType('FULL');
-        setPaidAmountInput(String(netAmount.toFixed(2)));
-      }
-      if (e.key === 'F4') {
-        e.preventDefault();
-        const el = document.getElementById('patient-name-input');
-        el?.focus();
-      }
-      if (e.key === 'F3') {
-        e.preventDefault();
-        const el = document.getElementById('pos-qty-input');
-        el?.focus();
-      }
-      if (e.key === 'F2') {
-        e.preventDefault();
-        setPosUomType((prev) => {
-          if (prev === 'box') return 'strip';
-          if (prev === 'strip') return 'tablet';
-          return 'box';
-        });
-      }
-      if (e.key === 'F1') {
-        e.preventDefault();
-        const el = document.getElementById('add-to-basket-btn');
-        el?.click();
-      }
-      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-        e.preventDefault();
-        if (cart.length > 0) {
-          const form = document.getElementById('pos-checkout-form') as HTMLFormElement;
-          form?.requestSubmit();
-        }
-      }
+      if (e.key === 'F9') { e.preventDefault(); searchInputRef.current?.focus(); }
+      if (e.key === 'F8') { e.preventDefault(); setPaymentMethod((prev) => prev === 'CASH' ? 'MOBILE_BANKING' : prev === 'MOBILE_BANKING' ? 'CARD' : 'CASH'); }
+      if (e.key === 'F7') { e.preventDefault(); setPaymentStatusType('FULL'); setPaidAmountInput(String(netAmount.toFixed(2))); }
+      if (e.key === 'F4') { e.preventDefault(); document.getElementById('patient-name-input')?.focus(); }
+      if (e.key === 'F3') { e.preventDefault(); document.getElementById('pos-qty-input')?.focus(); }
+      if (e.key === 'F2') { e.preventDefault(); setPosUomType((prev) => prev === 'box' ? 'strip' : prev === 'strip' ? 'tablet' : 'box'); }
+      if (e.key === 'F1') { e.preventDefault(); document.getElementById('add-to-basket-btn')?.click(); }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); if (cart.length > 0) (document.getElementById('pos-checkout-form') as HTMLFormElement)?.requestSubmit(); }
+      if (e.key === 'Escape') { setShowSuggestions(false); setShowReceiptModal(false); }
     };
-
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [netAmount, cart]);
 
-  // Adjust paid amount based on payment status changes
+  // Adjust paid amount on status change
   useEffect(() => {
-    if (paymentStatusType === 'FULL') {
-      setPaidAmountInput(String(netAmount.toFixed(2)));
-    } else if (paymentStatusType === 'HALF') {
-      setPaidAmountInput(String((netAmount / 2).toFixed(2)));
-    } else {
-      setPaidAmountInput('0');
-    }
+    if (paymentStatusType === 'FULL') setPaidAmountInput(String(netAmount.toFixed(2)));
+    else if (paymentStatusType === 'HALF') setPaidAmountInput(String((netAmount / 2).toFixed(2)));
+    else setPaidAmountInput('0');
   }, [paymentStatusType, netAmount]);
 
+  // Close suggestions on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (suggestionsRef.current && !suggestionsRef.current.contains(e.target as Node)) setShowSuggestions(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
   const adjustCartItemQty = (productId: string, batchNumber: string, packaging: 'box' | 'strip' | 'tablet', amount: number) => {
-    setCart((prev) => {
-      return prev.map((item) => {
-        if (item.productId === productId && item.batchNumber === batchNumber && item.packaging === packaging) {
-          const newQty = Math.max(item.qty + amount, 1);
-          
-          const product = products.find(p => p.id === productId);
-          if (!product) return item;
-          
-          const batch = product.batches.find(b => b.batchNumber === batchNumber);
-          if (!batch) return item;
-          
-          const tabletsPerStrip = product.tabletsPerStrip || 10;
-          const stripsPerBox = product.stripsPerBox || 10;
-          const tabletsPerBox = tabletsPerStrip * stripsPerBox;
-          
-          let baseUnits = 0;
-          if (packaging === 'box') {
-            baseUnits = newQty * tabletsPerBox;
-          } else if (packaging === 'strip') {
-            baseUnits = newQty * tabletsPerStrip;
-          } else {
-            baseUnits = newQty;
-          }
-          
-          if (baseUnits > batch.availableBaseUnits) {
-            alert(`Cannot increase quantity: Insufficient stock. Only ${batch.availableBaseUnits} units available.`);
-            return item;
-          }
-          
-          const pricePerBox = getProductPricePerBox(product, batch.id);
-          const pricePerUnit = pricePerBox / tabletsPerBox;
-          const totalAmount = baseUnits * pricePerUnit;
-          
-          return {
-            ...item,
-            qty: newQty,
-            qtyBoxes: baseUnits / tabletsPerBox,
-            totalAmount
-          };
-        }
-        return item;
-      });
-    });
+    setCart((prev) => prev.map((item) => {
+      if (item.productId === productId && item.batchNumber === batchNumber && item.packaging === packaging) {
+        const newQty = Math.max(item.qty + amount, 1);
+        const product = products.find(p => p.id === productId);
+        if (!product) return item;
+        const batch = product.batches.find(b => b.batchNumber === batchNumber);
+        if (!batch) return item;
+        const tabletsPerStrip = product.tabletsPerStrip || 10;
+        const stripsPerBox = product.stripsPerBox || 10;
+        const tabletsPerBox = tabletsPerStrip * stripsPerBox;
+        let baseUnits = packaging === 'box' ? newQty * tabletsPerBox : packaging === 'strip' ? newQty * tabletsPerStrip : newQty;
+        if (baseUnits > batch.availableBaseUnits) { alert(`Insufficient stock. Only ${batch.availableBaseUnits} units available.`); return item; }
+        const pricePerBox = getProductPricePerBox(product, batch.id);
+        const totalAmount = baseUnits * (pricePerBox / tabletsPerBox);
+        return { ...item, qty: newQty, qtyBoxes: baseUnits / tabletsPerBox, totalAmount };
+      }
+      return item;
+    }));
   };
 
   const handleAddToBasket = () => {
-    if (!selectedProduct || !selectedBatch) {
-      alert('Please select a product and batch first.');
-      return;
-    }
-
+    if (!selectedProduct || !selectedBatch) { alert('Select a product and batch first.'); return; }
     const qty = posQtyInput;
     if (qty <= 0) return;
-
     const tabletsPerStrip = selectedProduct.tabletsPerStrip || 10;
     const stripsPerBox = selectedProduct.stripsPerBox || 10;
     const tabletsPerBox = tabletsPerStrip * stripsPerBox;
-
-    let baseUnits = 0;
-    if (posUomType === 'box') {
-      baseUnits = qty * tabletsPerBox;
-    } else if (posUomType === 'strip') {
-      baseUnits = qty * tabletsPerStrip;
-    } else {
-      baseUnits = qty;
-    }
-
-    if (baseUnits > selectedBatch.availableBaseUnits) {
-      alert(`Insufficient stock. Only ${selectedBatch.availableBaseUnits} units available in selected batch.`);
-      return;
-    }
-
+    let baseUnits = posUomType === 'box' ? qty * tabletsPerBox : posUomType === 'strip' ? qty * tabletsPerStrip : qty;
+    if (baseUnits > selectedBatch.availableBaseUnits) { alert(`Insufficient stock. Only ${selectedBatch.availableBaseUnits} units available.`); return; }
     const pricePerBox = getProductPricePerBox(selectedProduct, selectedBatch.id);
-    const pricePerUnit = pricePerBox / tabletsPerBox;
-    const totalAmount = baseUnits * pricePerUnit;
-
+    const totalAmount = baseUnits * (pricePerBox / tabletsPerBox);
     const key = `${selectedProduct.id}-${selectedBatch.batchNumber}`;
-
     setCart((prev) => {
       const existingIndex = prev.findIndex((item) => `${item.productId}-${item.batchNumber}` === key && item.packaging === posUomType);
-      
       if (existingIndex > -1) {
-        return prev.map((item, idx) =>
-          idx === existingIndex
-            ? { ...item, qty: item.qty + qty, qtyBoxes: item.qtyBoxes + (baseUnits / tabletsPerBox), totalAmount: item.totalAmount + totalAmount }
-            : item
-        );
-      } else {
-        return [
-          ...prev,
-          {
-            productId: selectedProduct.id,
-            name: selectedProduct.name,
-            sku: selectedProduct.sku,
-            batchNumber: selectedBatch.batchNumber,
-            qty,
-            packaging: posUomType,
-            pricePerBox,
-            qtyBoxes: baseUnits / tabletsPerBox,
-            totalAmount,
-            rack: selectedBatch.rack,
-          },
-        ];
+        return prev.map((item, idx) => idx === existingIndex ? { ...item, qty: item.qty + qty, qtyBoxes: item.qtyBoxes + (baseUnits / tabletsPerBox), totalAmount: item.totalAmount + totalAmount } : item);
       }
+      return [...prev, { productId: selectedProduct.id, name: selectedProduct.name, sku: selectedProduct.sku, batchNumber: selectedBatch.batchNumber, qty, packaging: posUomType, pricePerBox, qtyBoxes: baseUnits / tabletsPerBox, totalAmount, rack: selectedBatch.rack }];
     });
-
-    // Reset selection
-    setSelectedProductId('');
-    setSelectedBatchId('');
-    setPosQtyInput(1);
+    setSelectedProductId(''); setSelectedBatchId(''); setPosQtyInput(1); setSearchQuery('');
   };
 
   const removeFromCart = (productId: string, batchNumber: string, packaging: string) => {
@@ -302,443 +199,457 @@ export default function POSClient({ products }: POSClientProps) {
   const handleCheckout = async (e: React.FormEvent) => {
     e.preventDefault();
     if (cart.length === 0) return;
-
     try {
-      setLoading(true);
-      setError('');
-      setSuccess('');
-      setReceipt(null);
-
+      setLoading(true); setError('');
       const paidAmount = parseFloat(paidAmountInput) || 0;
-
-      const res = await createPOSSaleAction({
-        items: cart.map((c) => ({
-          productId: c.productId,
-          qty: c.qty,
-          packaging: c.packaging,
-        })),
-        customerName: customerName || 'Walk-in Customer',
-        customerPhone: customerPhone || 'N/A',
-        paidAmount,
-        paymentMethod,
-        discountAmount,
-        taxAmount,
-      });
-
+      const res = await createPOSSaleAction({ items: cart.map((c) => ({ productId: c.productId, qty: c.qty, packaging: c.packaging })), customerName: customerName || 'Walk-in Customer', customerPhone: customerPhone || 'N/A', paidAmount, paymentMethod, discountAmount, taxAmount });
       if (res.success) {
-        setSuccess('POS Sale completed successfully!');
-        setReceipt({
-          order: res.order,
-          paidAmount: res.paidAmount,
-          dueAmount: res.dueAmount,
-          subtotal,
-          discountAmount,
-          taxAmount,
-          netAmount,
-          paymentMethod,
-          customerName: customerName || 'Walk-in Customer',
-          customerPhone: customerPhone || 'N/A',
-        });
-        
+        setReceipt({ order: res.order, paidAmount: res.paidAmount, dueAmount: res.dueAmount, subtotal, discountAmount, taxAmount, netAmount, paymentMethod, customerName: customerName || 'Walk-in Customer', customerPhone: customerPhone || 'N/A' });
         setShowReceiptModal(true);
-        setCart([]);
-        setCustomerName('');
-        setCustomerPhone('');
-        setPaidAmountInput('');
-        setPaymentStatusType('FULL');
-        
-        // Broadcast update
-        broadcastUpdate('INVENTORY_UPDATE');
-        broadcastUpdate('BILLING_UPDATE');
+        setCart([]); setCustomerName(''); setCustomerPhone(''); setPaidAmountInput(''); setPaymentStatusType('FULL');
+        broadcastUpdate('INVENTORY_UPDATE'); broadcastUpdate('BILLING_UPDATE');
       }
-    } catch (err: any) {
-      setError(err.message || 'POS checkout failed');
-    } finally {
-      setLoading(false);
-    }
+    } catch (err: any) { setError(err.message || 'POS checkout failed'); } finally { setLoading(false); }
   };
 
   const printThermalInvoice = (receiptData: any) => {
     const win = window.open('', '_blank', 'width=400,height=600');
     if (!win) return;
-
     const itemRows = receiptData.order.items?.map((item: any) => {
       const product = products.find(p => p.id === item.productId) || item.product;
-      const uName = product?.name || 'Medicine';
-      return `
-        <tr>
-          <td style="padding: 4px 0;">${uName}<br/><span style="font-size: 9px; color: #555;">SKU: ${product?.sku}</span></td>
-          <td style="text-align: right; padding: 4px 0;">${item.quantity} Tab</td>
-          <td style="text-align: right; padding: 4px 0;">Rs. ${(item.quantity * item.pricePerUnit).toLocaleString()}</td>
-        </tr>
-      `;
+      return `<tr><td style="padding:4px 0">${product?.name || 'Medicine'}<br/><span style="font-size:9px;color:#555">SKU: ${product?.sku}</span></td><td style="text-align:right;padding:4px 0">${item.quantity} Tab</td><td style="text-align:right;padding:4px 0">Rs. ${(item.quantity * item.pricePerUnit).toLocaleString()}</td></tr>`;
     }).join('');
-
-    win.document.write(`
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Thermal Receipt</title>
-        <style>
-          body { font-family: monospace; font-size: 11px; padding: 10px; color: #000; line-height: 1.4; }
-          .center { text-align: center; }
-          .bold { font-weight: bold; }
-          .dashed-line { border-top: 1px dashed #000; margin: 8px 0; }
-          table { width: 100%; border-collapse: collapse; }
-          td, th { text-align: left; vertical-align: top; font-size: 10px; }
-          .right { text-align: right; }
-          .invoice-title { font-size: 12px; font-weight: bold; margin-bottom: 4px; }
-        </style>
-      </head>
-      <body>
-        <div class="center bold invoice-title">MEDHUB RETAIL PHARMACY</div>
-        <div class="center">B2C Sales Receipt</div>
-        <div class="dashed-line"></div>
-        <div><strong>Ref #:</strong> ${receiptData.order.id.substring(0, 12).toUpperCase()}</div>
-        <div><strong>Date:</strong> ${new Date(receiptData.order.createdAt).toLocaleString()}</div>
-        <div><strong>Customer:</strong> ${receiptData.customerName}</div>
-        <div><strong>Phone:</strong> ${receiptData.customerPhone}</div>
-        <div class="dashed-line"></div>
-        <table>
-          <thead>
-            <tr style="border-bottom: 1px dashed #000;">
-              <th>Item</th>
-              <th class="right">Qty</th>
-              <th class="right">Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${itemRows}
-          </tbody>
-        </table>
-        <div class="dashed-line"></div>
-        <div class="right">
-          <div>Subtotal: Rs. ${receiptData.subtotal.toLocaleString()}</div>
-          ${receiptData.discountAmount > 0 ? `<div>Discount: -Rs. ${receiptData.discountAmount.toLocaleString()}</div>` : ''}
-          ${receiptData.taxAmount > 0 ? `<div>Tax: Rs. ${receiptData.taxAmount.toLocaleString()}</div>` : ''}
-          <div class="bold" style="font-size: 12px; margin-top: 2px;">Net Payable: Rs. ${receiptData.netAmount.toLocaleString()}</div>
-          <div class="dashed-line" style="margin-left: auto; width: 50%;"></div>
-          <div>Paid: Rs. ${receiptData.paidAmount.toLocaleString()}</div>
-          <div class="bold">Due Amount: Rs. ${receiptData.dueAmount.toLocaleString()}</div>
-        </div>
-        <div class="dashed-line"></div>
-        <div class="center" style="font-size: 9px;">Thank you for your visit!<br/>MedHub Pharmacy POS</div>
-        <script>
-          window.onload = function() {
-            window.print();
-            window.close();
-          };
-        </script>
-      </body>
-      </html>
-    `);
+    win.document.write(`<!DOCTYPE html><html><head><title>Receipt</title><style>body{font-family:monospace;font-size:11px;padding:10px;color:#000;line-height:1.4}.center{text-align:center}.bold{font-weight:bold}.dashed{border-top:1px dashed #000;margin:8px 0}table{width:100%;border-collapse:collapse}td,th{text-align:left;vertical-align:top;font-size:10px}.right{text-align:right}</style></head><body><div class="center bold" style="font-size:12px">MEDHUB RETAIL PHARMACY</div><div class="center">B2C Sales Receipt</div><div class="dashed"></div><div><strong>Ref #:</strong> ${receiptData.order.id.substring(0,12).toUpperCase()}</div><div><strong>Date:</strong> ${new Date(receiptData.order.createdAt).toLocaleString()}</div><div><strong>Customer:</strong> ${receiptData.customerName}</div><div><strong>Phone:</strong> ${receiptData.customerPhone}</div><div class="dashed"></div><table><thead><tr style="border-bottom:1px dashed #000"><th>Item</th><th class="right">Qty</th><th class="right">Total</th></tr></thead><tbody>${itemRows}</tbody></table><div class="dashed"></div><div class="right"><div>Subtotal: Rs. ${receiptData.subtotal.toLocaleString()}</div>${receiptData.discountAmount > 0 ? `<div>Discount: -Rs. ${receiptData.discountAmount.toLocaleString()}</div>` : ''}${receiptData.taxAmount > 0 ? `<div>Tax: Rs. ${receiptData.taxAmount.toLocaleString()}</div>` : ''}<div class="bold" style="font-size:12px">Net: Rs. ${receiptData.netAmount.toLocaleString()}</div><div>Paid: Rs. ${receiptData.paidAmount.toLocaleString()}</div>${receiptData.dueAmount > 0 ? `<div class="bold">Due: Rs. ${receiptData.dueAmount.toLocaleString()}</div>` : ''}</div><div class="dashed"></div><div class="center" style="font-size:9px">Thank you! · MedHub Pharmacy POS</div><script>window.onload=function(){window.print();window.close();}<\/script></body></html>`);
     win.document.close();
   };
 
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20, padding: '10px 0' }} className="pos-shell">
-      
-      {/* ── Main Layout grid ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 24 }} className="no-print">
-        
-        {/* Left Column: Search & Add Products */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          <div style={{ background: 'linear-gradient(135deg, rgba(245,158,11,0.06), rgba(245,158,11,0.01))', border: '1.5px solid rgba(245,158,11,0.2)', padding: 18, borderRadius: 16 }}>
-            <h2 style={{ fontSize: 22, fontWeight: 900, color: 'var(--text-primary)', margin: 0 }}>POS Billing Center</h2>
-            <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 4, marginBottom: 0 }}>
-              Verify inventory batches and dispense directly to patients. Use the keyboard shortcuts below for rapid data entry.
-            </p>
-          </div>
+  const payMethodIcons: Record<string, any> = { CASH: Banknote, MOBILE_BANKING: Smartphone, CARD: CreditCard };
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {/* Barcode Scanner Input */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--card-bg)', padding: '12px 16px', borderRadius: 12, border: '1.5px solid #F59E0B', boxShadow: '0 2px 6px rgba(245,158,11,0.06)' }}>
-              <span style={{ fontSize: 11, fontWeight: 900, color: '#D97706', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Scan Barcode / SKU:</span>
-              <input
-                type="text"
-                placeholder="Focus here & scan barcode..."
-                value={barcodeInput}
-                onChange={(e) => setBarcodeInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    const val = barcodeInput.trim().toUpperCase();
-                    if (!val) return;
-                    const found = products.find(p => p.sku.toUpperCase() === val || p.id === val);
-                    if (found) {
-                      setSelectedProductId(found.id);
-                      setSelectedBatchId(found.batches[0]?.id || '');
-                      setBarcodeInput('');
-                    } else {
-                      alert(`No product found with barcode or SKU: ${val}`);
-                    }
-                  }
-                }}
-                style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%', fontSize: 14, fontFamily: 'monospace', fontWeight: 700 }}
-              />
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minHeight: '100vh' }} className="pos-shell">
+
+      {/* Header bar */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+        <div>
+          <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>POS Billing Counter</h1>
+          <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '2px 0 0' }}>Retail dispensing · Keyboard shortcuts: F9 Search · F1 Add · F2 Unit · F3 Qty · F7 Full Pay · Ctrl+Enter Checkout</p>
+        </div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          {cart.length > 0 && (
+            <span style={{ fontSize: 12, fontWeight: 700, background: '#FEF3C7', color: '#D97706', border: '1px solid #FDE68A', borderRadius: 20, padding: '3px 12px' }}>
+              {cart.length} item{cart.length > 1 ? 's' : ''} in cart
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Main 2-column layout */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1.15fr 1fr', gap: 18, flex: 1 }} className="no-print">
+
+        {/* ── LEFT: Product selection ── */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+          {/* ── STEP 1: Find Medicine ── */}
+          <div style={{ background: 'var(--card-bg)', borderRadius: 12, border: '1px solid var(--card-border)' }}>
+
+            {/* Card header */}
+            <div style={{ padding: '11px 16px', borderBottom: '1px solid var(--card-border)', display: 'flex', alignItems: 'center', gap: 10, background: 'var(--table-header-bg)' }}>
+              <span style={{ width: 22, height: 22, borderRadius: '50%', background: '#F59E0B', color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, flexShrink: 0 }}>1</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>Find Medicine</span>
+              <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-muted)' }}>F9 to focus search</span>
             </div>
 
-            {/* Autocomplete Search input */}
-            <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 10, background: 'var(--card-bg)', padding: '12px 16px', borderRadius: 12, border: '1px solid var(--card-border)', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
-              <Search style={{ width: 16, height: 16, color: 'var(--text-muted)' }} />
-              <input
-                ref={searchInputRef}
-                type="text"
-                placeholder="Search medicine by name or SKU... (Press F9)"
-                value={searchQuery}
-                onChange={(e) => {
-                  setSearchQuery(e.target.value);
-                  setShowSuggestions(true);
-                }}
-                onFocus={() => setShowSuggestions(true)}
-                style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%', fontSize: 14 }}
-              />
+            <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {/* Barcode row */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 0, borderRadius: 8, border: '1px solid #FDE68A', overflow: 'hidden', background: '#FFFDF7' }}>
+                <div style={{ padding: '9px 12px', borderRight: '1px solid #FDE68A', display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                  <Receipt style={{ width: 14, height: 14, color: '#D97706' }} />
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#D97706', whiteSpace: 'nowrap' }}>SCAN</span>
+                </div>
+                <input
+                  type="text"
+                  placeholder="Scan barcode or type SKU, press Enter…"
+                  value={barcodeInput}
+                  onChange={(e) => setBarcodeInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      const val = barcodeInput.trim().toUpperCase();
+                      if (!val) return;
+                      const found = products.find(p => p.sku.toUpperCase() === val || p.id === val);
+                      if (found) { setSelectedProductId(found.id); setSelectedBatchId(found.batches[0]?.id || ''); setBarcodeInput(''); }
+                      else alert(`No product found for: ${val}`);
+                    }
+                  }}
+                  style={{ border: 'none', background: 'transparent', outline: 'none', flex: 1, padding: '9px 12px', fontSize: 13, fontFamily: 'monospace', fontWeight: 600, color: '#92400E' }}
+                />
+              </div>
 
-              {showSuggestions && searchQuery && (
-                <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--card-bg)', border: '1px solid var(--card-border)', borderRadius: 12, boxShadow: '0 12px 30px rgba(0,0,0,0.1)', zIndex: 50, maxHeight: 320, overflowY: 'auto', marginTop: 6 }}>
-                  {filteredProducts.length === 0 ? (
-                    <div style={{ padding: 14, fontSize: 14, color: 'var(--text-muted)', textAlign: 'center' }}>No medicines found</div>
-                  ) : (
-                    filteredProducts.map((p) => {
-                        const totalUnits = p.batches.reduce((sum, b) => sum + b.availableBaseUnits, 0);
-                        const nearestExpiry = p.batches.reduce<string | null>((min, b) => {
-                          if (!min) return b.expiryDate;
-                          return new Date(b.expiryDate) < new Date(min) ? b.expiryDate : min;
-                        }, null);
-                        const racks = [...new Set(p.batches.map(b => b.rack).filter(Boolean))] as string[];
-                        return (
-                          <div
-                            key={p.id}
-                            onClick={() => {
-                              setSelectedProductId(p.id);
-                              setSelectedBatchId(p.batches[0]?.id || '');
-                              setSearchQuery('');
-                              setShowSuggestions(false);
-                            }}
-                            style={{ padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid #F1F5F9', fontSize: 14 }}
-                            onMouseEnter={(e) => (e.currentTarget.style.background = '#F8FAFC')}
-                            onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
-                          >
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                              <div style={{ flex: 1 }}>
-                                <div style={{ fontWeight: 800, color: 'var(--text-primary)' }}>{p.name}</div>
-                                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>SKU: {p.sku} · {p.category}</div>
-                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 5 }}>
-                                  <span style={{ fontSize: 12, background: '#F1F5F9', color: 'var(--text-secondary)', padding: '1px 7px', borderRadius: 4, fontWeight: 600 }}>
-                                    {p.batches.length} batch{p.batches.length !== 1 ? 'es' : ''}
-                                  </span>
-                                  {nearestExpiry && (
-                                    <span style={{ fontSize: 12, background: new Date(nearestExpiry) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) ? '#FEF3C7' : '#F0FDF4', color: new Date(nearestExpiry) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) ? '#92400E' : '#15803D', padding: '1px 7px', borderRadius: 4, fontWeight: 700 }}>
-                                      Exp: {new Date(nearestExpiry).toLocaleDateString()}
-                                    </span>
-                                  )}
-                                  {racks.map(rack => (
-                                    <span key={rack} style={{ fontSize: 12, background: '#FCD34D', color: '#78350F', padding: '1px 7px', borderRadius: 4, fontWeight: 900, fontFamily: 'monospace' }}>
-                                      📍 {rack}
-                                    </span>
-                                  ))}
-                                </div>
-                              </div>
-                              <span style={{ fontSize: 14, color: '#D97706', fontWeight: 700, background: '#FEF3C7', padding: '2px 8px', borderRadius: 6, flexShrink: 0, marginLeft: 10 }}>
-                                {totalUnits} units
-                              </span>
-                            </div>
-                          </div>
-                        );
-                      })
+              {/* Search row */}
+              <div style={{ position: 'relative' }} ref={suggestionsRef}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 0, borderRadius: 8, border: '1px solid var(--card-border)', overflow: 'hidden', background: 'var(--card-bg)' }}>
+                  <div style={{ padding: '9px 12px', borderRight: '1px solid var(--card-border)', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                    <Search style={{ width: 14, height: 14, color: 'var(--text-muted)' }} />
+                  </div>
+                  <input
+                    ref={searchInputRef}
+                    type="text"
+                    placeholder="Type medicine name or SKU to search…"
+                    value={searchQuery}
+                    onChange={(e) => { setSearchQuery(e.target.value); setShowSuggestions(true); }}
+                    onFocus={() => setShowSuggestions(true)}
+                    style={{ border: 'none', background: 'transparent', outline: 'none', flex: 1, padding: '9px 12px', fontSize: 13, color: 'var(--text-primary)' }}
+                  />
+                  {searchQuery && (
+                    <button onClick={() => { setSearchQuery(''); setShowSuggestions(false); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '0 10px' }}>
+                      <X style={{ width: 13, height: 13 }} />
+                    </button>
                   )}
                 </div>
+
+                {showSuggestions && searchQuery && (
+                  <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, background: 'var(--card-bg)', border: '1px solid var(--card-border)', borderRadius: 10, zIndex: 9999, maxHeight: 300, overflowY: 'auto', boxShadow: '0 8px 24px rgba(0,0,0,0.09)' }}>
+                    {filteredProducts.length === 0 ? (
+                      <div style={{ padding: 16, fontSize: 13, color: 'var(--text-muted)', textAlign: 'center' }}>No medicines found</div>
+                    ) : filteredProducts.map((p) => {
+                      const totalUnits = p.batches.reduce((s, b) => s + b.availableBaseUnits, 0);
+                      const nearestExpiry = p.batches.reduce<string | null>((min, b) => !min ? b.expiryDate : new Date(b.expiryDate) < new Date(min) ? b.expiryDate : min, null);
+                      const racks = [...new Set(p.batches.map(b => b.rack).filter(Boolean))] as string[];
+                      const isExpiringSoon = nearestExpiry ? new Date(nearestExpiry) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) : false;
+                      return (
+                        <div key={p.id}
+                          onClick={() => { setSelectedProductId(p.id); setSelectedBatchId(p.batches[0]?.id || ''); setSearchQuery(''); setShowSuggestions(false); }}
+                          style={{ padding: '11px 14px', cursor: 'pointer', borderBottom: '1px solid var(--card-border)' }}
+                          onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--table-header-bg)')}
+                          onMouseLeave={(e) => (e.currentTarget.style.background = '')}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: 13 }}>{p.name}</div>
+                              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                                <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>{p.sku}</span>
+                                {' · '}{p.category}
+                                {' · '}{p.batches.length} batch{p.batches.length !== 1 ? 'es' : ''}
+                              </div>
+                              {(nearestExpiry || racks.length > 0) && (
+                                <div style={{ display: 'flex', gap: 4, marginTop: 5, flexWrap: 'wrap' }}>
+                                  {nearestExpiry && (
+                                    <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: isExpiringSoon ? '#FFFBEB' : '#F0FDF4', color: isExpiringSoon ? '#92400E' : '#15803D', border: `1px solid ${isExpiringSoon ? '#FDE68A' : '#BBF7D0'}` }}>
+                                      Exp {new Date(nearestExpiry).toLocaleDateString()}
+                                    </span>
+                                  )}
+                                  {racks.map(r => (
+                                    <span key={r} style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: '#FEF9C3', color: '#713F12', border: '1px solid #FEF08A' }}>📍 {r}</span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                            <div style={{ flexShrink: 0, textAlign: 'right' }}>
+                              <div style={{ fontSize: 13, fontWeight: 800, color: totalUnits > 0 ? '#D97706' : '#EF4444' }}>{totalUnits}</div>
+                              <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600 }}>units</div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* ── STEP 2: Select Product + Batch ── */}
+          <div style={{ background: 'var(--card-bg)', borderRadius: 12, border: `1px solid ${selectedProductId ? 'var(--card-border)' : 'var(--card-border)'}`, overflow: 'hidden' }}>
+            <div style={{ padding: '11px 16px', borderBottom: '1px solid var(--card-border)', display: 'flex', alignItems: 'center', gap: 10, background: 'var(--table-header-bg)' }}>
+              <span style={{ width: 22, height: 22, borderRadius: '50%', background: selectedProductId ? '#10B981' : '#CBD5E1', color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, flexShrink: 0, transition: 'background 0.2s' }}>2</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>Select Product &amp; Batch</span>
+              {selectedProduct && (
+                <button type="button" onClick={() => { setSelectedProductId(''); setSelectedBatchId(''); }} style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <X style={{ width: 12, height: 12 }} /> Clear
+                </button>
+              )}
+            </div>
+
+            <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {/* Medicine dropdown */}
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 5 }}>Medicine</label>
+                <select
+                  value={selectedProductId}
+                  onChange={(e) => { setSelectedProductId(e.target.value); setSelectedBatchId(''); }}
+                  style={{ ...inputStyle, fontWeight: selectedProductId ? 700 : 400, color: selectedProductId ? 'var(--text-primary)' : 'var(--text-muted)' }}
+                >
+                  <option value="">— Choose Medicine —</option>
+                  {products.map((p) => <option key={p.id} value={p.id}>{p.name}  ·  SKU: {p.sku}</option>)}
+                </select>
+              </div>
+
+              {/* Selected product info card */}
+              {selectedProduct && (
+                <div style={{ background: 'var(--table-header-bg)', borderRadius: 8, padding: '10px 14px', border: '1px solid var(--card-border)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>{selectedProduct.name}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                        <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>{selectedProduct.sku}</span>
+                        {' · '}{selectedProduct.category}
+                        {' · '}{selectedProduct.tabletsPerStrip}t × {selectedProduct.stripsPerBox}s/box
+                      </div>
+                    </div>
+                    <span style={{ fontSize: 11, fontWeight: 700, background: 'var(--card-bg)', border: '1px solid var(--card-border)', color: 'var(--text-secondary)', padding: '3px 8px', borderRadius: 6, whiteSpace: 'nowrap' }}>
+                      {selectedProduct.batches.length} batch{selectedProduct.batches.length !== 1 ? 'es' : ''}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Batch list as clickable rows */}
+              {selectedProduct && selectedProduct.batches.length > 0 && (
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 6 }}>Choose Batch</label>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 200, overflowY: 'auto' }}>
+                    {selectedProduct.batches.map((b) => {
+                      const isSelected = selectedBatchId === b.id;
+                      const daysLeft = Math.ceil((new Date(b.expiryDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                      const expColor = daysLeft < 0 ? '#EF4444' : daysLeft <= 30 ? '#D97706' : '#10B981';
+                      const expBg = daysLeft < 0 ? '#FEF2F2' : daysLeft <= 30 ? '#FFFBEB' : '#F0FDF4';
+                      const expLabel = daysLeft < 0 ? 'EXPIRED' : daysLeft <= 30 ? `${daysLeft}d left` : new Date(b.expiryDate).toLocaleDateString();
+                      return (
+                        <div
+                          key={b.id}
+                          onClick={() => setSelectedBatchId(b.id)}
+                          style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 8, cursor: 'pointer', border: `1.5px solid ${isSelected ? '#F59E0B' : 'var(--card-border)'}`, background: isSelected ? '#FFFDF7' : 'var(--card-bg)', transition: 'all 0.15s' }}
+                        >
+                          {/* Radio circle */}
+                          <div style={{ width: 16, height: 16, borderRadius: '50%', border: `2px solid ${isSelected ? '#F59E0B' : '#CBD5E1'}`, background: isSelected ? '#F59E0B' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s' }}>
+                            {isSelected && <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#fff' }} />}
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'monospace' }}>{b.batchNumber}</div>
+                            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>
+                              {b.availableBaseUnits.toLocaleString()} units
+                              {b.rack && <> · 📍 <span style={{ fontWeight: 700 }}>{b.rack}</span></>}
+                            </div>
+                          </div>
+                          <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: expColor, background: expBg, padding: '2px 7px', borderRadius: 5 }}>{expLabel}</div>
+                            {b.sellingPrice && b.sellingPrice > 0 && (
+                              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>Rs. {b.sellingPrice}/box</div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {selectedProduct && selectedProduct.batches.length === 0 && (
+                <div style={{ padding: '12px', background: '#FEF2F2', borderRadius: 8, border: '1px solid #FECACA', fontSize: 13, color: '#DC2626', fontWeight: 600 }}>No available batches for this medicine</div>
               )}
             </div>
           </div>
 
-          {/* Catalog Selector */}
-          <div style={{ background: 'var(--card-bg)', borderRadius: 16, border: '1px solid var(--card-border)', padding: 20, display: 'flex', flexDirection: 'column', gap: 14, boxShadow: '0 4px 12px rgba(0,0,0,0.01)' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <label style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-secondary)', letterSpacing: '0.02em' }}>1. SELECT MEDICINE</label>
-              <select
-                value={selectedProductId}
-                onChange={(e) => { setSelectedProductId(e.target.value); setSelectedBatchId(''); }}
-                style={{ padding: '11px 14px', borderRadius: 8, border: '1px solid var(--card-border)', outline: 'none', fontSize: 14, background: 'var(--card-bg)' }}
-              >
-                <option value="">-- Choose Medicine --</option>
-                {filteredProducts.map((p) => (
-                  <option key={p.id} value={p.id}>{p.name} (SKU: {p.sku})</option>
-                ))}
-              </select>
-            </div>
+          {/* ── STEP 3: Quantity & Add ── */}
+          {selectedProduct && selectedBatch && (() => {
+            const pricePerBox = getProductPricePerBox(selectedProduct, selectedBatch.id);
+            const tabletsPerBox = selectedProduct.tabletsPerStrip * selectedProduct.stripsPerBox;
+            let baseUnitsPreview = posUomType === 'box' ? posQtyInput * tabletsPerBox : posUomType === 'strip' ? posQtyInput * selectedProduct.tabletsPerStrip : posQtyInput;
+            const lineTotal = baseUnitsPreview * (pricePerBox / tabletsPerBox);
+            const stockOk = baseUnitsPreview <= selectedBatch.availableBaseUnits;
 
-            {selectedProduct && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <label style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-secondary)', letterSpacing: '0.02em' }}>2. SELECT BATCH</label>
-                <select
-                  value={selectedBatchId}
-                  onChange={(e) => setSelectedBatchId(e.target.value)}
-                  style={{ padding: '11px 14px', borderRadius: 8, border: '1px solid var(--card-border)', outline: 'none', fontSize: 14, background: 'var(--card-bg)' }}
-                >
-                  <option value="">-- Choose Batch --</option>
-                  {selectedProduct.batches.map((b) => (
-                    <option key={b.id} value={b.id}>
-                      Batch {b.batchNumber} (Stock: {b.availableBaseUnits} tabs) - Exp: {new Date(b.expiryDate).toLocaleDateString()}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
+            return (
+              <div style={{ background: 'var(--card-bg)', borderRadius: 12, border: '1px solid var(--card-border)', overflow: 'hidden' }}>
+                <div style={{ padding: '11px 16px', borderBottom: '1px solid var(--card-border)', display: 'flex', alignItems: 'center', gap: 10, background: 'var(--table-header-bg)' }}>
+                  <span style={{ width: 22, height: 22, borderRadius: '50%', background: '#3B82F6', color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, flexShrink: 0 }}>3</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>Set Quantity &amp; Dispense</span>
+                </div>
 
-            {selectedProduct && selectedBatch && (
-              <div style={{ borderTop: '1.5px solid #F1F5F9', paddingTop: 14, display: 'flex', flexDirection: 'column', gap: 14 }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 12 }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    <label style={{ fontSize: 12, fontWeight: 850, color: 'var(--text-secondary)' }}>PACKAGING UNIT (F2)</label>
-                    <div style={{ display: 'flex', gap: 4 }}>
-                      {([
-                        { id: 'box', label: 'Boxes' },
-                        { id: 'strip', label: 'Strips' },
-                        { id: 'tablet', label: 'Tablets' }
-                      ] as const).map((unit) => (
+                <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+                  {/* UOM toggle */}
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 6 }}>Unit of Measure · F2 to cycle</label>
+                    <div style={{ display: 'flex', border: '1px solid var(--card-border)', borderRadius: 8, overflow: 'hidden' }}>
+                      {([{ id: 'box', label: 'Box', sub: `=${tabletsPerBox} tabs` }, { id: 'strip', label: 'Strip', sub: `=${selectedProduct.tabletsPerStrip} tabs` }, { id: 'tablet', label: 'Tablet', sub: '=1 tab' }] as const).map((u, i) => (
                         <button
-                          key={unit.id}
+                          key={u.id}
                           type="button"
-                          onClick={() => setPosUomType(unit.id)}
-                          style={{ flex: 1, padding: '8px 4px', borderRadius: 6, fontSize: 11, fontWeight: 800, cursor: 'pointer', border: posUomType === unit.id ? 'none' : '1.5px solid #E2E8F0', background: posUomType === unit.id ? '#D97706' : '#FFFFFF', color: posUomType === unit.id ? '#FFFFFF' : '#475569', transition: 'all 0.15s' }}
+                          onClick={() => setPosUomType(u.id)}
+                          style={{
+                            flex: 1, padding: '10px 6px', border: 'none',
+                            borderRight: i < 2 ? '1px solid var(--card-border)' : 'none',
+                            fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                            background: posUomType === u.id ? '#FFFBEB' : 'var(--card-bg)',
+                            color: posUomType === u.id ? '#D97706' : 'var(--text-secondary)',
+                            transition: 'all 0.15s', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2
+                          }}
                         >
-                          {unit.label}
+                          <span>{u.label}</span>
+                          <span style={{ fontSize: 10, fontWeight: 500, color: posUomType === u.id ? '#D97706' : 'var(--text-muted)', opacity: 0.8 }}>{u.sub}</span>
                         </button>
                       ))}
                     </div>
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    <label style={{ fontSize: 12, fontWeight: 850, color: 'var(--text-secondary)' }}>QTY (F3)</label>
-                    <input
-                      id="pos-qty-input"
-                      type="number"
-                      min="1"
-                      value={posQtyInput}
-                      onChange={(e) => setPosQtyInput(parseInt(e.target.value) || 1)}
-                      style={{ padding: '8px 10px', borderRadius: 6, border: '1px solid var(--card-border)', fontSize: 14, outline: 'none' }}
-                    />
+
+                  {/* Qty stepper */}
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 6 }}>Quantity · F3 to focus</label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 0, border: '1px solid var(--card-border)', borderRadius: 8, overflow: 'hidden' }}>
+                      <button
+                        type="button"
+                        onClick={() => setPosQtyInput(q => Math.max(1, q - 1))}
+                        style={{ padding: '10px 16px', border: 'none', borderRight: '1px solid var(--card-border)', background: 'var(--table-header-bg)', cursor: 'pointer', fontSize: 18, fontWeight: 700, color: 'var(--text-secondary)', transition: 'background 0.15s' }}
+                        onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--card-border)')}
+                        onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--table-header-bg)')}
+                      >−</button>
+                      <input
+                        id="pos-qty-input"
+                        type="number"
+                        min="1"
+                        value={posQtyInput}
+                        onChange={(e) => setPosQtyInput(parseInt(e.target.value) || 1)}
+                        style={{ flex: 1, border: 'none', outline: 'none', textAlign: 'center', fontSize: 18, fontWeight: 800, padding: '10px 0', background: 'var(--card-bg)', color: 'var(--text-primary)' }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setPosQtyInput(q => q + 1)}
+                        style={{ padding: '10px 16px', border: 'none', borderLeft: '1px solid var(--card-border)', background: 'var(--table-header-bg)', cursor: 'pointer', fontSize: 18, fontWeight: 700, color: 'var(--text-secondary)', transition: 'background 0.15s' }}
+                        onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--card-border)')}
+                        onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--table-header-bg)')}
+                      >+</button>
+                    </div>
                   </div>
+
+                  {/* Price preview */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: stockOk ? 'var(--table-header-bg)' : '#FEF2F2', borderRadius: 8, border: `1px solid ${stockOk ? 'var(--card-border)' : '#FECACA'}` }}>
+                    <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                      <span style={{ fontWeight: 700 }}>{posQtyInput} {posUomType}{posQtyInput > 1 ? 's' : ''}</span>
+                      {' = '}<span style={{ fontFamily: 'monospace', fontWeight: 600 }}>{baseUnitsPreview}</span> tabs
+                      {!stockOk && <span style={{ color: '#DC2626', fontWeight: 700, marginLeft: 8 }}>⚠ Exceeds stock</span>}
+                    </div>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: stockOk ? '#D97706' : '#DC2626' }}>Rs. {lineTotal.toFixed(2)}</div>
+                  </div>
+
+                  {/* Quick presets */}
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    {[1, 2, 5, 10].map(n => (
+                      <button key={n} type="button" onClick={() => setPosQtyInput(n)} style={{ flex: 1, padding: '6px 4px', borderRadius: 7, border: `1px solid ${posQtyInput === n ? '#F59E0B' : 'var(--card-border)'}`, background: posQtyInput === n ? '#FFFBEB' : 'var(--card-bg)', fontSize: 12, fontWeight: 700, cursor: 'pointer', color: posQtyInput === n ? '#D97706' : 'var(--text-secondary)' }}>{n}</button>
+                    ))}
+                  </div>
+
+                  {/* CTA */}
+                  <button
+                    id="add-to-basket-btn"
+                    type="button"
+                    onClick={handleAddToBasket}
+                    disabled={!stockOk}
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '13px', borderRadius: 8, background: stockOk ? '#F59E0B' : '#CBD5E1', color: '#FFFFFF', border: 'none', fontSize: 14, fontWeight: 700, cursor: stockOk ? 'pointer' : 'not-allowed', transition: 'background 0.15s' }}
+                  >
+                    <Plus style={{ width: 16, height: 16 }} />
+                    Add to Cart &nbsp;<kbd style={{ background: 'rgba(0,0,0,0.15)', borderRadius: 4, padding: '1px 6px', fontSize: 11, fontFamily: 'monospace' }}>F1</kbd>
+                  </button>
                 </div>
-                {selectedBatch.rack && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: '#FEF3C7', border: '1.5px solid #FDE68A', borderRadius: 8 }}>
-                    <svg style={{ width: 13, height: 13, color: '#B45309', flexShrink: 0 }} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                    <span style={{ fontSize: 11, fontWeight: 800, color: '#92400E' }}>Rack Location:</span>
-                    <span style={{ fontSize: 14, fontWeight: 900, color: '#B45309', fontFamily: 'monospace', background: '#FCD34D', padding: '1px 8px', borderRadius: 6 }}>{selectedBatch.rack}</span>
-                  </div>
-                )}
-                <button
-                  id="add-to-basket-btn"
-                  type="button"
-                  onClick={handleAddToBasket}
-                  style={{ background: '#D97706', color: '#FFFFFF', border: 'none', padding: '12px', borderRadius: 8, fontSize: 14, fontWeight: 800, cursor: 'pointer', transition: 'background 0.1s' }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = '#B45309')}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = '#D97706')}
-                >
-                  Dispense to Basket (F1)
-                </button>
               </div>
-            )}
-          </div>
+            );
+          })()}
+
+          {/* Error */}
+          {error && (
+            <div style={{ display: 'flex', gap: 8, padding: '10px 14px', background: '#FEF2F2', borderRadius: 8, border: '1px solid #FECACA', color: '#DC2626', fontSize: 13, fontWeight: 600 }}>
+              <AlertCircle style={{ width: 15, height: 15, flexShrink: 0 }} /> <span>{error}</span>
+            </div>
+          )}
         </div>
 
-        {/* Right Column: Checkout Basket */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+        {/* ── RIGHT: Cart & Checkout ── */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+
           {cart.length === 0 ? (
-            <div style={{ background: 'var(--card-bg)', borderRadius: 16, border: '1px solid var(--card-border)', padding: '90px 24px', textAlign: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.01)' }}>
-              <ShoppingBag style={{ width: 44, height: 44, color: '#E2E8F0', margin: '0 auto 12px' }} />
-              <h3 style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>Basket is Empty</h3>
-              <p style={{ fontSize: 14, color: 'var(--text-muted)', marginTop: 4, marginBottom: 0 }}>Select products on the left side to compile patient bill</p>
+            <div style={{ background: 'var(--card-bg)', borderRadius: 10, border: '1px solid var(--card-border)', padding: '60px 24px', textAlign: 'center', flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
+              <ShoppingBag style={{ width: 40, height: 40, color: '#E2E8F0' }} />
+              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>Cart is Empty</div>
+              <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Search and select medicines on the left to bill a patient</div>
             </div>
           ) : (
-            <form id="pos-checkout-form" onSubmit={handleCheckout} style={{ background: 'var(--card-bg)', borderRadius: 16, border: '1px solid var(--card-border)', padding: 20, display: 'flex', flexDirection: 'column', gap: 16, boxShadow: '0 4px 12px rgba(0,0,0,0.01)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, borderBottom: '1px solid #F1F5F9', paddingBottom: 10 }}>
-                <ShoppingBag style={{ width: 18, height: 18, color: '#D97706' }} />
-                <h3 style={{ fontSize: 18, fontWeight: 900, color: 'var(--text-primary)', margin: 0 }}>Dispensed Items Basket</h3>
+            <form id="pos-checkout-form" onSubmit={handleCheckout} style={{ background: 'var(--card-bg)', borderRadius: 10, border: '1px solid var(--card-border)', display: 'flex', flexDirection: 'column', flex: 1 }}>
+
+              {/* Cart header */}
+              <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--card-border)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <ShoppingBag style={{ width: 16, height: 16, color: '#D97706' }} />
+                <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>Cart ({cart.length} item{cart.length > 1 ? 's' : ''})</span>
+                <button type="button" onClick={() => setCart([])} style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 600, color: '#EF4444', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <Trash2 style={{ width: 12, height: 12 }} /> Clear All
+                </button>
               </div>
 
-              {/* List items */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 200, overflowY: 'auto' }}>
+              {/* Cart items */}
+              <div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 240, overflowY: 'auto' }}>
                 {cart.map((item, idx) => (
-                  <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: 'var(--table-header-bg)', borderRadius: 10, fontSize: 14, border: '1px solid #F1F5F9' }}>
-                    <div>
-                      <div style={{ fontWeight: 800, color: 'var(--text-primary)' }}>{item.name}</div>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
-                        Batch: <span style={{ fontFamily: 'monospace', fontWeight: 700 }}>{item.batchNumber}</span>
+                  <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: 'var(--table-header-bg)', borderRadius: 8, border: '1px solid var(--card-border)', fontSize: 13 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>
+                        Batch: <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>{item.batchNumber}</span>
+                        {item.rack && <> · <span style={{ color: '#D97706' }}>📍 {item.rack}</span></>}
                       </div>
-                      {item.rack && (
-                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 3 }}>
-                          <span style={{ fontSize: 9, fontWeight: 800, color: '#92400E' }}>RACK:</span>
-                          <span style={{ fontSize: 12, fontWeight: 900, fontFamily: 'monospace', background: '#FCD34D', color: '#78350F', padding: '0px 6px', borderRadius: 4 }}>{item.rack}</span>
-                        </div>
-                      )}
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      {/* Quantity adjustments */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--card-bg)', border: '1px solid var(--card-border)', borderRadius: 6, padding: '2px 4px' }}>
-                        <button type="button" onClick={() => adjustCartItemQty(item.productId, item.batchNumber, item.packaging, -1)} style={{ border: 'none', background: 'none', cursor: 'pointer', padding: '2px 6px', fontWeight: 850, color: 'var(--text-secondary)' }}>-</button>
-                        <span style={{ fontSize: 11, fontWeight: 800, minWidth: 20, textAlign: 'center' }}>{item.qty} {item.packaging[0]}</span>
-                        <button type="button" onClick={() => adjustCartItemQty(item.productId, item.batchNumber, item.packaging, 1)} style={{ border: 'none', background: 'none', cursor: 'pointer', padding: '2px 6px', fontWeight: 850, color: 'var(--text-secondary)' }}>+</button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, marginLeft: 10 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, border: '1px solid var(--card-border)', borderRadius: 6, padding: '2px 2px', background: 'var(--card-bg)' }}>
+                        <button type="button" onClick={() => adjustCartItemQty(item.productId, item.batchNumber, item.packaging, -1)} style={{ border: 'none', background: 'none', cursor: 'pointer', padding: '2px 6px', fontWeight: 700, color: 'var(--text-secondary)', fontSize: 14 }}>−</button>
+                        <span style={{ fontSize: 12, fontWeight: 700, minWidth: 28, textAlign: 'center', color: 'var(--text-primary)' }}>{item.qty}{item.packaging[0]}</span>
+                        <button type="button" onClick={() => adjustCartItemQty(item.productId, item.batchNumber, item.packaging, 1)} style={{ border: 'none', background: 'none', cursor: 'pointer', padding: '2px 6px', fontWeight: 700, color: 'var(--text-secondary)', fontSize: 14 }}>+</button>
                       </div>
-                      <span style={{ fontWeight: 800, color: 'var(--text-primary)', minWidth: 70, textAlign: 'right' }}>Rs. {item.totalAmount.toLocaleString()}</span>
+                      <span style={{ fontWeight: 700, color: 'var(--text-primary)', minWidth: 72, textAlign: 'right', fontSize: 13 }}>Rs. {item.totalAmount.toFixed(0)}</span>
                       <button type="button" onClick={() => removeFromCart(item.productId, item.batchNumber, item.packaging)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#EF4444', padding: 2 }}>
-                        <Trash2 style={{ width: 14, height: 14 }} />
+                        <X style={{ width: 14, height: 14 }} />
                       </button>
                     </div>
                   </div>
                 ))}
               </div>
 
-              {/* Totals, Tax, discount */}
-              <div style={{ borderTop: '1px solid #F1F5F9', paddingTop: 14, display: 'flex', flexDirection: 'column', gap: 8, fontSize: 14 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)', fontWeight: 600 }}>
-                  <span>Subtotal:</span>
-                  <span>Rs. {subtotal.toLocaleString()}</span>
+              {/* Totals + adjustments */}
+              <div style={{ padding: '12px 18px', borderTop: '1px solid var(--card-border)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--text-secondary)' }}>
+                  <span>Subtotal</span><span style={{ fontWeight: 600 }}>Rs. {subtotal.toLocaleString()}</span>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    <label style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 800 }}>DISCOUNT (%)</label>
-                    <input type="number" value={discountPercent} onChange={(e) => setDiscountPercent(e.target.value)} style={{ padding: '8px 10px', borderRadius: 6, border: '1px solid var(--card-border)', fontSize: 14, outline: 'none' }} />
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>DISCOUNT (%)</label>
+                    <input type="number" value={discountPercent} onChange={(e) => setDiscountPercent(e.target.value)} style={inputStyle} />
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    <label style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 800 }}>TAX / VAT (%)</label>
-                    <input type="number" value={taxPercent} onChange={(e) => setTaxPercent(e.target.value)} style={{ padding: '8px 10px', borderRadius: 6, border: '1px solid var(--card-border)', fontSize: 14, outline: 'none' }} />
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>TAX / VAT (%)</label>
+                    <input type="number" value={taxPercent} onChange={(e) => setTaxPercent(e.target.value)} style={inputStyle} />
                   </div>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 950, fontSize: 16, borderTop: '1px solid #F1F5F9', paddingTop: 10, marginTop: 4 }}>
-                  <span>Net Payable:</span>
-                  <span style={{ color: '#D97706' }}>Rs. {netAmount.toLocaleString()}</span>
+                {discountAmount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#10B981' }}><span>Discount</span><span>−Rs. {discountAmount.toFixed(2)}</span></div>}
+                {taxAmount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--text-secondary)' }}><span>Tax</span><span>+Rs. {taxAmount.toFixed(2)}</span></div>}
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', paddingTop: 8, borderTop: '1px solid var(--card-border)' }}>
+                  <span>Net Payable</span><span style={{ color: '#D97706' }}>Rs. {netAmount.toFixed(2)}</span>
                 </div>
               </div>
 
-              {/* Customer Information */}
-              <div style={{ borderTop: '1px solid #F1F5F9', paddingTop: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {/* Customer + payment */}
+              <div style={{ padding: '12px 18px', borderTop: '1px solid var(--card-border)', display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    <label style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-secondary)' }}>Patient Name (F4)</label>
-                    <input id="patient-name-input" type="text" placeholder="Walk-in Patient" value={customerName} onChange={(e) => setCustomerName(e.target.value)} style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid var(--card-border)', fontSize: 14, outline: 'none' }} />
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>PATIENT (F4)</label>
+                    <input id="patient-name-input" type="text" placeholder="Walk-in Patient" value={customerName} onChange={(e) => setCustomerName(e.target.value)} style={inputStyle} />
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    <label style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-secondary)' }}>Patient Phone</label>
-                    <input type="text" placeholder="N/A" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid var(--card-border)', fontSize: 14, outline: 'none' }} />
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>PHONE</label>
+                    <input type="text" placeholder="N/A" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} style={inputStyle} />
                   </div>
                 </div>
 
-                {/* Payment Status */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <label style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-secondary)' }}>PAYMENT STATE (F7)</label>
+                {/* Payment state toggle */}
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>PAYMENT STATE (F7)</label>
                   <div style={{ display: 'flex', gap: 4 }}>
-                    {([
-                      { id: 'FULL', label: 'Full Pay' },
-                      { id: 'HALF', label: 'Half Pay' },
-                      { id: 'UNPAID', label: 'Unpaid / Credit' }
-                    ] as const).map((pay) => (
-                      <button
-                        key={pay.id}
-                        type="button"
-                        onClick={() => setPaymentStatusType(pay.id)}
-                        style={{ flex: 1, padding: '8px 4px', borderRadius: 6, fontSize: 11, fontWeight: 850, cursor: 'pointer', border: paymentStatusType === pay.id ? 'none' : '1.5px solid #E2E8F0', background: paymentStatusType === pay.id ? '#10B981' : '#FFFFFF', color: paymentStatusType === pay.id ? '#FFFFFF' : '#475569', transition: 'all 0.15s' }}
-                      >
+                    {([{ id: 'FULL', label: 'Full', color: '#10B981' }, { id: 'HALF', label: 'Half', color: '#F59E0B' }, { id: 'UNPAID', label: 'Credit', color: '#EF4444' }] as const).map((pay) => (
+                      <button key={pay.id} type="button" onClick={() => setPaymentStatusType(pay.id)} style={{ flex: 1, padding: '7px', borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: `1px solid ${paymentStatusType === pay.id ? pay.color : 'var(--card-border)'}`, background: paymentStatusType === pay.id ? `${pay.color}12` : 'var(--card-bg)', color: paymentStatusType === pay.id ? pay.color : 'var(--text-secondary)', transition: 'all 0.15s' }}>
                         {pay.label}
                       </button>
                     ))}
@@ -746,135 +657,103 @@ export default function POSClient({ products }: POSClientProps) {
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 10 }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    <label style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-secondary)' }}>Payment Method (F8)</label>
-                    <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid var(--card-border)', fontSize: 14, background: 'var(--card-bg)', outline: 'none' }}>
-                      <option value="CASH">CASH</option>
-                      <option value="MOBILE_BANKING">MOBILE BANKING / QR</option>
-                      <option value="CARD">CARD</option>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>METHOD (F8)</label>
+                    <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} style={inputStyle}>
+                      <option value="CASH">Cash</option>
+                      <option value="MOBILE_BANKING">Mobile / QR</option>
+                      <option value="CARD">Card</option>
                     </select>
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    <label style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-secondary)' }}>Paid Amount (Rs.)</label>
-                    <input
-                      type="number"
-                      value={paidAmountInput}
-                      onChange={(e) => setPaidAmountInput(e.target.value)}
-                      style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid var(--card-border)', fontSize: 14, fontWeight: 800, color: 'var(--text-primary)', outline: 'none' }}
-                    />
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>PAID (Rs.)</label>
+                    <input type="number" value={paidAmountInput} onChange={(e) => setPaidAmountInput(e.target.value)} style={{ ...inputStyle, fontWeight: 700, color: '#10B981' }} />
                   </div>
                 </div>
-              </div>
 
-              <button
-                type="submit"
-                disabled={loading}
-                style={{ background: 'linear-gradient(135deg, #10B981, #059669)', color: '#FFFFFF', border: 'none', padding: '13px', borderRadius: 10, fontWeight: 950, fontSize: 14, cursor: 'pointer', marginTop: 8, boxShadow: '0 4px 14px rgba(16,185,129,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
-              >
-                <DollarSign style={{ width: 16, height: 16 }} />
-                {loading ? 'Processing POS Sale…' : 'Finalize POS Checkout (Ctrl+Enter)'}
-              </button>
+                {paidAmountInput && parseFloat(paidAmountInput) < netAmount && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#EF4444', fontWeight: 700 }}>
+                    <span>Due Amount</span><span>Rs. {(netAmount - parseFloat(paidAmountInput)).toFixed(2)}</span>
+                  </div>
+                )}
+
+                <button type="submit" disabled={loading} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px', borderRadius: 8, background: loading ? '#CBD5E1' : '#10B981', color: '#FFFFFF', border: 'none', fontSize: 14, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer' }}>
+                  <CheckCircle style={{ width: 16, height: 16 }} />
+                  {loading ? 'Processing…' : 'Finalize Checkout (Ctrl+Enter)'}
+                </button>
+              </div>
             </form>
           )}
-
-          {error && (
-            <div style={{ display: 'flex', gap: 8, padding: 12, background: 'rgba(239,68,68,0.08)', borderRadius: 8, color: '#EF4444', fontSize: 14, fontWeight: 600 }}>
-              <AlertCircle style={{ width: 15, height: 15, flexShrink: 0 }} />
-              <span>{error}</span>
-            </div>
-          )}
         </div>
       </div>
 
-      {/* ── Keyboard Shortcuts Status Bar ── */}
-      <div style={{ background: '#1E293B', borderRadius: 12, padding: '12px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, color: 'var(--text-muted)', fontSize: 11, fontWeight: 700 }} className="no-print">
-        <span style={{ color: '#F59E0B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Keyboard Shortcuts:</span>
-        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-          <span><kbd style={{ background: '#334155', color: '#F8FAFC', padding: '2px 6px', borderRadius: 4, marginRight: 4 }}>F9</kbd> Search</span>
-          <span><kbd style={{ background: '#334155', color: '#F8FAFC', padding: '2px 6px', borderRadius: 4, marginRight: 4 }}>F1</kbd> Add Item</span>
-          <span><kbd style={{ background: '#334155', color: '#F8FAFC', padding: '2px 6px', borderRadius: 4, marginRight: 4 }}>F2</kbd> Unit</span>
-          <span><kbd style={{ background: '#334155', color: '#F8FAFC', padding: '2px 6px', borderRadius: 4, marginRight: 4 }}>F3</kbd> Qty</span>
-          <span><kbd style={{ background: '#334155', color: '#F8FAFC', padding: '2px 6px', borderRadius: 4, marginRight: 4 }}>F4</kbd> Patient</span>
-          <span><kbd style={{ background: '#334155', color: '#F8FAFC', padding: '2px 6px', borderRadius: 4, marginRight: 4 }}>F7</kbd> Full Pay</span>
-          <span><kbd style={{ background: '#334155', color: '#F8FAFC', padding: '2px 6px', borderRadius: 4, marginRight: 4 }}>F8</kbd> Method</span>
-          <span><kbd style={{ background: '#334155', color: '#F8FAFC', padding: '2px 6px', borderRadius: 4, marginRight: 4 }}>Ctrl+Enter</kbd> Checkout</span>
+      {/* Keyboard shortcuts bar */}
+      <div style={{ background: 'var(--table-header-bg)', borderRadius: 8, padding: '10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, border: '1px solid var(--card-border)' }} className="no-print">
+        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Shortcuts</span>
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+          {[['F9', 'Search'], ['F1', 'Add'], ['F2', 'Unit'], ['F3', 'Qty'], ['F4', 'Patient'], ['F7', 'Full Pay'], ['F8', 'Method'], ['Ctrl+↵', 'Checkout']].map(([key, label]) => (
+            <span key={key} style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+              <kbd style={{ background: 'var(--card-bg)', color: 'var(--text-secondary)', border: '1px solid var(--card-border)', padding: '2px 6px', borderRadius: 5, fontSize: 10, fontFamily: 'monospace', fontWeight: 700, marginRight: 4 }}>{key}</kbd>
+              {label}
+            </span>
+          ))}
         </div>
       </div>
 
-      {/* Receipt Print Preview Modal */}
+      {/* ── Receipt Modal ── */}
       {showReceiptModal && receipt && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(15,23,42,0.35)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-          <div style={{ width: '100%', maxWidth: 420, background: 'var(--card-bg)', borderRadius: 20, overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 60px rgba(0,0,0,0.15)' }}>
-            
-            <div style={{ padding: '16px 20px', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontWeight: 800, fontSize: 14 }}>POS Receipt Preview</span>
-              <button onClick={() => setShowReceiptModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
-                <X style={{ width: 16, height: 16 }} />
-              </button>
+        <div onClick={() => setShowReceiptModal(false)} style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(15,23,42,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 420, background: 'var(--card-bg)', borderRadius: 14, border: '1px solid var(--card-border)', display: 'flex', flexDirection: 'column', overflow: 'hidden', maxHeight: '90vh' }}>
+            <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--card-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <CheckCircle style={{ width: 16, height: 16, color: '#10B981' }} />
+                <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>Sale Complete</span>
+              </div>
+              <button onClick={() => setShowReceiptModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4 }}><X style={{ width: 16, height: 16 }} /></button>
             </div>
-
-            <div style={{ padding: 20, background: 'var(--table-header-bg)', flex: 1, overflowY: 'auto' }}>
-              {/* Styled receipt */}
-              <div style={{ background: 'var(--card-bg)', border: '1px solid var(--card-border)', padding: 20, fontFamily: 'monospace', color: '#000', fontSize: 11, borderRadius: 8 }}>
-                <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: 14, marginBottom: 4 }}>MEDHUB RETAIL PHARMACY</div>
-                <div style={{ textAlign: 'center', fontSize: 12, borderBottom: '1px dashed #000', paddingBottom: 8, marginBottom: 12 }}>B2C COUNTER SALE INVOICE</div>
-                
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 10 }}>
-                  <div><strong>Ref ID:</strong> {receipt.order.id.substring(0, 12).toUpperCase()}</div>
+            <div style={{ padding: '14px 18px', background: '#F0FDF4', borderBottom: '1px solid #BBF7D0', fontSize: 13, color: '#15803D', fontWeight: 600 }}>
+              ✓ POS sale recorded successfully
+            </div>
+            <div style={{ padding: '14px 18px', overflowY: 'auto', flex: 1 }}>
+              <div style={{ background: 'var(--card-bg)', border: '1px solid var(--card-border)', borderRadius: 8, padding: '14px 16px', fontFamily: 'monospace', fontSize: 11, color: 'var(--text-primary)' }}>
+                <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: 13, marginBottom: 3 }}>MEDHUB RETAIL PHARMACY</div>
+                <div style={{ textAlign: 'center', fontSize: 11, borderBottom: '1px dashed #94A3B8', paddingBottom: 6, marginBottom: 10 }}>B2C Counter Invoice</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginBottom: 8, fontSize: 11 }}>
+                  <div><strong>Ref:</strong> {receipt.order.id.substring(0, 12).toUpperCase()}</div>
                   <div><strong>Date:</strong> {new Date(receipt.order.createdAt).toLocaleString()}</div>
                   <div><strong>Patient:</strong> {receipt.customerName}</div>
-                  {receipt.customerPhone && <div><strong>Phone:</strong> {receipt.customerPhone}</div>}
-                  <div><strong>Payment:</strong> {receipt.paymentMethod}</div>
+                  <div><strong>Phone:</strong> {receipt.customerPhone}</div>
+                  <div><strong>Method:</strong> {receipt.paymentMethod}</div>
                 </div>
-
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, marginBottom: 10 }}>
-                  <thead>
-                    <tr style={{ borderBottom: '1px dashed #000' }}>
-                      <th style={{ textAlign: 'left', padding: '4px 0' }}>Medicine</th>
-                      <th style={{ textAlign: 'right', padding: '4px 0' }}>Qty</th>
-                      <th style={{ textAlign: 'right', padding: '4px 0' }}>Total</th>
-                    </tr>
-                  </thead>
+                <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 8 }}>
+                  <thead><tr style={{ borderBottom: '1px dashed #94A3B8' }}><th style={{ textAlign: 'left', padding: '3px 0', fontSize: 10 }}>Medicine</th><th style={{ textAlign: 'right', padding: '3px 0', fontSize: 10 }}>Qty</th><th style={{ textAlign: 'right', padding: '3px 0', fontSize: 10 }}>Total</th></tr></thead>
                   <tbody>
                     {receipt.order.items?.map((item: any, idx: number) => {
                       const product = products.find(p => p.id === item.productId) || item.product;
-                      return (
-                        <tr key={idx}>
-                          <td style={{ padding: '4px 0' }}>{product?.name || 'Medicine'}</td>
-                          <td style={{ textAlign: 'right', padding: '4px 0' }}>{item.quantity} Tab</td>
-                          <td style={{ textAlign: 'right', padding: '4px 0' }}>Rs. ${(item.quantity * item.pricePerUnit).toLocaleString()}</td>
-                        </tr>
-                      );
+                      return (<tr key={idx}><td style={{ padding: '3px 0', fontSize: 10 }}>{product?.name || 'Medicine'}</td><td style={{ textAlign: 'right', padding: '3px 0', fontSize: 10 }}>{item.quantity}</td><td style={{ textAlign: 'right', padding: '3px 0', fontSize: 10 }}>Rs. {(item.quantity * item.pricePerUnit).toLocaleString()}</td></tr>);
                     })}
                   </tbody>
                 </table>
-
-                <div style={{ textAlign: 'right', borderTop: '1px dashed #000', paddingTop: 8, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <div style={{ textAlign: 'right', borderTop: '1px dashed #94A3B8', paddingTop: 6, display: 'flex', flexDirection: 'column', gap: 2, fontSize: 11 }}>
                   <div>Subtotal: Rs. {receipt.subtotal.toLocaleString()}</div>
-                  {receipt.discountAmount > 0 && <div style={{ color: 'red' }}>Discount: -Rs. {receipt.discountAmount.toLocaleString()}</div>}
-                  {receipt.taxAmount > 0 && <div>Tax (13%): Rs. {receipt.taxAmount.toLocaleString()}</div>}
-                  <div style={{ fontWeight: 'bold', fontSize: 14, marginTop: 4 }}>Grand Total: Rs. {receipt.netAmount.toLocaleString()}</div>
-                  <div style={{ borderTop: '1px dashed #000', margin: '4px 0 2px', width: '60%', marginLeft: 'auto' }}></div>
-                  <div style={{ color: '#10B981' }}>Paid: Rs. {receipt.paidAmount.toLocaleString()}</div>
-                  {receipt.dueAmount > 0 && <div style={{ color: 'red', fontWeight: 'bold' }}>Due: Rs. {receipt.dueAmount.toLocaleString()}</div>}
+                  {receipt.discountAmount > 0 && <div>Discount: −Rs. {receipt.discountAmount.toLocaleString()}</div>}
+                  {receipt.taxAmount > 0 && <div>Tax: +Rs. {receipt.taxAmount.toLocaleString()}</div>}
+                  <div style={{ fontWeight: 'bold', fontSize: 13, marginTop: 2 }}>Grand Total: Rs. {receipt.netAmount.toLocaleString()}</div>
+                  <div style={{ borderTop: '1px dashed #94A3B8', margin: '4px 0 2px' }}></div>
+                  <div style={{ color: '#10B981', fontWeight: 'bold' }}>Paid: Rs. {receipt.paidAmount.toLocaleString()}</div>
+                  {receipt.dueAmount > 0 && <div style={{ color: '#EF4444', fontWeight: 'bold' }}>Due: Rs. {receipt.dueAmount.toLocaleString()}</div>}
                 </div>
               </div>
             </div>
-
-            <div style={{ padding: '16px 20px', borderTop: '1px solid #E2E8F0', display: 'flex', gap: 10 }}>
-              <button onClick={() => setShowReceiptModal(false)} style={{ flex: 1, padding: 11, borderRadius: 8, border: '1px solid var(--card-border)', background: 'var(--card-bg)', color: 'var(--text-secondary)', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
-                Close
-              </button>
-              <button onClick={() => printThermalInvoice(receipt)} style={{ flex: 2, padding: 11, borderRadius: 8, border: 'none', background: '#10B981', color: '#FFFFFF', fontSize: 14, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                <Printer style={{ width: 14, height: 14 }} />
-                Print Voucher
+            <div style={{ padding: '14px 18px', borderTop: '1px solid var(--card-border)', display: 'flex', gap: 10 }}>
+              <button onClick={() => setShowReceiptModal(false)} style={{ flex: 1, padding: '10px', borderRadius: 8, border: '1px solid var(--card-border)', background: 'var(--card-bg)', color: 'var(--text-secondary)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Close</button>
+              <button onClick={() => printThermalInvoice(receipt)} style={{ flex: 2, padding: '10px', borderRadius: 8, border: 'none', background: '#10B981', color: '#FFFFFF', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                <Printer style={{ width: 14, height: 14 }} /> Print Receipt
               </button>
             </div>
-
           </div>
         </div>
       )}
-
     </div>
   );
 }

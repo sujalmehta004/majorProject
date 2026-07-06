@@ -327,6 +327,15 @@ export async function POST(request: Request) {
         },
       });
 
+      // Record audit log
+      await tx.systemAuditLog.create({
+        data: {
+          action: 'B2B_ORDER_CHECKOUT',
+          userId: user.userId,
+          details: `Retailer placed B2B Order ${newOrder.id.substring(0, 8).toUpperCase()} to Wholesaler ${wholesaler.companyName}. Net Amount: Rs. ${netAmount.toFixed(2)}. Advance Applied: Rs. ${appliedAdvance.toFixed(2)}. Status: PENDING`,
+        },
+      });
+
       return { newOrder, appliedAdvance };
     });
 

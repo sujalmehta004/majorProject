@@ -30,7 +30,6 @@ export default async function RetailerSuppliersPage() {
     profile = await db.retailerProfile.findUnique({
       where: { id: dbUser.retailerId },
     });
-    // Check features
     const features = dbUser.allowedFeatures.split(',').map(f => f.trim());
     if (!features.includes('Suppliers')) {
       redirect('/');
@@ -63,8 +62,22 @@ export default async function RetailerSuppliersPage() {
     orderBy: { name: 'asc' },
   });
 
+  // Fetch B2B purchases to extract bought items + settlements per supplier
+  const purchases = await db.order.findMany({
+    where: { retailerId: profile.id },
+    include: {
+      items: {
+        include: {
+          product: true
+        }
+      },
+      b2bSettlements: true,
+    }
+  });
+
   const serializedWholesalers = JSON.parse(JSON.stringify(wholesalers));
   const serializedCustomSuppliers = JSON.parse(JSON.stringify(customSuppliers));
+  const serializedPurchases = JSON.parse(JSON.stringify(purchases));
 
   return (
     <RetailerLayout
@@ -85,6 +98,7 @@ export default async function RetailerSuppliersPage() {
         profile={profile}
         initialWholesalers={serializedWholesalers}
         initialCustomSuppliers={serializedCustomSuppliers}
+        purchases={serializedPurchases}
       />
     </RetailerLayout>
   );

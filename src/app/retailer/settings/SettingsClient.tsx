@@ -52,6 +52,52 @@ interface SettingsClientProps {
 
 const AVAILABLE_FEATURES = ['Dashboard', 'Inventory', 'Orders', 'Suppliers', 'POS', 'Billing', 'Settings'];
 
+const inputStyle: React.CSSProperties = {
+  padding: '10px 12px',
+  borderRadius: 8,
+  border: '1px solid var(--card-border)',
+  outline: 'none',
+  fontSize: 14,
+  width: '100%',
+  background: 'var(--card-bg)',
+  color: 'var(--text-primary)',
+  boxSizing: 'border-box' as const,
+};
+
+const btnStyle: React.CSSProperties = {
+  padding: '10px 16px',
+  borderRadius: 8,
+  border: 'none',
+  background: '#F59E0B',
+  color: '#FFFFFF',
+  fontSize: 14,
+  fontWeight: 600,
+  cursor: 'pointer',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 8,
+  transition: 'background 0.15s',
+};
+
+const labelStyle: React.CSSProperties = {
+  fontSize: 11,
+  fontWeight: 700,
+  color: 'var(--text-secondary)',
+  textTransform: 'uppercase',
+  marginBottom: 6,
+  display: 'block',
+};
+
+const thStyle: React.CSSProperties = {
+  padding: '12px 18px',
+  color: 'var(--text-muted)',
+  fontWeight: 600,
+  fontSize: 12,
+  textTransform: 'uppercase',
+  letterSpacing: '0.04em',
+};
+
 export default function SettingsClient({
   initialProfile,
   subscriptionEnd,
@@ -140,22 +186,14 @@ export default function SettingsClient({
   const [staffFullName, setStaffFullName] = useState('');
   const [staffFeatures, setStaffFeatures] = useState<string[]>(AVAILABLE_FEATURES);
   const [staffIsActive, setStaffIsActive] = useState(true);
-  const [showPasswordsList, setShowPasswordsList] = useState(false);
 
   // Fetch updates in realtime
-  useRealtimeEvent('SETTINGS_UPDATE', () => {
-    fetchLogs();
-  });
-  
-  useRealtimeEvent('STAFF_UPDATE', () => {
-    fetchStaff();
-    fetchLogs();
-  });
+  useRealtimeEvent('SETTINGS_UPDATE', () => { fetchLogs(); });
+  useRealtimeEvent('STAFF_UPDATE', () => { fetchStaff(); fetchLogs(); });
 
   const fetchLogs = async () => {
     try {
-      const res = await fetch('/api/retailer/billing'); // Fetch triggers page-refresh updates indirectly
-      // We can also fetch the settings logs if needed, but we keep local audit log updates via page refresh
+      await fetch('/api/retailer/billing');
     } catch (e) {}
   };
 
@@ -208,7 +246,6 @@ export default function SettingsClient({
         }
       }
       
-      // If there is a search term query param (e.g. order id or search string), pre-populate and switch to logs
       const searchParam = params.get('search') || params.get('q');
       if (searchParam) {
         setSearchTerm(searchParam);
@@ -302,7 +339,7 @@ export default function SettingsClient({
   const handleOpenEditStaff = (emp: StaffUser) => {
     setEditingStaff(emp);
     setStaffEmail(emp.email);
-    setStaffPassword(''); // keep blank unless overriding
+    setStaffPassword('');
     setStaffFullName(emp.fullName || '');
     setStaffFeatures(emp.allowedFeatures.split(','));
     setStaffIsActive(emp.isActive);
@@ -390,52 +427,59 @@ export default function SettingsClient({
 
   const uniqueActions = Array.from(new Set(logs.map((log) => log.action)));
 
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24, padding: '24px 0', maxWidth: 800 }}>
-      {/* Header */}
-      <div style={{ background: 'var(--card-bg)', border: '1px solid var(--card-border)', borderRadius: 8, padding: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          <h1 style={{ fontSize: 22, fontWeight: 900, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Settings style={{ width: 22, height: 22, color: '#F59E0B' }} />
-            Pharmacy Registry Console
-          </h1>
-          <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 4 }}>
-            Configure store profile, register shop employees, check logs and security settings.
-          </p>
+  const Modal = ({ children, onClose, title }: { children: React.ReactNode; onClose: () => void; title: string }) => (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(15,23,42,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 480, background: 'var(--card-bg)', borderRadius: 12, border: '1px solid var(--card-border)', display: 'flex', flexDirection: 'column', maxHeight: '90vh', overflow: 'hidden' }}>
+        <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--card-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+          <span style={{ fontSize: 14, fontWeight: 700 }}>{title}</span>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4 }}><X style={{ width: 16, height: 16 }} /></button>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 12, padding: '8px 14px' }}>
-          <Calendar style={{ width: 16, height: 16, color: '#F97316' }} />
+        <div style={{ padding: 18, overflowY: 'auto', flex: 1 }}>{children}</div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20, minHeight: '100vh', width: '100%' }}>
+      {/* Header Banner */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12, borderBottom: '1px solid var(--card-border)', paddingBottom: 16 }}>
+        <div>
+          <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>Pharmacy Settings &amp; Configuration</h1>
+          <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '2px 0 0' }}>Configure profile details, manage shop employees, adjust alert thresholds, and audit activity logs.</p>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--table-header-bg)', border: '1px solid var(--card-border)', borderRadius: 8, padding: '8px 12px' }}>
+          <Calendar style={{ width: 15, height: 15, color: '#F59E0B' }} />
           <div>
-            <div style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-muted)' }}>Store lease End</div>
-            <div style={{ fontSize: 14, fontWeight: 700, fontFamily: 'monospace', color: 'var(--text-primary)', marginTop: 2 }}>
+            <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)' }}>Store lease End</div>
+            <div style={{ fontSize: 12, fontWeight: 700, fontFamily: 'monospace', color: 'var(--text-primary)', marginTop: 1 }}>
               {subscriptionEnd ? new Date(subscriptionEnd).toLocaleDateString() : 'N/A'}
             </div>
           </div>
         </div>
       </div>
 
-      {/* Tabs */}
-      <div style={{ display: 'flex', gap: 4, background: 'var(--table-header-bg)', borderRadius: 8, padding: 4, border: '1px solid var(--card-border)' }}>
+      {/* Segmented Tab Buttons (Clean, flat styling) */}
+      <div style={{ display: 'flex', gap: 6, background: 'var(--table-header-bg)', padding: 4, borderRadius: 8, border: '1px solid var(--card-border)', flexWrap: 'wrap' }}>
         {([
-          { id: 'profile', label: 'Profile' },
-          { id: 'staff', label: `Staff Employees (${staffList.length})` },
-          { id: 'security', label: 'Security & Alerts' },
-          { id: 'logs', label: 'Activity Logs' }
+          { id: 'profile', label: 'Store Profile' },
+          { id: 'staff', label: `Staff Accounts (${staffList.length})` },
+          { id: 'security', label: 'Security & Alert Thresholds' },
+          { id: 'logs', label: 'Store Activity Logs' }
         ] as const).map((tab) => (
           <button
             key={tab.id}
             onClick={() => { setActiveTab(tab.id); setError(''); setSuccessMsg(''); }}
             style={{
-              flex: 1,
-              padding: '10px 16px',
-              borderRadius: 9,
+              padding: '8px 16px',
+              borderRadius: 6,
               border: 'none',
-              fontSize: 14,
-              fontWeight: 800,
+              fontSize: 13,
+              fontWeight: 600,
               cursor: 'pointer',
               transition: 'all 0.15s',
               background: activeTab === tab.id ? 'var(--card-bg)' : 'transparent',
-              color: activeTab === tab.id ? 'var(--accent)' : 'var(--text-secondary)',
+              color: activeTab === tab.id ? '#F59E0B' : 'var(--text-secondary)',
+              boxShadow: activeTab === tab.id ? '0 1px 3px rgba(0,0,0,0.05)' : 'none',
             }}
           >
             {tab.label}
@@ -443,55 +487,63 @@ export default function SettingsClient({
         ))}
       </div>
 
-      {/* Feedback Messages */}
+      {/* Notifications */}
       {successMsg && (
-        <div style={{ display: 'flex', gap: 8, padding: 12, background: 'rgba(16,185,129,0.08)', borderRadius: 8, color: '#10B981', fontSize: 14, fontWeight: 600 }}>
-          <CheckCircle style={{ width: 15, height: 15 }} />
+        <div style={{ display: 'flex', gap: 8, padding: '10px 14px', background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 8, color: '#10B981', fontSize: 13, fontWeight: 600 }}>
+          <CheckCircle style={{ width: 16, height: 16 }} />
           <span>{successMsg}</span>
         </div>
       )}
       {error && (
-        <div style={{ display: 'flex', gap: 8, padding: 12, background: 'rgba(239,68,68,0.08)', borderRadius: 8, color: '#EF4444', fontSize: 14, fontWeight: 600 }}>
-          <AlertCircle style={{ width: 15, height: 15 }} />
+        <div style={{ display: 'flex', gap: 8, padding: '10px 14px', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, color: '#EF4444', fontSize: 13, fontWeight: 600 }}>
+          <AlertCircle style={{ width: 16, height: 16 }} />
           <span>{error}</span>
         </div>
       )}
 
-      {/* Profile Settings Tab */}
+      {/* ── PROFILE TAB ── */}
       {activeTab === 'profile' && (
-        <form onSubmit={handleUpdateProfile} style={{ background: 'var(--card-bg)', borderRadius: 8, border: '1px solid var(--card-border)', padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Pharmacy Name</label>
-            <input type="text" value={pharmacyName} onChange={(e) => setPharmacyName(e.target.value)} style={{ padding: '10px', borderRadius: 8, border: '1px solid var(--card-border)', outline: 'none', fontSize: 14 }} required />
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Physical Address</label>
-            <input type="text" value={address} onChange={(e) => setAddress(e.target.value)} style={{ padding: '10px', borderRadius: 8, border: '1px solid var(--card-border)', outline: 'none', fontSize: 14 }} required />
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Contact Phone</label>
-            <input type="text" value={phone} onChange={(e) => setPhone(e.target.value)} style={{ padding: '10px', borderRadius: 8, border: '1px solid var(--card-border)', outline: 'none', fontSize: 14 }} required />
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Latitude</label>
-              <input type="text" value={latitude} onChange={(e) => setLatitude(e.target.value)} style={{ padding: '10px', borderRadius: 8, border: '1px solid var(--card-border)', outline: 'none', fontSize: 14 }} required />
+        <form onSubmit={handleUpdateProfile} style={{ background: 'var(--card-bg)', borderRadius: 10, border: '1px solid var(--card-border)', padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            <div>
+              <label style={labelStyle}>Pharmacy Store Name</label>
+              <input type="text" value={pharmacyName} onChange={(e) => setPharmacyName(e.target.value)} style={inputStyle} required />
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Longitude</label>
-              <input type="text" value={longitude} onChange={(e) => setLongitude(e.target.value)} style={{ padding: '10px', borderRadius: 8, border: '1px solid var(--card-border)', outline: 'none', fontSize: 14 }} required />
+            <div>
+              <label style={labelStyle}>Registration License Number</label>
+              <input type="text" value={initialProfile.registrationNumber} disabled style={{ ...inputStyle, background: 'var(--table-header-bg)', cursor: 'not-allowed' }} />
             </div>
           </div>
 
-          {/* GPS Capture */}
-          <div style={{ background: 'var(--table-header-bg)', border: '1px solid var(--card-border)', borderRadius: 8, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{ width: 38, height: 38, borderRadius: 10, background: 'var(--card-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <MapPin style={{ width: 18, height: 18, color: '#0EA5E9' }} />
+          <div>
+            <label style={labelStyle}>Physical Address</label>
+            <input type="text" value={address} onChange={(e) => setAddress(e.target.value)} style={inputStyle} required />
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+            <div>
+              <label style={labelStyle}>Store Phone Contact</label>
+              <input type="text" value={phone} onChange={(e) => setPhone(e.target.value)} style={inputStyle} required />
             </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 14, fontWeight: 800, color: '#0C4A6E' }}>Auto-Detect GPS Location</div>
-              <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
-                {gpsMessage || 'Use your device GPS to automatically fill latitude & longitude coordinates.'}
+            <div>
+              <label style={labelStyle}>GPS Latitude Coordinate</label>
+              <input type="text" value={latitude} onChange={(e) => setLatitude(e.target.value)} style={inputStyle} required />
+            </div>
+            <div>
+              <label style={labelStyle}>GPS Longitude Coordinate</label>
+              <input type="text" value={longitude} onChange={(e) => setLongitude(e.target.value)} style={inputStyle} required />
+            </div>
+          </div>
+
+          {/* GPS Auto-Detect */}
+          <div style={{ background: 'var(--table-header-bg)', border: '1px solid var(--card-border)', borderRadius: 8, padding: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+              <MapPin style={{ width: 18, height: 18, color: '#3B82F6' }} />
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700 }}>Auto-Detect Coordinates</div>
+                <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                  {gpsMessage || 'Use browser GPS coordinates configuration to locate your pharmacy node.'}
+                </div>
               </div>
             </div>
             <button
@@ -499,7 +551,7 @@ export default function SettingsClient({
               disabled={gpsLoading}
               onClick={() => {
                 setGpsLoading(true);
-                setGpsMessage('Detecting your location…');
+                setGpsMessage('Detecting coordinate node location…');
                 if (!navigator.geolocation) {
                   setGpsMessage('Geolocation is not supported by your browser.');
                   setGpsLoading(false);
@@ -509,36 +561,29 @@ export default function SettingsClient({
                   (pos) => {
                     setLatitude(String(pos.coords.latitude));
                     setLongitude(String(pos.coords.longitude));
-                    setGpsMessage(`✓ Location captured: ${pos.coords.latitude.toFixed(4)}°N, ${pos.coords.longitude.toFixed(4)}°E`);
+                    setGpsMessage(`✓ Captured: ${pos.coords.latitude.toFixed(5)}°N, ${pos.coords.longitude.toFixed(5)}°E`);
                     setGpsLoading(false);
                   },
                   (err) => {
-                    setGpsMessage(`Error: ${err.message}. Please allow location access.`);
+                    setGpsMessage(`Error: ${err.message}. Ensure location permissions are active.`);
                     setGpsLoading(false);
                   },
                   { enableHighAccuracy: true, timeout: 10000 }
                 );
               }}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 6,
-                padding: '9px 16px', borderRadius: 9, border: 'none',
-                background: gpsLoading ? '#94A3B8' : 'linear-gradient(135deg, #0EA5E9, #38BDF8)',
-                color: 'white', fontSize: 14, fontWeight: 800, cursor: gpsLoading ? 'not-allowed' : 'pointer',
-                fontFamily: 'inherit', flexShrink: 0, whiteSpace: 'nowrap',
-              }}
+              style={{ ...btnStyle, background: 'var(--card-bg)', border: '1px solid var(--card-border)', color: 'var(--text-secondary)' }}
             >
-              <Navigation style={{ width: 14, height: 14 }} />
-              {gpsLoading ? 'Detecting…' : 'Capture My Location'}
+              <Navigation style={{ width: 14, height: 14 }} /> Capture Node Location
             </button>
           </div>
 
-          {/* Custom Fields section */}
-          <div style={{ borderTop: '1px solid #F1F5F9', paddingTop: 16 }}>
-            <h4 style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 12 }}>Dynamic Custom Fields</h4>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {/* Custom Fields */}
+          <div style={{ borderTop: '1px solid var(--card-border)', paddingTop: 16 }}>
+            <span style={labelStyle}>Dynamic Fields</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 10 }}>
               {customFields.map((field) => (
                 <div key={field.label} style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                  <span style={{ fontSize: 14, fontWeight: 700, minWidth: 100 }}>{field.label}:</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, minWidth: 120 }}>{field.label}</span>
                   <input
                     type="text"
                     value={field.value}
@@ -546,88 +591,85 @@ export default function SettingsClient({
                       const val = e.target.value;
                       setCustomFields(customFields.map((f) => f.label === field.label ? { ...f, value: val } : f));
                     }}
-                    style={{ flex: 1, padding: '8px', borderRadius: 6, border: '1px solid var(--card-border)', fontSize: 14 }}
+                    style={inputStyle}
                   />
-                  <button type="button" onClick={() => handleDeleteCustomField(field.label)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#EF4444' }}>
-                    <Trash2 style={{ width: 14, height: 14 }} />
+                  <button type="button" onClick={() => handleDeleteCustomField(field.label)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#EF4444', padding: 4 }}>
+                    <Trash2 style={{ width: 15, height: 15 }} />
                   </button>
                 </div>
               ))}
             </div>
 
             {showAddFieldForm ? (
-              <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
-                <input type="text" placeholder="Label name" value={newFieldLabel} onChange={(e) => setNewFieldLabel(e.target.value)} style={{ padding: '8px', borderRadius: 6, border: '1px solid var(--card-border)', fontSize: 14 }} />
-                <input type="text" placeholder="Value" value={newFieldValue} onChange={(e) => setNewFieldValue(e.target.value)} style={{ padding: '8px', borderRadius: 6, border: '1px solid var(--card-border)', fontSize: 14 }} />
-                <button type="button" onClick={handleAddCustomField} style={{ padding: '6px 12px', background: '#F59E0B', color: '#FFFFFF', border: 'none', borderRadius: 6, fontSize: 14, fontWeight: 700 }}>Add</button>
+              <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+                <input type="text" placeholder="Field Label (e.g. VAT Reg)" value={newFieldLabel} onChange={(e) => setNewFieldLabel(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
+                <input type="text" placeholder="Value detail" value={newFieldValue} onChange={(e) => setNewFieldValue(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
+                <button type="button" onClick={handleAddCustomField} style={btnStyle}>Add Field</button>
+                <button type="button" onClick={() => setShowAddFieldForm(false)} style={{ ...btnStyle, background: 'var(--table-header-bg)', color: 'var(--text-secondary)', border: '1px solid var(--card-border)' }}>Cancel</button>
               </div>
             ) : (
-              <button type="button" onClick={() => setShowAddFieldForm(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', color: '#F59E0B', cursor: 'pointer', fontSize: 14, fontWeight: 700, marginTop: 12 }}>
-                <Plus style={{ width: 14, height: 14 }} />
-                Add Custom Field
+              <button type="button" onClick={() => setShowAddFieldForm(true)} style={{ ...btnStyle, background: 'var(--table-header-bg)', color: 'var(--text-secondary)', border: '1px solid var(--card-border)', marginTop: 12 }}>
+                <Plus style={{ width: 14, height: 14 }} /> Add Custom Field
               </button>
             )}
           </div>
 
-          <button type="submit" disabled={loading} style={{ background: 'var(--accent)', color: '#FFFFFF', border: 'none', padding: '12px', borderRadius: 6, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 12 }}>
-            <Save style={{ width: 15, height: 15 }} />
-            {loading ? 'Saving...' : 'Save Profile Settings'}
+          <button type="submit" disabled={loading} style={{ ...btnStyle, marginTop: 10 }}>
+            <Save style={{ width: 14, height: 14 }} /> {loading ? 'Saving updates…' : 'Save Profile Settings'}
           </button>
         </form>
       )}
 
-      {/* Staff Management Tab */}
+      {/* ── STAFF TAB ── */}
       {activeTab === 'staff' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ fontSize: 14, color: 'var(--text-secondary)' }}>Add employee users to let staff check POS counters and process inventory.</div>
-            <button
-              onClick={handleOpenCreateStaff}
-              style={{ padding: '8px 14px', background: 'var(--accent)', color: '#FFFFFF', border: 'none', borderRadius: 6, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
-            >
-              Add Shop Employee
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+            <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Configure internal shop accounts allowed to process counter sales &amp; catalog inventory.</span>
+            <button onClick={handleOpenCreateStaff} style={btnStyle}>
+              <Plus style={{ width: 15, height: 15 }} /> Add Shop Employee
             </button>
           </div>
 
-          {/* Table display staff list */}
-          <div style={{ background: 'var(--card-bg)', border: '1px solid var(--card-border)', borderRadius: 8, overflow: 'hidden' }}>
+          <div style={{ background: 'var(--card-bg)', borderRadius: 10, border: '1px solid var(--card-border)', overflow: 'hidden' }}>
             {staffList.length === 0 ? (
-              <div style={{ padding: 40, textAlign: 'center', color: '#CBD5E1' }}>No employee users created yet</div>
+              <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 14 }}>No staff accounts registered yet.</div>
             ) : (
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14, textAlign: 'left' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 13 }}>
                 <thead>
                   <tr style={{ background: 'var(--table-header-bg)', borderBottom: '1px solid var(--card-border)' }}>
-                    <th style={{ padding: '12px 20px', color: 'var(--text-secondary)' }}>Full Name</th>
-                    <th style={{ padding: '12px 20px', color: 'var(--text-secondary)' }}>Email Account</th>
-                    <th style={{ padding: '12px 20px', color: 'var(--text-secondary)' }}>Feature Set</th>
-                    <th style={{ padding: '12px 20px', color: 'var(--text-secondary)' }}>Status</th>
-                    <th style={{ padding: '12px 20px', color: 'var(--text-secondary)', textAlign: 'center' }}>Actions</th>
+                    <th style={thStyle}>Full Name</th>
+                    <th style={thStyle}>Login Username / Email</th>
+                    <th style={thStyle}>Authorized Tabs</th>
+                    <th style={thStyle}>Account Status</th>
+                    <th style={{ ...thStyle, textAlign: 'center' }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {staffList.map((emp) => (
-                    <tr key={emp.id} style={{ borderBottom: '1px solid #F8FAFC' }}>
-                      <td style={{ padding: '12px 20px', fontWeight: 800 }}>{emp.fullName}</td>
-                      <td style={{ padding: '12px 20px', fontFamily: 'monospace' }}>{emp.email}</td>
-                      <td style={{ padding: '12px 20px' }}>
+                    <tr key={emp.id} style={{ borderBottom: '1px solid var(--card-border)' }}>
+                      <td style={{ padding: '12px 18px', fontWeight: 700 }}>{emp.fullName}</td>
+                      <td style={{ padding: '12px 18px', fontFamily: 'monospace' }}>{emp.email}</td>
+                      <td style={{ padding: '12px 18px' }}>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                           {emp.allowedFeatures.split(',').map((f) => (
-                            <span key={f} style={{ fontSize: 14, background: '#F1F5F9', color: 'var(--text-secondary)', padding: '2px 6px', borderRadius: 4, fontWeight: 600 }}>{f}</span>
+                            <span key={f} style={{ fontSize: 11, background: 'var(--table-header-bg)', border: '1px solid var(--card-border)', padding: '2px 6px', borderRadius: 4, fontWeight: 600, color: 'var(--text-secondary)' }}>
+                              {f}
+                            </span>
                           ))}
                         </div>
                       </td>
-                      <td style={{ padding: '12px 20px' }}>
-                        <span style={{ fontSize: 14, fontWeight: 700, padding: '3px 8px', borderRadius: 6, background: emp.isActive ? 'var(--status-active-bg)' : 'var(--status-danger-bg)', color: emp.isActive ? 'var(--status-active-text)' : 'var(--status-danger-text)' }}>
+                      <td style={{ padding: '12px 18px' }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6, background: emp.isActive ? '#F0FDF4' : '#FEF2F2', color: emp.isActive ? '#10B981' : '#EF4444' }}>
                           {emp.isActive ? 'ACTIVE' : 'INACTIVE'}
                         </span>
                       </td>
-                      <td style={{ padding: '12px 20px', textAlign: 'center' }}>
-                        <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
-                          <button onClick={() => handleOpenEditStaff(emp)} style={{ border: 'none', background: 'var(--table-header-bg)', padding: 6, borderRadius: 6, cursor: 'pointer', color: 'var(--accent)' }}>
-                            <Edit2 style={{ width: 12, height: 12 }} />
+                      <td style={{ padding: '12px 18px', textAlign: 'center' }}>
+                        <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
+                          <button onClick={() => handleOpenEditStaff(emp)} style={{ border: '1px solid var(--card-border)', background: 'var(--table-header-bg)', padding: 5, borderRadius: 6, cursor: 'pointer', color: 'var(--text-secondary)' }}>
+                            <Edit2 style={{ width: 13, height: 13 }} />
                           </button>
-                          <button onClick={() => handleDeleteStaff(emp.id, emp.fullName || '')} style={{ border: 'none', background: 'rgba(239,68,68,0.06)', padding: 6, borderRadius: 6, cursor: 'pointer', color: '#EF4444' }}>
-                            <Trash2 style={{ width: 12, height: 12 }} />
+                          <button onClick={() => handleDeleteStaff(emp.id, emp.fullName || '')} style={{ border: '1.5px solid #FECACA', background: '#FEF2F2', padding: 5, borderRadius: 6, cursor: 'pointer', color: '#EF4444' }}>
+                            <Trash2 style={{ width: 13, height: 13 }} />
                           </button>
                         </div>
                       </td>
@@ -640,60 +682,41 @@ export default function SettingsClient({
         </div>
       )}
 
-      {/* Security Prefs Tab */}
+      {/* ── SECURITY TAB ── */}
       {activeTab === 'security' && (
-        <div style={{ background: 'var(--card-bg)', borderRadius: 8, border: '1px solid #E5E7EB', padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
-          {/* Appearance Theme Selector */}
-          <div style={{ borderBottom: '1px solid #E5E7EB', paddingBottom: 20 }}>
-            <h3 style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)' }}>Appearance Theme</h3>
-            <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 2 }}>Toggle application display color scheme.</p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          
+          {/* Appearance & Themes */}
+          <div style={{ background: 'var(--card-bg)', borderRadius: 10, border: '1px solid var(--card-border)', padding: 20 }}>
+            <h3 style={{ fontSize: 15, fontWeight: 700, margin: 0 }}>Interface Theme Mode</h3>
+            <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>Toggle theme styling context across retailer dash pages.</p>
+            
             <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
               <button
                 type="button"
                 onClick={() => handleToggleTheme('light')}
-                style={{
-                  flex: 1,
-                  padding: '10px',
-                  borderRadius: 6,
-                  border: themeMode === 'light' ? '2px solid #1D4ED8' : '1px solid #D1D5DB',
-                  background: themeMode === 'light' ? '#EFF6FF' : '#FFFFFF',
-                  color: themeMode === 'light' ? '#1D4ED8' : '#374151',
-                  fontWeight: 600,
-                  fontSize: 14,
-                  cursor: 'pointer',
-                  textAlign: 'center',
-                }}
+                style={{ flex: 1, padding: 10, borderRadius: 8, border: themeMode === 'light' ? '2px solid #F59E0B' : '1px solid var(--card-border)', background: themeMode === 'light' ? '#FFFBEB' : 'var(--card-bg)', color: themeMode === 'light' ? '#D97706' : 'var(--text-secondary)', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}
               >
-                Light Mode
+                Light Theme
               </button>
               <button
                 type="button"
                 onClick={() => handleToggleTheme('dark')}
-                style={{
-                  flex: 1,
-                  padding: '10px',
-                  borderRadius: 6,
-                  border: themeMode === 'dark' ? '2px solid #1D4ED8' : '1px solid #D1D5DB',
-                  background: themeMode === 'dark' ? '#1E293B' : '#FFFFFF',
-                  color: themeMode === 'dark' ? '#F9FAFB' : '#374151',
-                  fontWeight: 600,
-                  fontSize: 14,
-                  cursor: 'pointer',
-                  textAlign: 'center',
-                }}
+                style={{ flex: 1, padding: 10, borderRadius: 8, border: themeMode === 'dark' ? '2px solid #F59E0B' : '1px solid var(--card-border)', background: themeMode === 'dark' ? '#1E293B' : 'var(--card-bg)', color: themeMode === 'dark' ? '#FFFFFF' : 'var(--text-secondary)', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}
               >
-                Dark Mode
+                Dark Theme
               </button>
             </div>
           </div>
 
-          <div>
-            <h3 style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)' }}>Client Inactivity Auto-Logout</h3>
-            <p style={{ fontSize: 14, color: 'var(--text-muted)', marginTop: 2 }}>Protect terminal node if left idle.</p>
+          {/* Timeout */}
+          <div style={{ background: 'var(--card-bg)', borderRadius: 10, border: '1px solid var(--card-border)', padding: 20 }}>
+            <h3 style={{ fontSize: 15, fontWeight: 700, margin: 0 }}>Client Inactivity Auto-Logout</h3>
+            <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>Auto-logout timer threshold to prevent unauthorized dashboard access.</p>
             <select
               value={inactivityTimeout}
               onChange={(e) => handleSaveSecurity(e.target.value)}
-              style={{ padding: '10px', borderRadius: 8, border: '1px solid var(--card-border)', outline: 'none', fontSize: 14, background: 'var(--card-bg)', color: 'var(--text-primary)', marginTop: 12, width: '100%' }}
+              style={{ ...inputStyle, marginTop: 12 }}
             >
               <option value="15">15 minutes of inactivity</option>
               <option value="30">30 minutes of inactivity</option>
@@ -703,130 +726,141 @@ export default function SettingsClient({
             </select>
           </div>
 
-          <div style={{ borderTop: '1px solid #F1F5F9', paddingTop: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <h3 style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)' }}>Stock alert thresholds</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)' }}>BOXES</label>
-                <input type="number" value={lowStockBoxes} onChange={(e) => setLowStockBoxes(parseInt(e.target.value) || 0)} style={{ padding: '8px', borderRadius: 8, border: '1px solid var(--card-border)', fontSize: 14 }} />
+          {/* Alert Thresholds */}
+          <div style={{ background: 'var(--card-bg)', borderRadius: 10, border: '1px solid var(--card-border)', padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div>
+              <h3 style={{ fontSize: 15, fontWeight: 700, margin: 0 }}>Inventory Low-Stock Warning Thresholds</h3>
+              <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>Warn when available medicine units drop below these limits.</p>
+            </div>
+            
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+              <div>
+                <label style={labelStyle}>BOXES</label>
+                <input type="number" value={lowStockBoxes} onChange={(e) => setLowStockBoxes(parseInt(e.target.value) || 0)} style={inputStyle} />
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)' }}>STRIPS</label>
-                <input type="number" value={lowStockStrips} onChange={(e) => setLowStockStrips(parseInt(e.target.value) || 0)} style={{ padding: '8px', borderRadius: 8, border: '1px solid var(--card-border)', fontSize: 14 }} />
+              <div>
+                <label style={labelStyle}>STRIPS</label>
+                <input type="number" value={lowStockStrips} onChange={(e) => setLowStockStrips(parseInt(e.target.value) || 0)} style={inputStyle} />
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)' }}>TABLETS</label>
-                <input type="number" value={lowStockTablets} onChange={(e) => setLowStockTablets(parseInt(e.target.value) || 0)} style={{ padding: '8px', borderRadius: 8, border: '1px solid var(--card-border)', fontSize: 14 }} />
+              <div>
+                <label style={labelStyle}>TABLETS</label>
+                <input type="number" value={lowStockTablets} onChange={(e) => setLowStockTablets(parseInt(e.target.value) || 0)} style={inputStyle} />
               </div>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)' }}>EXPIRY ALERT THRESHOLD (DAYS)</label>
-              <input type="number" value={expiryAlertDays} onChange={(e) => setExpiryAlertDays(parseInt(e.target.value) || 0)} style={{ padding: '8px', borderRadius: 8, border: '1px solid var(--card-border)', fontSize: 14 }} />
+
+            <div>
+              <label style={labelStyle}>EXPIRY ALERT WARN THRESHOLD (DAYS)</label>
+              <input type="number" value={expiryAlertDays} onChange={(e) => setExpiryAlertDays(parseInt(e.target.value) || 0)} style={inputStyle} />
             </div>
-            <button onClick={() => handleSaveAlerts(lowStockBoxes, lowStockStrips, lowStockTablets, expiryAlertDays)} style={{ background: 'var(--accent)', color: '#FFFFFF', border: 'none', padding: '10px 16px', borderRadius: 6, fontWeight: 600, cursor: 'pointer', alignSelf: 'flex-end' }}>
-              Save Thresholds
+
+            <button onClick={() => handleSaveAlerts(lowStockBoxes, lowStockStrips, lowStockTablets, expiryAlertDays)} style={{ ...btnStyle, alignSelf: 'flex-end' }}>
+              Save Threshold Rules
             </button>
           </div>
+
         </div>
       )}
 
-      {/* Activity Logs Tab */}
+      {/* ── LOGS TAB ── */}
       {activeTab === 'logs' && (
-        <div style={{ background: 'var(--card-bg)', borderRadius: 8, border: '1px solid var(--card-border)', padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div style={{ display: 'flex', gap: 10 }}>
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, background: 'var(--card-bg)', padding: '8px 12px', borderRadius: 6, border: '1px solid var(--card-border)' }}>
+        <div style={{ background: 'var(--card-bg)', borderRadius: 10, border: '1px solid var(--card-border)', padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <div style={{ flex: 1, minWidth: 200, display: 'flex', alignItems: 'center', gap: 8, background: 'var(--table-header-bg)', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--card-border)' }}>
               <Search style={{ width: 14, height: 14, color: 'var(--text-muted)' }} />
-              <input type="text" placeholder="Search logs..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%', fontSize: 14 }} />
+              <input type="text" placeholder="Search audit logs..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%', fontSize: 13, color: 'var(--text-primary)' }} />
             </div>
-            <select value={actionFilter} onChange={(e) => setActionFilter(e.target.value)} style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid var(--card-border)', fontSize: 14, outline: 'none', background: 'var(--card-bg)', color: 'var(--text-primary)' }}>
-              <option value="">All Actions</option>
+            <select value={actionFilter} onChange={(e) => setActionFilter(e.target.value)} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--card-border)', fontSize: 13, outline: 'none', background: 'var(--table-header-bg)', color: 'var(--text-secondary)' }}>
+              <option value="">All Audited Actions</option>
               {uniqueActions.map((act) => <option key={act} value={act}>{act}</option>)}
             </select>
           </div>
 
-          <div style={{ maxHeight: 400, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {filteredLogs.map((log) => (
-              <div key={log.id} style={{ borderBottom: '1px solid #F1F5F9', padding: '8px 0', fontSize: 14 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}>
-                  <span>{log.action}</span>
-                  <span style={{ color: 'var(--text-muted)' }}>{new Date(log.timestamp).toLocaleString()}</span>
-                </div>
-                <div style={{ color: 'var(--text-secondary)', marginTop: 4 }}>
-                  {log.details}
-                  {log.user && (
-                    <span style={{ fontSize: 14, color: 'var(--text-muted)', display: 'block', marginTop: 2 }}>
-                      By: {log.user.fullName || log.user.email} (${log.user.role})
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 480, overflowY: 'auto' }}>
+            {filteredLogs.map((log) => {
+              const uuidMatch = log.details.match(/[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}/);
+              const shortIdMatch = log.details.match(/(?:Order|invoice|INV-)\s*#?([a-fA-F0-9]{8})/i);
+              const matchedId = uuidMatch ? uuidMatch[0] : (shortIdMatch ? shortIdMatch[1] : null);
+
+              return (
+                <div key={log.id} style={{ borderBottom: '1px solid var(--card-border)', paddingBottom: 12, fontSize: 13 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 5, background: log.action.includes('ERR') || log.action.includes('DELETE') ? '#FEF2F2' : '#F0FDF4', color: log.action.includes('ERR') || log.action.includes('DELETE') ? '#EF4444' : '#10B981' }}>
+                      {log.action}
                     </span>
-                  )}
+                    <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>{new Date(log.timestamp).toLocaleString()}</span>
+                  </div>
+                  <div style={{ color: 'var(--text-secondary)', marginTop: 6, lineHeight: 1.4 }}>
+                    {log.details}
+                    {matchedId && (
+                      <div style={{ marginTop: 6 }}>
+                        <a
+                          href={`/retailer/billing?invoiceId=${matchedId}`}
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700, color: '#F59E0B', textDecoration: 'none', background: '#FFFBEB', padding: '3px 8px', borderRadius: 4, border: '1px solid #FDE68A' }}
+                        >
+                          🔍 View Related Invoice #{matchedId.substring(0, 8).toUpperCase()}
+                        </a>
+                      </div>
+                    )}
+                    {log.user && (
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginTop: 4 }}>
+                        Initiated by: <strong>{log.user.fullName || log.user.email}</strong> ({log.user.role})
+                      </span>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
 
-      {/* Staff Editor Modal */}
+      {/* Employee Modal */}
       {showStaffModal && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(15,23,42,0.35)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-          <form onSubmit={handleSaveStaff} style={{ width: '100%', maxWidth: 480, background: 'var(--card-bg)', borderRadius: 8, border: '1px solid var(--card-border)', overflow: 'hidden' }}>
-            <div style={{ padding: '20px 24px', borderBottom: '1px solid #F1F5F9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ fontSize: 16, fontWeight: 900, color: 'var(--text-primary)', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <User style={{ width: 18, height: 18, color: '#F59E0B' }} />
-                {editingStaff ? 'Update employee Profile' : 'register new employee'}
-              </h3>
-              <button type="button" onClick={() => setShowStaffModal(false)} style={{ background: 'var(--table-header-bg)', border: '1px solid var(--card-border)', borderRadius: 6, padding: '6px', cursor: 'pointer', color: 'var(--text-secondary)' }}>
-                <X style={{ width: 16, height: 16 }} />
-              </button>
+        <Modal onClose={() => setShowStaffModal(false)} title={editingStaff ? 'Update Employee Permissions' : 'Register New Shop Employee'}>
+          <form onSubmit={handleSaveStaff} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div>
+              <label style={labelStyle}>Full Name</label>
+              <input type="text" required value={staffFullName} onChange={(e) => setStaffFullName(e.target.value)} placeholder="e.g. Ram Kumar" style={inputStyle} />
+            </div>
+            <div>
+              <label style={labelStyle}>Email Address (Login ID)</label>
+              <input type="email" required disabled={!!editingStaff} value={staffEmail} onChange={(e) => setStaffEmail(e.target.value)} placeholder="e.g. ram@pharmacy.com" style={{ ...inputStyle, background: editingStaff ? 'var(--table-header-bg)' : 'var(--card-bg)' }} />
+            </div>
+            <div>
+              <label style={labelStyle}>Password {editingStaff && '(Leave blank to keep current)'}</label>
+              <input type="password" required={!editingStaff} value={staffPassword} onChange={(e) => setStaffPassword(e.target.value)} placeholder="••••••••" style={inputStyle} />
             </div>
 
-            <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <label style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-secondary)' }}>FULL NAME</label>
-                <input type="text" required value={staffFullName} onChange={(e) => setStaffFullName(e.target.value)} placeholder="e.g. Ram Kumar" style={{ padding: '10px', borderRadius: 8, border: '1px solid var(--card-border)', fontSize: 14 }} />
+            <div>
+              <label style={labelStyle}>Authorized Dashboard Tabs</label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, background: 'var(--table-header-bg)', padding: 10, borderRadius: 8, border: '1px solid var(--card-border)' }}>
+                {AVAILABLE_FEATURES.map((feat) => {
+                  const isChecked = staffFeatures.includes(feat);
+                  return (
+                    <label key={feat} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text-secondary)', cursor: 'pointer' }}>
+                      <input type="checkbox" checked={isChecked} onChange={() => toggleFeature(feat)} style={{ cursor: 'pointer' }} />
+                      {feat}
+                    </label>
+                  );
+                })}
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <label style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-secondary)' }}>EMAIL ACCOUNT (LOGIN ID)</label>
-                <input type="email" required disabled={!!editingStaff} value={staffEmail} onChange={(e) => setStaffEmail(e.target.value)} placeholder="e.g. ram@pharmacy.com" style={{ padding: '10px', borderRadius: 8, border: '1px solid var(--card-border)', fontSize: 14, background: editingStaff ? 'var(--table-header-bg)' : 'var(--card-bg)', color: 'var(--text-primary)' }} />
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <label style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-secondary)' }}>PASSWORD {editingStaff && '(LEAVE BLANK TO KEEP SAME)'}</label>
-                <input type="password" required={!editingStaff} value={staffPassword} onChange={(e) => setStaffPassword(e.target.value)} placeholder="••••••••" style={{ padding: '10px', borderRadius: 8, border: '1px solid var(--card-border)', fontSize: 14 }} />
-              </div>
-
-              {/* Toggle features checkboxes */}
-              <div>
-                <label style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>AUTHORIZED DASHBOARD TABS</label>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                  {AVAILABLE_FEATURES.map((feat) => {
-                    const isChecked = staffFeatures.includes(feat);
-                    return (
-                      <label key={feat} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: 'var(--text-secondary)', cursor: 'pointer' }}>
-                        <input type="checkbox" checked={isChecked} onChange={() => toggleFeature(feat)} style={{ cursor: 'pointer' }} />
-                        {feat}
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {editingStaff && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, borderTop: '1px solid #F1F5F9', paddingTop: 12 }}>
-                  <input type="checkbox" id="staff-active" checked={staffIsActive} onChange={(e) => setStaffIsActive(e.target.checked)} style={{ cursor: 'pointer' }} />
-                  <label htmlFor="staff-active" style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-secondary)', cursor: 'pointer' }}>Account Active</label>
-                </div>
-              )}
             </div>
 
-            <div style={{ padding: '16px 24px', borderTop: '1px solid #F1F5F9', display: 'flex', gap: 10 }}>
-              <button type="button" onClick={() => setShowStaffModal(false)} style={{ flex: 1, padding: 11, borderRadius: 10, border: '1px solid var(--card-border)', background: 'var(--card-bg)', color: 'var(--text-primary)', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
-                Cancel
-              </button>
-              <button type="submit" disabled={loading} style={{ flex: 2, padding: 11, border: 'none', borderRadius: 10, background: 'var(--accent)', color: '#FFFFFF', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
-                Save Employee Account
+            {editingStaff && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingTop: 6 }}>
+                <input type="checkbox" id="staff-active" checked={staffIsActive} onChange={(e) => setStaffIsActive(e.target.checked)} style={{ cursor: 'pointer' }} />
+                <label htmlFor="staff-active" style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', cursor: 'pointer' }}>Account Status Active</label>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+              <button type="button" onClick={() => setShowStaffModal(false)} style={{ flex: 1, padding: 10, borderRadius: 8, border: '1px solid var(--card-border)', background: 'var(--card-bg)', fontSize: 13, cursor: 'pointer' }}>Cancel</button>
+              <button type="submit" disabled={loading} style={{ flex: 2, padding: 10, border: 'none', background: '#F59E0B', color: '#FFFFFF', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                {loading ? 'Processing…' : 'Save Employee Account'}
               </button>
             </div>
           </form>
-        </div>
+        </Modal>
       )}
 
     </div>

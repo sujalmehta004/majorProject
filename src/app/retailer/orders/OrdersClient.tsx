@@ -6,8 +6,8 @@ import {
   Truck, Search, QrCode, AlertCircle, CheckCircle,
   Package, Eye, ShoppingBag, Trash2, Printer, X,
   ChevronRight, Calendar, Building, Hash, Phone,
-  FileText, Layers, RefreshCw, Layers2, Square, CheckSquare,
-  Clock, AlertTriangle, DollarSign
+  FileText, Layers, RefreshCw, Square, CheckSquare,
+  Clock, AlertTriangle, DollarSign, LayoutList, List
 } from 'lucide-react';
 import { confirmB2BDeliveryAction } from '@/app/actions/retailerActions';
 import { updateConsumerOrderStatusAction, saveDeliveryFeeSettingsAction, getDeliveryFeeSettingsAction } from '@/app/actions/consumerActions';
@@ -76,13 +76,34 @@ interface OrdersClientProps {
 }
 
 const STATUS_META: Record<string, { color: string; bg: string; icon: any }> = {
-  PENDING: { color: '#F59E0B', bg: 'rgba(245,158,11,0.08)', icon: AlertCircle },
-  PICKING: { color: '#3B82F6', bg: 'rgba(59,130,246,0.08)', icon: Layers },
-  DISPATCHED: { color: '#8B5CF6', bg: 'rgba(139,92,246,0.08)', icon: Truck },
-  DELIVERED: { color: '#10B981', bg: 'rgba(16,185,129,0.08)', icon: CheckCircle },
-  RETURNED: { color: '#EF4444', bg: 'rgba(239,68,68,0.08)', icon: X },
-  SHIPPED: { color: '#8B5CF6', bg: 'rgba(139,92,246,0.08)', icon: Truck },
-  FAILED: { color: '#EF4444', bg: 'rgba(239,68,68,0.08)', icon: X },
+  PENDING: { color: '#F59E0B', bg: '#FFFBEB', icon: AlertCircle },
+  PICKING: { color: '#3B82F6', bg: '#EFF6FF', icon: Layers },
+  DISPATCHED: { color: '#8B5CF6', bg: '#F5F3FF', icon: Truck },
+  DELIVERED: { color: '#10B981', bg: '#F0FDF4', icon: CheckCircle },
+  RETURNED: { color: '#EF4444', bg: '#FEF2F2', icon: X },
+  SHIPPED: { color: '#8B5CF6', bg: '#F5F3FF', icon: Truck },
+  FAILED: { color: '#EF4444', bg: '#FEF2F2', icon: X },
+};
+
+const inputStyle: React.CSSProperties = {
+  padding: '9px 12px',
+  borderRadius: 8,
+  border: '1px solid var(--card-border)',
+  outline: 'none',
+  fontSize: 13,
+  width: '100%',
+  background: 'var(--card-bg)',
+  color: 'var(--text-primary)',
+  boxSizing: 'border-box' as const,
+};
+
+const thStyle: React.CSSProperties = {
+  padding: '11px 16px',
+  color: 'var(--text-muted)',
+  fontWeight: 600,
+  fontSize: 12,
+  textTransform: 'uppercase',
+  letterSpacing: '0.04em',
 };
 
 export default function OrdersClient({ initialOrders, wholesalers, profileId, initialConsumerOrders }: OrdersClientProps) {
@@ -94,23 +115,25 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
   const [consumerOrders, setConsumerOrders] = useState<any[]>(initialConsumerOrders || []);
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterSearch, setFilterSearch] = useState('');
-
-  // Bulk Selection State
   const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
 
-  // Barcode / Label Scanner state
+  // Detailed View Toggle state
+  const [detailedViewB2B, setDetailedViewB2B] = useState(false);
+  const [detailedViewB2C, setDetailedViewB2C] = useState(false);
+
+  // Intake Scanner
   const [barcodeInput, setBarcodeInput] = useState('');
   const [barcodeLoading, setBarcodeLoading] = useState(false);
   const [barcodeMessage, setBarcodeMessage] = useState({ text: '', isError: false });
   const [intakeBarcodeVerification, setIntakeBarcodeVerification] = useState('');
 
-  // Delivery fee settings state
+  // Delivery Fee Settings
   const [deliveryTiers, setDeliveryTiers] = useState<{ maxKm: number; fee: number }[]>([]);
   const [deliverySettingsSaving, setDeliverySettingsSaving] = useState(false);
   const [deliverySettingsMsg, setDeliverySettingsMsg] = useState({ text: '', isError: false });
   const [deliverySettingsLoaded, setDeliverySettingsLoaded] = useState(false);
 
-  // Order Placement State
+  // New B2B Order Placement
   const [selectedWholesalerId, setSelectedWholesalerId] = useState('');
   const [cart, setCart] = useState<{ productId: string; name: string; qtyBoxes: number; pricePerBox: number; availableBoxes: number }[]>([]);
   const [placingOrder, setPlacingOrder] = useState(false);
@@ -118,21 +141,19 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
   const [needsOverride, setNeedsOverride] = useState(false);
   const [overrideMsg, setOverrideMsg] = useState('');
 
-  // Detail Modal & Print Preview Modal
+  // Modals
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [selectedB2COrder, setSelectedB2COrder] = useState<any | null>(null);
   const [printPreviewOrder, setPrintPreviewOrder] = useState<Order | null>(null);
-
-  // Intake Modal state
   const [intakeOrder, setIntakeOrder] = useState<any>(null);
   const [intakeCustomPrices, setIntakeCustomPrices] = useState<Record<string, { buyingPrice: number; sellingPrice: number }>>({});
   const [intakeSettleNow, setIntakeSettleNow] = useState(false);
   const [intakeSettleAmount, setIntakeSettleAmount] = useState('');
   const [intakeSettleMethod, setIntakeSettleMethod] = useState('CASH');
 
-  // Sync state via realtime updates
-  useRealtimeEvent('ORDER_UPDATE', () => {
-    fetchOrders();
-  });
+  const selectedWholesaler = wholesalers.find(w => w.id === selectedWholesalerId);
+
+  useRealtimeEvent('ORDER_UPDATE', () => { fetchOrders(); });
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -145,9 +166,7 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
         }
       } catch (err) {}
     };
-    return () => {
-      es.close();
-    };
+    return () => { es.close(); };
   }, [profileId]);
 
   const fetchOrders = async () => {
@@ -156,13 +175,9 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
       const data = await res.json();
       if (data.success) {
         setOrders(data.orders);
-        if (data.consumerOrders) {
-          setConsumerOrders(data.consumerOrders);
-        }
+        if (data.consumerOrders) setConsumerOrders(data.consumerOrders);
       }
-    } catch (e) {
-      console.error(e);
-    }
+    } catch (e) { console.error(e); }
   };
 
   useEffect(() => {
@@ -171,23 +186,14 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
     }
   }, [searchParams]);
 
-  // Keyboard shortcuts listener
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'F8') {
-        e.preventDefault();
-        setActiveTab('tracker');
-      }
-      if (e.key === 'F9') {
-        e.preventDefault();
-        setActiveTab('order');
-      }
-      if (e.key === 'F10') {
-        e.preventDefault();
-        setActiveTab('intake');
-      }
+      if (e.key === 'F8') { e.preventDefault(); setActiveTab('tracker'); }
+      if (e.key === 'F9') { e.preventDefault(); setActiveTab('order'); }
+      if (e.key === 'F10') { e.preventDefault(); setActiveTab('intake'); }
       if (e.key === 'Escape') {
         setSelectedOrder(null);
+        setSelectedB2COrder(null);
         setPrintPreviewOrder(null);
       }
     };
@@ -201,10 +207,9 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
       const wholesalerPricePerBox = item.pricePerUnit * (item.product.tabletsPerStrip * item.product.stripsPerBox);
       initialPrices[item.productId] = {
         buyingPrice: wholesalerPricePerBox,
-        sellingPrice: Math.round(wholesalerPricePerBox * 1.25), // default 25% markup
+        sellingPrice: Math.round(wholesalerPricePerBox * 1.25),
       };
     });
-
     setIntakeOrder(order);
     setIntakeCustomPrices(initialPrices);
     setIntakeSettleNow(false);
@@ -217,28 +222,23 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
   const handleBarcodeIntake = (e: React.FormEvent) => {
     e.preventDefault();
     if (!barcodeInput.trim()) return;
-
     let searchId = barcodeInput.trim();
     if (searchId.toUpperCase().startsWith('ORD-')) {
       searchId = searchId.substring(4);
     }
-
-    const matched = orders.find(o => 
+    const matched = orders.find(o =>
       o.id.toLowerCase() === searchId.toLowerCase() ||
       o.id.toLowerCase().startsWith(searchId.toLowerCase()) ||
       o.id.toLowerCase().includes(searchId.toLowerCase())
     );
-
     if (!matched) {
-      setBarcodeMessage({ text: `No matching pending/dispatched order found for barcode/ID: ${barcodeInput}`, isError: true });
+      setBarcodeMessage({ text: `No matched order found: ${barcodeInput}`, isError: true });
       return;
     }
-
     if (matched.status !== 'DISPATCHED') {
-      setBarcodeMessage({ text: `Order status is ${matched.status}. It must be DISPATCHED to confirm delivery.`, isError: true });
+      setBarcodeMessage({ text: `Order status is ${matched.status}. Requires DISPATCHED state to verify intake.`, isError: true });
       return;
     }
-
     openIntakeModalForOrder(matched);
   };
 
@@ -246,220 +246,182 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
     if (!intakeOrder) return;
     try {
       setBarcodeLoading(true);
-
       const customPricesPayload = Object.entries(intakeCustomPrices).map(([productId, val]) => ({
         productId,
         buyingPrice: val.buyingPrice,
         sellingPrice: val.sellingPrice,
       }));
-
       const res = await confirmB2BDeliveryAction(
         intakeOrder.id,
         customPricesPayload,
         intakeSettleNow,
-        intakeSettleNow ? parseFloat(intakeSettleAmount) : undefined,
-        intakeSettleNow ? intakeSettleMethod : undefined
+        intakeSettleNow ? parseFloat(intakeSettleAmount) || 0 : 0,
+        intakeSettleNow ? intakeSettleMethod : 'CASH'
       );
-
       if (res.success) {
-        alert('Package Intake Confirmed! Inventory stock and prices updated.');
         setIntakeOrder(null);
         setBarcodeInput('');
-        // Trigger updates across channels
-        broadcastUpdate('ORDER_UPDATE');
+        setBarcodeMessage({ text: 'Order intake successfully verified & added to inventory stock.', isError: false });
         broadcastUpdate('INVENTORY_UPDATE');
-        broadcastUpdate('BILLING_UPDATE');
+        fetchOrders();
       }
     } catch (err: any) {
-      alert(err.message || 'Error confirming package intake');
+      alert(err.message || 'Intake failed');
     } finally {
       setBarcodeLoading(false);
     }
-  };
-
-  const handleUpdateConsumerStatus = async (orderId: string, nextStatus: string) => {
-    try {
-      setBarcodeLoading(true);
-      const res = await updateConsumerOrderStatusAction(orderId, nextStatus);
-      if (res.success) {
-        alert(`Order status successfully updated to ${nextStatus}!`);
-        await fetchOrders();
-        broadcastUpdate('CONSUMER_ORDER_UPDATE');
-        broadcastUpdate('BILLING_UPDATE');
-        broadcastUpdate('INVENTORY_UPDATE');
-      } else {
-        alert(res.error || 'Failed to update order status');
-      }
-    } catch (err: any) {
-      alert(err.message || 'An error occurred');
-    } finally {
-      setBarcodeLoading(false);
-    }
-  };
-
-  const loadDeliverySettings = async () => {
-    if (deliverySettingsLoaded) return;
-    try {
-      const res = await getDeliveryFeeSettingsAction(profileId);
-      if (res.success) {
-        const tiers = JSON.parse(res.deliveryFeesJson || '[]');
-        setDeliveryTiers(tiers);
-        setDeliverySettingsLoaded(true);
-      }
-    } catch (e) {
-      console.error('Failed to load delivery settings', e);
-    }
-  };
-
-  const saveDeliverySettings = async () => {
-    setDeliverySettingsSaving(true);
-    setDeliverySettingsMsg({ text: '', isError: false });
-    try {
-      const res = await saveDeliveryFeeSettingsAction(profileId, JSON.stringify(deliveryTiers));
-      if (res.success) {
-        setDeliverySettingsMsg({ text: '✓ Delivery fee settings saved successfully!', isError: false });
-      } else {
-        setDeliverySettingsMsg({ text: res.error || 'Failed to save settings', isError: true });
-      }
-    } catch (e: any) {
-      setDeliverySettingsMsg({ text: e.message || 'Error saving settings', isError: true });
-    } finally {
-      setDeliverySettingsSaving(false);
-    }
-  };
-
-  const handleBulkConfirmDelivery = async () => {
-    if (selectedOrderIds.length === 0) return;
-    if (!confirm(`Mark ${selectedOrderIds.length} order(s) as Delivered and ingest items into your inventory?`)) return;
-
-    setBarcodeLoading(true);
-    let successCount = 0;
-    let failCount = 0;
-
-    for (const orderId of selectedOrderIds) {
-      try {
-        const res = await confirmB2BDeliveryAction(orderId);
-        if (res.success) successCount++;
-      } catch (err) {
-        failCount++;
-      }
-    }
-
-    setBarcodeLoading(false);
-    setSelectedOrderIds([]);
-    alert(`Bulk Intake process complete.\nSuccessful deliveries: ${successCount}\nFailed deliveries (e.g. not dispatched): ${failCount}`);
-    
-    broadcastUpdate('ORDER_UPDATE');
-    broadcastUpdate('INVENTORY_UPDATE');
-    broadcastUpdate('BILLING_UPDATE');
-  };
-
-  const selectedWholesaler = wholesalers.find(w => w.id === selectedWholesalerId);
-
-  const addToCart = (product: Product, qtyStr: string) => {
-    const qty = parseInt(qtyStr);
-    if (isNaN(qty) || qty <= 0) return;
-
-    const unitsPerBox = product.tabletsPerStrip * product.stripsPerBox;
-    const totalUnits = product.batches.reduce((sum, b) => sum + b.availableBaseUnits, 0);
-    const availableBoxes = Math.floor(totalUnits / unitsPerBox);
-
-    if (qty > availableBoxes) {
-      alert(`Only ${availableBoxes} boxes available in wholesaler's stock.`);
-      return;
-    }
-
-    const basePrice = product.batches[0]?.sellingPricePerBox || 100;
-    let price = basePrice;
-    try {
-      const tiers = JSON.parse(product.tierPricingJson || '[]');
-      const matchingTier = tiers.find((t: any) => qty >= t.minQty && qty <= (t.maxQty || 999999));
-      if (matchingTier) {
-        price = matchingTier.pricePerBox;
-      } else if (tiers.length > 0) {
-        price = tiers[0].pricePerBox;
-      }
-    } catch (e) {}
-
-    setCart((prev) => {
-      const existing = prev.find(item => item.productId === product.id);
-      if (existing) {
-        return prev.map(item => item.productId === product.id ? { ...item, qtyBoxes: qty, pricePerBox: price } : item);
-      }
-      return [...prev, { productId: product.id, name: product.name, qtyBoxes: qty, pricePerBox: price, availableBoxes }];
-    });
   };
 
   const handlePlaceOrder = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedWholesaler || cart.length === 0) return;
-
+    if (cart.length === 0 || !selectedWholesalerId) return;
     try {
       setPlacingOrder(true);
       setOrderMessage({ text: '', isError: false });
-
-      const payload: any = {
-        retailerId: profileId,
-        wholesalerId: selectedWholesaler.id,
-        items: cart.map((c) => ({
-          productId: c.productId,
-          qtyBoxes: c.qtyBoxes,
-        })),
+      const payload = {
+        wholesalerId: selectedWholesalerId,
+        items: cart.map(c => ({ productId: c.productId, qtyBoxes: c.qtyBoxes })),
+        overrideJustification: needsOverride ? overrideMsg : undefined,
       };
-
-      if (needsOverride && overrideMsg) {
-        payload.overrideJustification = overrideMsg;
-      }
-
-      const res = await fetch('/api/orders', {
+      const res = await fetch('/api/retailer/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-
       const data = await res.json();
-      if (res.ok && data.success) {
-        setOrderMessage({ text: 'B2B order placed successfully! Check status in active tracker.', isError: false });
+      if (!res.ok) {
+        if (data.needsOverride) {
+          setNeedsOverride(true);
+          setOrderMessage({ text: data.error || 'Requires credit limit override note.', isError: true });
+        } else {
+          setOrderMessage({ text: data.error || 'Failed to place B2B order.', isError: true });
+        }
+        return;
+      }
+      if (data.success) {
         setCart([]);
+        setSelectedWholesalerId('');
         setNeedsOverride(false);
         setOverrideMsg('');
-        broadcastUpdate('ORDER_UPDATE');
-        broadcastUpdate('BILLING_UPDATE');
-      } else {
-        if (data.error === 'CREDIT_BLOCKED') {
-          setNeedsOverride(true);
-          setOrderMessage({ text: `Blocked: ${data.reason} Enter override justification to proceed.`, isError: true });
-        } else {
-          setOrderMessage({ text: data.error || 'Failed to place B2B order', isError: true });
-        }
+        setOrderMessage({ text: 'B2B Purchase Order successfully submitted to supplier.', isError: false });
+        fetchOrders();
       }
     } catch (err: any) {
-      setOrderMessage({ text: err.message || 'Error occurred', isError: true });
+      setOrderMessage({ text: 'Failed to place B2B order.', isError: true });
     } finally {
       setPlacingOrder(false);
     }
   };
 
+  const addToCart = (product: Product, qtyVal: string) => {
+    const qty = parseInt(qtyVal) || 0;
+    if (qty <= 0) {
+      setCart(prev => prev.filter(c => c.productId !== product.id));
+      return;
+    }
+    const tpb = product.tabletsPerStrip * product.stripsPerBox;
+    const totalUnits = product.batches.reduce((sum, b) => sum + b.availableBaseUnits, 0);
+    const availableBoxes = Math.floor(totalUnits / tpb);
+    if (qty > availableBoxes) {
+      alert(`Cannot exceed available wholesaler stock (${availableBoxes} boxes)`);
+      return;
+    }
+    const price = product.batches[0]?.sellingPricePerBox || 100;
+    const item = {
+      productId: product.id,
+      name: product.name,
+      qtyBoxes: qty,
+      pricePerBox: price,
+      availableBoxes,
+    };
+    setCart(prev => {
+      const idx = prev.findIndex(c => c.productId === product.id);
+      if (idx > -1) {
+        const copy = [...prev];
+        copy[idx] = item;
+        return copy;
+      }
+      return [...prev, item];
+    });
+  };
+
+  const handleBulkConfirmDelivery = async () => {
+    if (selectedOrderIds.length === 0) return;
+    if (!confirm(`Process delivery confirmation for ${selectedOrderIds.length} selected orders? (Defaults B2B purchase prices to stock)`)) return;
+    try {
+      setBarcodeLoading(true);
+      for (const orderId of selectedOrderIds) {
+        const orderObj = orders.find(o => o.id === orderId);
+        if (!orderObj) continue;
+        const customPricesPayload = orderObj.items.map((item: any) => {
+          const wholesalerPricePerBox = item.pricePerUnit * (item.product.tabletsPerStrip * item.product.stripsPerBox);
+          return {
+            productId: item.productId || (item as any).productId,
+            buyingPrice: wholesalerPricePerBox,
+            sellingPrice: Math.round(wholesalerPricePerBox * 1.25),
+          };
+        });
+        await confirmB2BDeliveryAction(
+          orderId,
+          customPricesPayload,
+          false,
+          0,
+          'CASH'
+        );
+      }
+      setSelectedOrderIds([]);
+      setBarcodeMessage({ text: `Bulk confirmed ${selectedOrderIds.length} orders successfully.`, isError: false });
+      broadcastUpdate('INVENTORY_UPDATE');
+      fetchOrders();
+    } catch (e: any) {
+      alert(e.message || 'Bulk confirmation failed');
+    } finally {
+      setBarcodeLoading(false);
+    }
+  };
+
+  const handleUpdateOnlineStatus = async (orderId: string, status: string) => {
+    try {
+      const res = await updateConsumerOrderStatusAction(orderId, status);
+      if (res.success) {
+        fetchOrders();
+        broadcastUpdate('CONSUMER_ORDER_UPDATE');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Status update failed');
+    }
+  };
+
+  const handleSaveDeliverySettings = async () => {
+    try {
+      setDeliverySettingsSaving(true);
+      setDeliverySettingsMsg({ text: '', isError: false });
+      const res = await saveDeliveryFeeSettingsAction(profileId, JSON.stringify(deliveryTiers));
+      if (res.success) {
+        setDeliverySettingsMsg({ text: 'Delivery fee tier configurations updated.', isError: false });
+      } else {
+        setDeliverySettingsMsg({ text: 'Failed to save settings.', isError: true });
+      }
+    } catch (e: any) {
+      setDeliverySettingsMsg({ text: e.message || 'Save failed', isError: true });
+    } finally {
+      setDeliverySettingsSaving(false);
+    }
+  };
+
   const toggleSelectOrder = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    setSelectedOrderIds((prev) =>
-      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
-    );
+    setSelectedOrderIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
   };
 
   const toggleSelectAll = () => {
-    if (selectedOrderIds.length === filtered.length) {
-      setSelectedOrderIds([]);
-    } else {
-      setSelectedOrderIds(filtered.map((o) => o.id));
-    }
+    if (selectedOrderIds.length === filtered.length) setSelectedOrderIds([]);
+    else setSelectedOrderIds(filtered.map(o => o.id));
   };
 
   const filtered = orders.filter((o) => {
     const matchesStatus = filterStatus === 'all' || o.status === filterStatus;
-    const matchesSearch =
-      o.id.toLowerCase().includes(filterSearch.toLowerCase()) ||
-      o.wholesaler.companyName.toLowerCase().includes(filterSearch.toLowerCase());
+    const matchesSearch = o.id.toLowerCase().includes(filterSearch.toLowerCase()) || o.wholesaler.companyName.toLowerCase().includes(filterSearch.toLowerCase());
     return matchesStatus && matchesSearch;
   });
 
@@ -468,7 +430,6 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
     const matchesSearch =
       o.trackingCode.toLowerCase().includes(filterSearch.toLowerCase()) ||
       o.buyerName.toLowerCase().includes(filterSearch.toLowerCase()) ||
-      o.buyerEmail.toLowerCase().includes(filterSearch.toLowerCase()) ||
       o.buyerPhone.toLowerCase().includes(filterSearch.toLowerCase());
     return matchesStatus && matchesSearch;
   });
@@ -479,264 +440,159 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
     const win = window.open('', '_blank', 'width=800,height=600');
     if (!win) return;
     const itemRows = order.items.map(item =>
-      `<tr>
-        <td>${item.product.name}</td>
-        <td>${item.product.sku}</td>
-        <td style="text-align:right">${item.quantity} units</td>
-        <td style="text-align:right">Rs. ${item.pricePerUnit.toLocaleString()}</td>
-        <td style="text-align:right">Rs. ${(item.quantity * item.pricePerUnit).toLocaleString()}</td>
-      </tr>`
+      `<tr><td>${item.product.name}</td><td>${item.product.sku}</td><td style="text-align:right">${item.quantity} units</td><td style="text-align:right">Rs. ${item.pricePerUnit}</td><td style="text-align:right">Rs. ${(item.quantity * item.pricePerUnit).toLocaleString()}</td></tr>`
     ).join('');
-
-    win.document.write(`
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Order Voucher - B2B MedHub</title>
-        <style>
-          body { font-family: monospace; padding: 24px; color: #000; }
-          .header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 12px; margin-bottom: 16px; }
-          .logo { font-size: 20px; font-weight: bold; }
-          .title { font-size: 14px; text-transform: uppercase; margin-top: 4px; }
-          .meta { font-size: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 20px; }
-          table { width: 100%; border-collapse: collapse; margin-top: 14px; }
-          th { border-bottom: 2px solid #000; font-size: 11px; padding: 6px 8px; text-align: left; }
-          td { padding: 6px 8px; border-bottom: 1px solid #ddd; font-size: 12px; }
-          .total { font-weight: bold; text-align: right; font-size: 14px; margin-top: 8px; }
-          .footer { text-align: center; font-size: 10px; border-top: 1px dashed #000; margin-top: 30px; padding-top: 8px; }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <div class="logo">MEDHUB PHARMACY NODE</div>
-          <div class="title">B2B Purchase Voucher</div>
-        </div>
-        <div class="meta">
-          <div><strong>Order ID:</strong> #${order.id.toUpperCase()}</div>
-          <div><strong>Date:</strong> ${new Date(order.createdAt).toLocaleString()}</div>
-          <div><strong>Supplier:</strong> ${order.wholesaler.companyName}</div>
-          <div><strong>Status:</strong> ${order.status}</div>
-        </div>
-        <table>
-          <thead>
-            <tr>
-              <th>Medicine</th>
-              <th>SKU</th>
-              <th style="text-align:right">Quantity</th>
-              <th style="text-align:right">Price/Unit</th>
-              <th style="text-align:right">Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${itemRows}
-          </tbody>
-        </table>
-        <div class="total">Gross Total: Rs. ${order.totalAmount.toLocaleString()}</div>
-        ${order.discountAmount > 0 ? `<div class="total" style="color:red">Discount: -Rs. ${order.discountAmount.toLocaleString()}</div>` : ''}
-        <div class="total" style="font-size: 16px; margin-top: 12px; border-top: 2px solid #000; padding-top: 6px;">NET AMOUNT: Rs. ${order.netAmount.toLocaleString()}</div>
-        <div class="footer">Thank you for ordering with MedHub B2B Network</div>
-        <script>
-          window.onload = function() {
-            window.print();
-            window.close();
-          };
-        </script>
-      </body>
-      </html>
-    `);
+    win.document.write(`<!DOCTYPE html><html><head><title>B2B Voucher</title><style>body{font-family:monospace;padding:20px}table{width:100%;border-collapse:collapse}th,td{padding:6px;border-bottom:1px solid #ddd;font-size:12px;text-align:left}.right{text-align:right}</style></head><body><h2>MEDHUB PURCHASE ORDER</h2><div>Order ID: ${order.id}</div><div>Date: ${new Date(order.createdAt).toLocaleString()}</div><div>Supplier: ${order.wholesaler.companyName}</div><table><thead><tr><th>Item</th><th>SKU</th><th class="right">Qty</th><th class="right">Rate</th><th class="right">Total</th></tr></thead><tbody>${itemRows}</tbody></table><h4>Net Payable: Rs. ${order.netAmount.toLocaleString()}</h4><script>window.onload=function(){window.print();window.close();}<\/script></body></html>`);
     win.document.close();
     setPrintPreviewOrder(null);
   };
 
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24, padding: '24px 0' }}>
-
-      {/* ── Header ── */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
-        <div>
-          <h1 style={{ fontSize: 24, fontWeight: 900, color: 'var(--text-primary)', margin: 0 }}>B2B Ordering Panel</h1>
-          <p style={{ fontSize: 14, color: 'var(--text-secondary)', margin: '4px 0 0' }}>
-            Manage pending shipments, scan barcodes for package arrivals, and order from live wholesalers &nbsp;
-            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>[ F8 ] Tracker · [ F9 ] New B2B Order · [ F10 ] Intake scanner</span>
-          </p>
+  const Modal = ({ children, onClose, title }: { children: React.ReactNode; onClose: () => void; title: string }) => (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(15,23,42,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 580, background: 'var(--card-bg)', borderRadius: 14, border: '1px solid var(--card-border)', display: 'flex', flexDirection: 'column', maxHeight: '90vh', overflow: 'hidden' }}>
+        <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--card-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontSize: 14, fontWeight: 700 }}>{title}</span>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4 }}><X style={{ width: 16, height: 16 }} /></button>
         </div>
-        <div style={{ display: 'flex', gap: 12 }}>
-          <button
-            onClick={() => setActiveTab('tracker')}
-            style={{ padding: '10px 16px', borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s', background: activeTab === 'tracker' ? '#F59E0B' : '#FFFFFF', border: activeTab === 'tracker' ? 'none' : '1.5px solid #E2E8F0', color: activeTab === 'tracker' ? '#FFFFFF' : '#475569' }}
-          >
-            My Purchase Orders
-          </button>
-          <button
-            onClick={() => setActiveTab('order')}
-            style={{ padding: '10px 16px', borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s', background: activeTab === 'order' ? '#F59E0B' : '#FFFFFF', border: activeTab === 'order' ? 'none' : '1.5px solid #E2E8F0', color: activeTab === 'order' ? '#FFFFFF' : '#475569' }}
-          >
-            Create B2B Purchase
-          </button>
-          <button
-            onClick={() => setActiveTab('intake')}
-            style={{ padding: '10px 16px', borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s', background: activeTab === 'intake' ? '#F59E0B' : '#FFFFFF', border: activeTab === 'intake' ? 'none' : '1.5px solid #E2E8F0', color: activeTab === 'intake' ? '#FFFFFF' : '#475569' }}
-          >
-            Barcode Package Intake
-          </button>
-          <button
-            onClick={() => setActiveTab('online')}
-            style={{ padding: '10px 16px', borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s', background: activeTab === 'online' ? '#10B981' : '#FFFFFF', border: activeTab === 'online' ? 'none' : '1.5px solid #E2E8F0', color: activeTab === 'online' ? '#FFFFFF' : '#475569' }}
-          >
-            Online B2C Orders
-          </button>
+        <div style={{ padding: '18px', overflowY: 'auto', flex: 1 }}>{children}</div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20, minHeight: '100vh' }}>
+
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
+        <div>
+          <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>Purchase &amp; Delivery Panel</h1>
+          <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '2px 0 0' }}>B2B procurement pipeline · Keyboard: F8 Tracker · F9 Order · F10 Scan Intake</p>
+        </div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {(['tracker', 'order', 'intake', 'online'] as const).map(tab => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              style={{
+                padding: '7px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                background: activeTab === tab ? '#F59E0B' : 'var(--card-bg)',
+                color: activeTab === tab ? '#FFFFFF' : 'var(--text-secondary)',
+                border: activeTab === tab ? 'none' : '1px solid var(--card-border)',
+                transition: 'all 0.15s'
+              }}
+            >
+              {tab === 'tracker' ? 'My B2B Orders' : tab === 'order' ? 'Create Order' : tab === 'intake' ? 'Scan Intake' : 'Online Sales'}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* ── Tab Content ── */}
+      {/* TAB 1: Tracker */}
       {activeTab === 'tracker' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          {/* Tracker Filters */}
-          <div style={{ display: 'flex', gap: 12, padding: '14px 18px', background: 'var(--card-bg)', borderRadius: 14, border: '1px solid var(--card-border)', flexWrap: 'wrap', alignItems: 'center' }}>
-            <div style={{ flex: 1, minWidth: 200, display: 'flex', alignItems: 'center', gap: 8, background: 'var(--table-header-bg)', padding: '8px 14px', borderRadius: 8, border: '1px solid var(--card-border)' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'flex', gap: 10, padding: '12px 16px', background: 'var(--card-bg)', borderRadius: 10, border: '1px solid var(--card-border)', flexWrap: 'wrap', alignItems: 'center' }}>
+            <div style={{ flex: 1, minWidth: 200, display: 'flex', alignItems: 'center', gap: 8, background: 'var(--table-header-bg)', padding: '7px 12px', borderRadius: 8, border: '1px solid var(--card-border)' }}>
               <Search style={{ width: 14, height: 14, color: 'var(--text-muted)' }} />
-              <input
-                type="text"
-                placeholder="Search order ID or wholesaler…"
-                value={filterSearch}
-                onChange={(e) => setFilterSearch(e.target.value)}
-                style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%', fontSize: 14, color: '#334155' }}
-              />
+              <input type="text" placeholder="Search order ID or wholesaler…" value={filterSearch} onChange={(e) => setFilterSearch(e.target.value)} style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%', fontSize: 13, color: 'var(--text-primary)' }} />
             </div>
 
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--card-border)', fontSize: 14, outline: 'none', background: 'var(--table-header-bg)', color: 'var(--text-secondary)', fontWeight: 600 }}
+            {/* Detailed View Toggle */}
+            <button
+              onClick={() => setDetailedViewB2B(!detailedViewB2B)}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 8, border: '1px solid var(--card-border)', background: 'var(--card-bg)', color: 'var(--text-secondary)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
             >
-              <option value="all">All Orders</option>
+              <LayoutList style={{ width: 14, height: 14 }} />
+              {detailedViewB2B ? 'Simple View' : 'Detailed View'}
+            </button>
+
+            <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid var(--card-border)', fontSize: 13, outline: 'none', background: 'var(--table-header-bg)', color: 'var(--text-secondary)', fontWeight: 500 }}>
+              <option value="all">All Statuses</option>
               <option value="PENDING">PENDING</option>
               <option value="PICKING">PICKING</option>
               <option value="DISPATCHED">DISPATCHED</option>
               <option value="DELIVERED">DELIVERED</option>
             </select>
-
             {selectedOrderIds.length > 0 && (
-              <button
-                onClick={handleBulkConfirmDelivery}
-                disabled={barcodeLoading}
-                style={{ background: '#10B981', color: '#FFFFFF', border: 'none', padding: '8px 16px', borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
-              >
-                <CheckCircle style={{ width: 14, height: 14 }} />
-                Bulk Intake ({selectedOrderIds.length})
+              <button onClick={handleBulkConfirmDelivery} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 8, border: 'none', background: '#10B981', color: '#FFFFFF', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                <CheckCircle style={{ width: 14, height: 14 }} /> Bulk Intake ({selectedOrderIds.length})
               </button>
             )}
-
-            <div style={{ fontSize: 14, color: 'var(--text-muted)', fontWeight: 600 }}>
-              {filtered.length} matching entries
-            </div>
+            <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600 }}>{filtered.length} matches</span>
           </div>
 
-          {/* Orders Table */}
-          <div style={{ background: 'var(--card-bg)', borderRadius: 16, border: '1px solid var(--card-border)', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.03)' }}>
+          <div style={{ background: 'var(--card-bg)', borderRadius: 12, border: '1px solid var(--card-border)', overflow: 'hidden' }}>
             {filtered.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '80px', color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-                <Truck style={{ width: 48, height: 48, color: '#E2E8F0' }} />
-                <div style={{ fontSize: 14, fontWeight: 600 }}>No B2B orders found</div>
+              <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+                <Truck style={{ width: 40, height: 40, color: '#E2E8F0' }} />
+                <div style={{ fontSize: 13, fontWeight: 600 }}>No B2B orders found</div>
               </div>
             ) : (
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 14 }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 13 }}>
                 <thead>
-                  <tr style={{ background: 'var(--table-header-bg)', borderBottom: '2px solid #F1F5F9' }}>
-                    <th style={{ padding: '14px 20px', width: 40, textAlign: 'center' }}>
+                  <tr style={{ background: 'var(--table-header-bg)', borderBottom: '1px solid var(--card-border)' }}>
+                    <th style={{ ...thStyle, width: 40, textAlign: 'center' }}>
                       <button onClick={toggleSelectAll} style={{ border: 'none', background: 'none', cursor: 'pointer', padding: 0 }}>
-                        {selectedOrderIds.length === filtered.length ? (
-                          <CheckSquare style={{ width: 16, height: 16, color: '#F59E0B' }} />
-                        ) : (
-                          <Square style={{ width: 16, height: 16, color: '#CBD5E1' }} />
-                        )}
+                        {selectedOrderIds.length === filtered.length ? <CheckSquare style={{ width: 15, height: 15, color: '#F59E0B' }} /> : <Square style={{ width: 15, height: 15, color: '#CBD5E1' }} />}
                       </button>
                     </th>
-                    <th style={{ padding: '14px 20px', color: 'var(--text-secondary)', fontWeight: 700 }}>Order ID / Barcode</th>
-                    <th style={{ padding: '14px 20px', color: 'var(--text-secondary)', fontWeight: 700 }}>Wholesaler</th>
-                    <th style={{ padding: '14px 20px', color: 'var(--text-secondary)', fontWeight: 700 }}>Items</th>
-                    <th style={{ padding: '14px 20px', color: 'var(--text-secondary)', fontWeight: 700 }}>Net Cost</th>
-                    <th style={{ padding: '14px 20px', color: 'var(--text-secondary)', fontWeight: 700 }}>Status</th>
-                    <th style={{ padding: '14px 20px', color: 'var(--text-secondary)', fontWeight: 700 }}>Date</th>
-                    <th style={{ padding: '14px 20px', color: 'var(--text-secondary)', fontWeight: 700, textAlign: 'center' }}>Actions</th>
+                    <th style={thStyle}>Order ID</th>
+                    <th style={thStyle}>Wholesaler</th>
+                    {detailedViewB2B && <th style={thStyle}>Items List</th>}
+                    <th style={thStyle}>Items Count</th>
+                    <th style={thStyle}>Amount</th>
+                    <th style={thStyle}>Status</th>
+                    <th style={thStyle}>Date</th>
+                    <th style={{ ...thStyle, textAlign: 'center' }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.map((order) => {
-                    const sm = STATUS_META[order.status] || { color: 'var(--text-secondary)', bg: 'rgba(100,116,139,0.08)', icon: AlertCircle };
+                    const sm = STATUS_META[order.status] || { color: 'var(--text-secondary)', bg: 'var(--table-header-bg)', icon: AlertCircle };
                     const StatusIcon = sm.icon;
                     const isSelected = selectedOrderIds.includes(order.id);
-                    const barcodeLabel = `ORD-${order.id.substring(0, 12).toUpperCase()}`;
-
                     return (
                       <tr
                         key={order.id}
-                        style={{ borderBottom: '1px solid #F8FAFC', transition: 'background 0.1s', background: isSelected ? 'rgba(245,158,11,0.02)' : '' }}
-                        onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.background = '#FAFBFC'}
-                        onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.background = isSelected ? 'rgba(245,158,11,0.02)' : ''}
+                        onClick={() => setSelectedOrder(order)}
+                        style={{ borderBottom: '1px solid var(--card-border)', background: isSelected ? 'var(--table-header-bg)' : '', cursor: 'pointer' }}
+                        onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--table-header-bg)')}
+                        onMouseLeave={(e) => (e.currentTarget.style.background = isSelected ? 'var(--table-header-bg)' : '')}
                       >
-                        <td style={{ padding: '16px 20px', textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
+                        <td style={{ padding: '12px 16px', textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
                           <button onClick={(e) => toggleSelectOrder(order.id, e)} style={{ border: 'none', background: 'none', cursor: 'pointer', padding: 0 }}>
-                            {isSelected ? (
-                              <CheckSquare style={{ width: 16, height: 16, color: '#F59E0B' }} />
-                            ) : (
-                              <Square style={{ width: 16, height: 16, color: '#CBD5E1' }} />
-                            )}
+                            {isSelected ? <CheckSquare style={{ width: 15, height: 15, color: '#F59E0B' }} /> : <Square style={{ width: 15, height: 15, color: '#CBD5E1' }} />}
                           </button>
                         </td>
-                        <td style={{ padding: '16px 20px' }}>
-                          {order.status === 'DELIVERED' ? (
-                             <>
-                               <div style={{ fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'monospace' }}>#{order.id.substring(0, 8).toUpperCase()}</div>
-                               <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2, fontFamily: 'monospace' }}>{barcodeLabel}</div>
-                             </>
-                           ) : (
-                             <div style={{ fontSize: 14, color: 'var(--text-secondary)', fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: 4 }}>
-                               <Clock style={{ width: 12, height: 12, color: '#F59E0B' }} /> Awaiting Delivery
-                             </div>
-                           )}
-                        </td>
-                        <td style={{ padding: '16px 20px' }}>
-                          <div style={{ fontWeight: 700, color: '#334155' }}>{order.wholesaler.companyName}</div>
+                        <td style={{ padding: '12px 16px', fontFamily: 'monospace', fontWeight: 600 }}>#{order.id.substring(0, 8).toUpperCase()}</td>
+                        <td style={{ padding: '12px 16px' }}>
+                          <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{order.wholesaler.companyName}</div>
                           <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{order.wholesaler.phone}</div>
                         </td>
-                        <td style={{ padding: '16px 20px', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                          {order.items.length} medicine{order.items.length !== 1 ? 's' : ''}
-                        </td>
-                        <td style={{ padding: '16px 20px' }}>
-                          <div style={{ fontWeight: 800, color: 'var(--text-primary)' }}>Rs. {order.netAmount.toLocaleString()}</div>
-                          {order.discountAmount > 0 && (
-                            <div style={{ fontSize: 11, color: '#EF4444' }}>-Rs. {order.discountAmount.toLocaleString()}</div>
-                          )}
-                        </td>
-                        <td style={{ padding: '16px 20px' }}>
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, color: sm.color, background: sm.bg }}>
-                            <StatusIcon style={{ width: 12, height: 12 }} />
-                            {order.status}
+                        {detailedViewB2B && (
+                          <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--text-secondary)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {order.items.map(item => `${item.product.name} (x${item.quantity})`).join(', ')}
+                          </td>
+                        )}
+                        <td style={{ padding: '12px 16px', color: 'var(--text-secondary)' }}>{order.items.length} items</td>
+                        <td style={{ padding: '12px 16px', fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'monospace' }}>Rs. {order.netAmount.toLocaleString()}</td>
+                        <td style={{ padding: '12px 16px' }}>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700, color: sm.color, background: sm.bg }}>
+                            <StatusIcon style={{ width: 11, height: 11 }} /> {order.status}
                           </span>
                         </td>
-                        <td style={{ padding: '16px 20px', color: 'var(--text-secondary)' }}>
-                          <div>{new Date(order.createdAt).toLocaleDateString()}</div>
-                          <div style={{ fontSize: 12, color: '#CBD5E1', marginTop: 2 }}>{new Date(order.createdAt).toLocaleTimeString()}</div>
+                        <td style={{ padding: '12px 16px', color: 'var(--text-muted)' }}>{new Date(order.createdAt).toLocaleDateString()}</td>
+                        <td style={{ padding: '12px 16px', textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
+                          <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
+                            {order.status === 'DISPATCHED' && (
+                              <button onClick={() => openIntakeModalForOrder(order)} style={{ padding: '4px 10px', background: '#F59E0B', border: 'none', borderRadius: 6, color: '#FFFFFF', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                                Intake
+                              </button>
+                            )}
+                            <button onClick={() => setSelectedOrder(order)} style={{ padding: '5px', background: 'var(--table-header-bg)', border: '1px solid var(--card-border)', borderRadius: 6, color: 'var(--text-secondary)', cursor: 'pointer' }}>
+                              <Eye style={{ width: 13, height: 13 }} />
+                            </button>
+                          </div>
                         </td>
-                        <td style={{ padding: '16px 20px', textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
-                           <div style={{ display: 'flex', gap: 6, justifyContent: 'center', alignItems: 'center' }}>
-                             {order.status === 'DISPATCHED' && (
-                               <button
-                                 onClick={() => openIntakeModalForOrder(order)}
-                                 style={{ padding: '6px 12px', background: '#F59E0B', border: 'none', borderRadius: 6, color: '#FFFFFF', fontSize: 11, fontWeight: 800, cursor: 'pointer' }}
-                               >
-                                 Intake Package
-                               </button>
-                             )}
-                             <button
-                               onClick={() => setSelectedOrder(order)}
-                               style={{ padding: '6px', background: '#F1F5F9', border: 'none', borderRadius: 6, color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex' }}
-                             >
-                               <Eye style={{ width: 13, height: 13 }} />
-                             </button>
-                           </div>
-                         </td>
                       </tr>
                     );
                   })}
@@ -747,56 +603,48 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
         </div>
       )}
 
+      {/* TAB 2: Place B2B Order */}
       {activeTab === 'order' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 24, alignItems: 'start' }}>
-          {/* Wholesaler selector */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Select Wholesaler</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: 16, alignItems: 'start' }}>
+          {/* Wholesaler selector list */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 4 }}>Select Wholesaler</div>
             {wholesalers.map((w) => (
               <button
                 key={w.id}
                 onClick={() => { setSelectedWholesalerId(w.id); setCart([]); }}
-                style={{ width: '100%', padding: 14, borderRadius: 12, background: selectedWholesalerId === w.id ? 'rgba(245,158,11,0.06)' : '#FFFFFF', border: selectedWholesalerId === w.id ? '2px solid #F59E0B' : '1.5px solid #F1F5F9', textAlign: 'left', cursor: 'pointer', transition: 'all 0.15s' }}
+                style={{
+                  width: '100%', padding: 12, borderRadius: 8, textAlign: 'left', cursor: 'pointer', transition: 'all 0.15s',
+                  background: selectedWholesalerId === w.id ? '#FFFBEB' : 'var(--card-bg)',
+                  border: selectedWholesalerId === w.id ? '1px solid #F59E0B' : '1px solid var(--card-border)'
+                }}
               >
-                <div style={{ fontWeight: 800, color: 'var(--text-primary)', fontSize: 14 }}>{w.companyName}</div>
+                <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: 13 }}>{w.companyName}</div>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{w.address}</div>
               </button>
             ))}
           </div>
 
-          {/* Wholesaler Stock Browse */}
+          {/* Catalog grid */}
           <div>
             {!selectedWholesaler ? (
-              <div style={{ background: 'var(--card-bg)', borderRadius: 16, border: '1px solid var(--card-border)', padding: 80, textAlign: 'center' }}>
-                <Building style={{ width: 48, height: 48, color: '#E2E8F0', margin: '0 auto 12px' }} />
-                <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)' }}>Choose a Wholesaler</h3>
-                <p style={{ fontSize: 14, color: 'var(--text-muted)', marginTop: 4 }}>Select a wholesaler from the left panel to browse catalog and build order basket</p>
+              <div style={{ background: 'var(--card-bg)', borderRadius: 12, border: '1px solid var(--card-border)', padding: '60px 20px', textAlign: 'center' }}>
+                <Building style={{ width: 40, height: 40, color: '#E2E8F0', margin: '0 auto 10px' }} />
+                <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>No Wholesaler Selected</div>
+                <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>Select a wholesaler on the left panel to browse stock catalog</div>
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-                {/* Cart Info */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {/* Cart info */}
                 {cart.length > 0 && (
-                  <div style={{ background: 'rgba(245,158,11,0.06)', border: '1.5px solid rgba(245,158,11,0.2)', padding: '16px 20px', borderRadius: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', padding: '12px 16px', borderRadius: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
-                      <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)' }}>{cart.length} item(s) selected</div>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Est. Total: Rs. {cartTotal.toLocaleString()}</div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#92400E' }}>{cart.length} item(s) selected</div>
+                      <div style={{ fontSize: 12, color: '#B45309' }}>Estimated Total: Rs. {cartTotal.toLocaleString()}</div>
                     </div>
-                    <form onSubmit={handlePlaceOrder} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                      {needsOverride && (
-                        <input
-                          type="text"
-                          required
-                          placeholder="Provide limit override note..."
-                          value={overrideMsg}
-                          onChange={(e) => setOverrideMsg(e.target.value)}
-                          style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #EF4444', fontSize: 14 }}
-                        />
-                      )}
-                      <button
-                        type="submit"
-                        disabled={placingOrder}
-                        style={{ padding: '10px 18px', background: '#F59E0B', color: '#FFFFFF', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 800, cursor: 'pointer' }}
-                      >
+                    <form onSubmit={handlePlaceOrder} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      {needsOverride && <input type="text" required placeholder="Limit override note..." value={overrideMsg} onChange={(e) => setOverrideMsg(e.target.value)} style={{ ...inputStyle, width: 180 }} />}
+                      <button type="submit" disabled={placingOrder} style={{ padding: '8px 16px', background: '#F59E0B', color: '#FFFFFF', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
                         {placingOrder ? 'Submitting…' : 'Submit B2B Order'}
                       </button>
                     </form>
@@ -804,22 +652,22 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
                 )}
 
                 {orderMessage.text && (
-                  <div style={{ padding: '10px 14px', background: orderMessage.isError ? 'rgba(239,68,68,0.06)' : 'rgba(16,185,129,0.06)', border: `1px solid ${orderMessage.isError ? 'rgba(239,68,68,0.2)' : 'rgba(16,185,129,0.2)'}`, color: orderMessage.isError ? '#EF4444' : '#10B981', borderRadius: 8, fontSize: 14, fontWeight: 600 }}>
+                  <div style={{ padding: '10px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600, background: orderMessage.isError ? '#FEF2F2' : '#F0FDF4', color: orderMessage.isError ? '#EF4444' : '#10B981', border: `1px solid ${orderMessage.isError ? '#FECACA' : '#BBF7D0'}` }}>
                     {orderMessage.text}
                   </div>
                 )}
 
                 {/* Stock Table */}
-                <div style={{ background: 'var(--card-bg)', borderRadius: 16, border: '1px solid var(--card-border)', overflow: 'hidden' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+                <div style={{ background: 'var(--card-bg)', borderRadius: 12, border: '1px solid var(--card-border)', overflow: 'hidden' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                     <thead>
-                      <tr style={{ background: 'var(--table-header-bg)', borderBottom: '1px solid #F1F5F9' }}>
-                        <th style={{ padding: '12px 20px', color: 'var(--text-secondary)', fontWeight: 700, textAlign: 'left' }}>Medicine Name</th>
-                        <th style={{ padding: '12px 20px', color: 'var(--text-secondary)', fontWeight: 700, textAlign: 'left' }}>Category</th>
-                        <th style={{ padding: '12px 20px', color: 'var(--text-secondary)', fontWeight: 700, textAlign: 'right' }}>Wholesaler Stock</th>
-                        <th style={{ padding: '12px 20px', color: 'var(--text-secondary)', fontWeight: 700, textAlign: 'right' }}>Price / Box</th>
-                        <th style={{ padding: '12px 20px', color: 'var(--text-secondary)', fontWeight: 700, textAlign: 'center' }}>Box Qty</th>
-                        <th style={{ padding: '12px 20px', color: 'var(--text-secondary)', fontWeight: 700, textAlign: 'center' }}>Action</th>
+                      <tr style={{ background: 'var(--table-header-bg)', borderBottom: '1px solid var(--card-border)' }}>
+                        <th style={thStyle}>Medicine Name</th>
+                        <th style={thStyle}>Category</th>
+                        <th style={{ ...thStyle, textAlign: 'right' }}>Stock (Boxes)</th>
+                        <th style={{ ...thStyle, textAlign: 'right' }}>Price/Box</th>
+                        <th style={{ ...thStyle, textAlign: 'center', width: 100 }}>Order Qty</th>
+                        <th style={{ ...thStyle, textAlign: 'center', width: 90 }}>Action</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -829,60 +677,23 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
                         const totalBoxes = Math.floor(totalUnits / tpb);
                         const price = prod.batches[0]?.sellingPricePerBox || 100;
                         const cartItem = cart.find(c => c.productId === prod.id);
-
                         return (
-                          <tr key={prod.id} style={{ borderBottom: '1px solid #F8FAFC' }}>
-                            <td style={{ padding: '12px 20px' }}>
-                              <div style={{ fontWeight: 800, color: 'var(--text-primary)' }}>{prod.name}</div>
+                          <tr key={prod.id} style={{ borderBottom: '1px solid var(--card-border)' }}>
+                            <td style={{ padding: '10px 16px' }}>
+                              <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{prod.name}</div>
                               <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'monospace' }}>{prod.sku}</div>
                             </td>
-                            <td style={{ padding: '12px 20px' }}>
-                              <span style={{ padding: '3px 8px', borderRadius: 6, background: '#F1F5F9', fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)' }}>{prod.category}</span>
+                            <td style={{ padding: '10px 16px' }}>
+                              <span style={{ padding: '2px 6px', borderRadius: 4, background: 'var(--table-header-bg)', border: '1px solid var(--card-border)', fontSize: 11, color: 'var(--text-secondary)' }}>{prod.category}</span>
                             </td>
-                            <td style={{ padding: '12px 20px', textAlign: 'right' }}>
-                              <div style={{ fontWeight: 700 }}>{totalBoxes} boxes</div>
-                              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{totalUnits.toLocaleString()} units</div>
+                            <td style={{ padding: '10px 16px', textAlign: 'right' }}>{totalBoxes} boxes</td>
+                            <td style={{ padding: '10px 16px', textAlign: 'right', fontWeight: 600, color: '#F59E0B', fontFamily: 'monospace' }}>Rs. {price}</td>
+                            <td style={{ padding: '10px 16px', textAlign: 'center' }}>
+                              <input id={`qty-${prod.id}`} type="number" min="1" max={totalBoxes} placeholder="0" defaultValue={cartItem ? String(cartItem.qtyBoxes) : ''} style={{ ...inputStyle, textAlign: 'center', width: 80, padding: 5 }} />
                             </td>
-                            <td style={{ padding: '12px 20px', textAlign: 'right' }}>
-                              <div style={{ fontWeight: 800, color: '#F59E0B' }}>Rs. {price.toLocaleString()}</div>
-                              {(() => {
-                                try {
-                                  const tiers = JSON.parse(prod.tierPricingJson || '[]');
-                                  if (tiers.length > 0) {
-                                    return (
-                                      <div style={{ fontSize: 9, color: 'var(--text-secondary)', marginTop: 4 }}>
-                                        {tiers.map((t: any, idx: number) => (
-                                          <div key={idx}>
-                                            {t.minQty}-{t.maxQty || '+'}: Rs. {t.pricePerBox}
-                                          </div>
-                                        ))}
-                                      </div>
-                                    );
-                                  }
-                                } catch (e) {}
-                                return null;
-                              })()}
-                            </td>
-                            <td style={{ padding: '12px 20px', textAlign: 'center' }}>
-                              <input
-                                id={`qty-${prod.id}`}
-                                type="number"
-                                min="1"
-                                max={totalBoxes}
-                                placeholder="0"
-                                defaultValue={cartItem ? String(cartItem.qtyBoxes) : ''}
-                                style={{ width: 60, padding: '5px', borderRadius: 6, border: '1px solid var(--card-border)', textAlign: 'center' }}
-                              />
-                            </td>
-                            <td style={{ padding: '12px 20px', textAlign: 'center' }}>
-                              <button
-                                onClick={() => {
-                                  const input = document.getElementById(`qty-${prod.id}`) as HTMLInputElement;
-                                  addToCart(prod, input?.value || '0');
-                                }}
-                                style={{ padding: '6px 12px', borderRadius: 6, background: cartItem ? '#10B981' : '#F59E0B', color: '#FFFFFF', border: 'none', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
-                              >
-                                {cartItem ? 'In Basket' : 'Add'}
+                            <td style={{ padding: '10px 16px', textAlign: 'center' }}>
+                              <button onClick={() => addToCart(prod, (document.getElementById(`qty-${prod.id}`) as HTMLInputElement)?.value || '0')} style={{ padding: '5px 10px', borderRadius: 6, border: 'none', background: cartItem ? '#10B981' : '#F59E0B', color: '#FFFFFF', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                                {cartItem ? 'Added' : 'Add'}
                               </button>
                             </td>
                           </tr>
@@ -897,630 +708,283 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
         </div>
       )}
 
+      {/* TAB 3: Barcode Intake Scanner */}
       {activeTab === 'intake' && (
-        <div style={{ maxWidth: 540, background: 'var(--card-bg)', border: '1px solid var(--card-border)', borderRadius: 20, padding: 28, margin: '0 auto', boxShadow: '0 4px 20px rgba(0,0,0,0.03)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-            <QrCode style={{ width: 22, height: 22, color: '#F59E0B' }} />
-            <h3 style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>Confirm Dispatch Delivery</h3>
+        <div style={{ maxWidth: 480, background: 'var(--card-bg)', border: '1px solid var(--card-border)', borderRadius: 12, padding: 24, margin: '20px auto' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+            <QrCode style={{ width: 20, height: 20, color: '#F59E0B' }} />
+            <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>Confirm Package Intake</span>
           </div>
-          <p style={{ fontSize: 14, color: 'var(--text-secondary)', lineHeight: '20px', margin: '0 0 20px' }}>
-            Input the order barcode printed on the wholesaler dispatch slip. The package contents will automatically transfer and register in your active stock.
-          </p>
-          <form onSubmit={handleBarcodeIntake} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <input
-              type="text"
-              required
-              placeholder="e.g. ORD-2BC02F83-1C7 or UUID"
-              value={barcodeInput}
-              onChange={(e) => setBarcodeInput(e.target.value)}
-              style={{ padding: '12px 14px', borderRadius: 8, border: '1px solid var(--card-border)', fontSize: 14, outline: 'none' }}
-            />
-            <button
-              type="submit"
-              disabled={barcodeLoading}
-              style={{ background: '#F59E0B', color: '#FFFFFF', border: 'none', borderRadius: 8, padding: '12px', fontSize: 14, fontWeight: 800, cursor: 'pointer' }}
-            >
-              {barcodeLoading ? 'Verifying Dispatch…' : 'Confirm Package Delivery'}
-            </button>
+          <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: '18px', margin: '0 0 16px' }}>Scan or type the package barcode (e.g. ORD-XXXX) to verify dispatch details and auto-import batch records.</p>
+          <form onSubmit={handleBarcodeIntake} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <input type="text" required placeholder="Scan order barcode…" value={barcodeInput} onChange={(e) => setBarcodeInput(e.target.value)} style={inputStyle} />
+            <button type="submit" disabled={barcodeLoading} style={{ padding: '10px', background: '#F59E0B', color: '#FFFFFF', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Verify Package Barcode</button>
           </form>
-
           {barcodeMessage.text && (
-            <div style={{ marginTop: 16, padding: '12px 16px', background: barcodeMessage.isError ? 'rgba(239,68,68,0.06)' : 'rgba(16,185,129,0.06)', border: `1.5px solid ${barcodeMessage.isError ? 'rgba(239,68,68,0.2)' : 'rgba(16,185,129,0.2)'}`, color: barcodeMessage.isError ? '#EF4444' : '#10B981', borderRadius: 8, fontSize: 14, fontWeight: 600 }}>
+            <div style={{ marginTop: 14, padding: '10px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600, background: barcodeMessage.isError ? '#FEF2F2' : '#F0FDF4', color: barcodeMessage.isError ? '#EF4444' : '#10B981', border: `1px solid ${barcodeMessage.isError ? '#FECACA' : '#BBF7D0'}` }}>
               {barcodeMessage.text}
             </div>
           )}
         </div>
       )}
 
+      {/* TAB 4: Consumer Sales */}
       {activeTab === 'online' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-
-          {/* Delivery Fee Settings Panel */}
-          <div style={{ background: 'var(--card-bg)', borderRadius: 16, border: '1px solid var(--card-border)', overflow: 'hidden' }}>
-            <div
-              style={{ padding: '14px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', background: 'var(--table-header-bg)', borderBottom: deliverySettingsLoaded ? '1px solid #F1F5F9' : 'none' }}
-              onClick={async () => {
-                if (!deliverySettingsLoaded) {
-                  const res = await getDeliveryFeeSettingsAction(profileId);
-                  if (res.success) {
-                    setDeliveryTiers(JSON.parse(res.deliveryFeesJson || '[]'));
-                    setDeliverySettingsLoaded(true);
-                  }
-                } else {
-                  setDeliverySettingsLoaded(false);
-                }
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(16,185,129,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <DollarSign style={{ width: 18, height: 18, color: '#10B981' }} />
-                </div>
-                <div>
-                  <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)' }}>Delivery Fee Settings</div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Set km radius tiers and delivery charges for online orders</div>
-                </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ background: 'var(--card-bg)', borderRadius: 12, border: '1px solid var(--card-border)', overflow: 'hidden' }}>
+            <div style={{ padding: '12px 16px', background: 'var(--table-header-bg)', borderBottom: '1px solid var(--card-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }} onClick={() => setDeliverySettingsLoaded(!deliverySettingsLoaded)}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <DollarSign style={{ width: 16, height: 16, color: '#10B981' }} />
+                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>Delivery Fee Tiers Configuration</span>
               </div>
-              <span style={{ fontSize: 14, color: 'var(--text-secondary)' }}>{deliverySettingsLoaded ? '▲ Collapse' : '▼ Expand'}</span>
+              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{deliverySettingsLoaded ? '▲ Collapse' : '▼ Expand'}</span>
             </div>
-
             {deliverySettingsLoaded && (
-              <div style={{ padding: '18px 20px' }}>
-                <div style={{ marginBottom: 12, fontSize: 14, color: 'var(--text-secondary)' }}>
-                  Add tiers below — e.g. "Up to 5 km → Free (Rs. 0)", "Up to 10 km → Rs. 100". Customers beyond all tiers pay the last tier's fee.
+              <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', padding: '10px 14px', borderRadius: 8, fontSize: 12, color: '#1E40AF', lineHeight: '16px' }}>
+                  ℹ️ Define radius-based shipping fees. Customers located up to the specified distance (km) will be charged the associated rate (Rs). Transactions beyond the maximum defined tier inherit the final tier rate.
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {deliveryTiers.map((tier, idx) => (
-                    <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 10, alignItems: 'center', background: 'var(--table-header-bg)', padding: '10px 14px', borderRadius: 10, border: '1px solid var(--card-border)' }}>
-                      <div>
-                        <label style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', display: 'block', marginBottom: 3 }}>Up to (km)</label>
-                        <input
-                          type="number" min="0.1" step="0.5"
-                          value={tier.maxKm}
-                          onChange={e => {
-                            const updated = [...deliveryTiers];
-                            updated[idx] = { ...updated[idx], maxKm: parseFloat(e.target.value) || 0 };
-                            setDeliveryTiers(updated);
-                          }}
-                          style={{ width: '100%', padding: '7px 10px', borderRadius: 7, border: '1px solid #CBD5E1', fontSize: 14, outline: 'none' }}
-                        />
-                      </div>
-                      <div>
-                        <label style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', display: 'block', marginBottom: 3 }}>Delivery Fee (Rs.)</label>
-                        <input
-                          type="number" min="0"
-                          value={tier.fee}
-                          onChange={e => {
-                            const updated = [...deliveryTiers];
-                            updated[idx] = { ...updated[idx], fee: parseFloat(e.target.value) || 0 };
-                            setDeliveryTiers(updated);
-                          }}
-                          style={{ width: '100%', padding: '7px 10px', borderRadius: 7, border: '1px solid #CBD5E1', fontSize: 14, outline: 'none' }}
-                          placeholder="0 = Free"
-                        />
-                      </div>
-                      <button
-                        onClick={() => setDeliveryTiers(deliveryTiers.filter((_, i) => i !== idx))}
-                        style={{ background: '#FEE2E2', color: '#EF4444', border: 'none', borderRadius: 8, padding: '8px 10px', cursor: 'pointer', marginTop: 18 }}
-                      >
-                        <X style={{ width: 13, height: 13 }} />
-                      </button>
+                  {deliveryTiers.length === 0 ? (
+                    <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13, border: '1px dashed var(--card-border)', borderRadius: 8 }}>
+                      No delivery tiers defined. Add a tier to charge shipping fees.
                     </div>
-                  ))}
-                </div>
+                  ) : (
+                    deliveryTiers.map((tier, idx) => (
+                      <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'var(--table-header-bg)', padding: '10px 14px', borderRadius: 8, border: '1px solid var(--card-border)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1 }}>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>Up to</span>
+                          <div style={{ display: 'flex', alignItems: 'center', position: 'relative', flex: 1 }}>
+                            <input type="number" min="0.1" step="0.5" value={tier.maxKm} onChange={e => { const u = [...deliveryTiers]; u[idx] = { ...u[idx], maxKm: parseFloat(e.target.value) || 0 }; setDeliveryTiers(u); }} style={{ ...inputStyle, paddingRight: 36 }} />
+                            <span style={{ position: 'absolute', right: 10, fontSize: 12, color: 'var(--text-muted)', fontWeight: 600 }}>km</span>
+                          </div>
+                        </div>
 
-                <div style={{ display: 'flex', gap: 10, marginTop: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-                  <button
-                    onClick={() => setDeliveryTiers([...deliveryTiers, { maxKm: 5, fee: 0 }])}
-                    style={{ padding: '8px 14px', background: '#F1F5F9', color: 'var(--text-secondary)', border: '1px solid var(--card-border)', borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}
-                  >
-                    + Add Tier
-                  </button>
-                  <button
-                    onClick={saveDeliverySettings}
-                    disabled={deliverySettingsSaving}
-                    style={{ padding: '8px 18px', background: '#10B981', color: '#FFFFFF', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 800, cursor: 'pointer' }}
-                  >
-                    {deliverySettingsSaving ? 'Saving...' : 'Save Fee Settings'}
-                  </button>
-                  {deliverySettingsMsg.text && (
-                    <span style={{ fontSize: 14, fontWeight: 700, color: deliverySettingsMsg.isError ? '#EF4444' : '#10B981' }}>
-                      {deliverySettingsMsg.text}
-                    </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1 }}>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>Charge</span>
+                          <div style={{ display: 'flex', alignItems: 'center', position: 'relative', flex: 1 }}>
+                            <span style={{ position: 'absolute', left: 10, fontSize: 12, color: 'var(--text-muted)', fontWeight: 600 }}>Rs.</span>
+                            <input type="number" min="0" value={tier.fee} onChange={e => { const u = [...deliveryTiers]; u[idx] = { ...u[idx], fee: parseFloat(e.target.value) || 0 }; setDeliveryTiers(u); }} style={{ ...inputStyle, paddingLeft: 32 }} />
+                          </div>
+                        </div>
+
+                        <button type="button" onClick={() => setDeliveryTiers(prev => prev.filter((_, i) => i !== idx))} style={{ padding: '8px', border: 'none', background: 'none', cursor: 'pointer', color: '#EF4444', display: 'flex', alignItems: 'center' }} title="Delete tier">
+                          <Trash2 style={{ width: 14, height: 14 }} />
+                        </button>
+                      </div>
+                    ))
                   )}
                 </div>
-              </div>
-            )}
-          </div>
 
-          {/* Filters */}
-          <div style={{ display: 'flex', gap: 12, padding: '14px 18px', background: 'var(--card-bg)', borderRadius: 14, border: '1px solid var(--card-border)', flexWrap: 'wrap', alignItems: 'center' }}>
-            <div style={{ flex: 1, minWidth: 200, display: 'flex', alignItems: 'center', gap: 8, background: 'var(--table-header-bg)', padding: '8px 14px', borderRadius: 8, border: '1px solid var(--card-border)' }}>
-              <Search style={{ width: 14, height: 14, color: 'var(--text-muted)' }} />
-              <input
-                type="text"
-                placeholder="Search tracker code, customer name, email, phone…"
-                value={filterSearch}
-                onChange={(e) => setFilterSearch(e.target.value)}
-                style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%', fontSize: 14, color: '#334155' }}
-              />
-            </div>
-
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--card-border)', fontSize: 14, outline: 'none', background: 'var(--table-header-bg)', color: 'var(--text-secondary)', fontWeight: 600 }}
-            >
-              <option value="all">All Orders</option>
-              <option value="PENDING">PENDING</option>
-              <option value="SHIPPED">SHIPPED</option>
-              <option value="DELIVERED">DELIVERED</option>
-              <option value="FAILED">FAILED</option>
-              <option value="RETURNED">RETURNED</option>
-            </select>
-
-            <div style={{ fontSize: 14, color: 'var(--text-muted)', fontWeight: 600 }}>
-              {filteredConsumer.length} matching entries
-            </div>
-          </div>
-
-          {/* Cards/List */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 16 }}>
-            {filteredConsumer.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '80px', color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, background: 'var(--card-bg)', borderRadius: 16, border: '1px solid var(--card-border)' }}>
-                <ShoppingBag style={{ width: 48, height: 48, color: '#E2E8F0' }} />
-                <div style={{ fontSize: 14, fontWeight: 600 }}>No B2C online orders found</div>
-              </div>
-            ) : (
-              filteredConsumer.map((order) => {
-                const sm = STATUS_META[order.status] || { color: 'var(--text-secondary)', bg: 'rgba(100,116,139,0.08)', icon: AlertCircle };
-                const StatusIcon = sm.icon;
-
-                return (
-                  <div key={order.id} style={{ background: 'var(--card-bg)', borderRadius: 16, border: '1px solid var(--card-border)', padding: 20, boxShadow: 'none', display: 'flex', flexDirection: 'column', gap: 16 }}>
-                    {/* Top Row */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, borderBottom: '1px solid #F1F5F9', paddingBottom: 12 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <span style={{ fontSize: 18, fontWeight: 900, color: 'var(--text-primary)', fontFamily: 'monospace' }}>
-                          {order.trackingCode}
-                        </span>
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, color: sm.color, background: sm.bg }}>
-                          <StatusIcon style={{ width: 12, height: 12 }} />
-                          {order.status}
-                        </span>
-                      </div>
-                      <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>
-                        {new Date(order.createdAt).toLocaleString()}
-                      </div>
-                    </div>
-
-                    {/* Middle Row: Content */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(200px, 1.2fr) minmax(250px, 2fr)', gap: 24 }}>
-                      {/* Customer & Delivery Details */}
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                        <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase' }}>Customer & Delivery</div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: 'var(--table-header-bg)', padding: 12, borderRadius: 10, fontSize: 14 }}>
-                          <div><strong>Name:</strong> {order.buyerName}</div>
-                          <div><strong>Email:</strong> {order.buyerEmail}</div>
-                          <div><strong>Phone:</strong> {order.buyerPhone}</div>
-                          <div style={{ marginTop: 4, paddingTop: 4, borderTop: '1px solid #E2E8F0' }}>
-                            <strong>Address:</strong> {order.deliveryAddress}
-                          </div>
-                          {(order.latitude && order.longitude) && (
-                            <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
-                              Coords: {order.latitude.toFixed(5)}, {order.longitude.toFixed(5)}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Items List */}
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                        <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase' }}>Items Ordered</div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                          {order.items.map((item: any) => (
-                            <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--table-header-bg)', padding: '8px 12px', borderRadius: 8, fontSize: 14 }}>
-                              <div>
-                                <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{item.product.name}</span>
-                                <span style={{ color: 'var(--text-muted)', fontSize: 12, marginLeft: 6 }}>{item.product.sku}</span>
-                              </div>
-                              <div style={{ textAlign: 'right' }}>
-                                <span style={{ fontWeight: 800, color: '#334155' }}>Rs. {(item.quantity * item.pricePerUnit).toLocaleString()}</span>
-                                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{item.quantity} base units @ Rs. {item.pricePerUnit}</div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Bottom Row: Total & Actions */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, borderTop: '1px solid #F1F5F9', paddingTop: 14 }}>
-                      <div>
-                        <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 800 }}>TOTAL AMOUNT (COD)</div>
-                        <div style={{ fontSize: 18, fontWeight: 900, color: '#10B981', marginTop: 2 }}>
-                          Rs. {order.totalAmount.toLocaleString()}
-                        </div>
-                      </div>
-
-                      <div style={{ display: 'flex', gap: 8 }}>
-                        {order.status === 'PENDING' && (
-                          <>
-                            <button
-                              onClick={() => handleUpdateConsumerStatus(order.id, 'SHIPPED')}
-                              disabled={barcodeLoading}
-                              style={{ padding: '8px 14px', background: '#8B5CF6', color: '#FFFFFF', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
-                            >
-                              <Truck style={{ width: 14, height: 14 }} /> Ship Order
-                            </button>
-                            <button
-                              onClick={() => handleUpdateConsumerStatus(order.id, 'FAILED')}
-                              disabled={barcodeLoading}
-                              style={{ padding: '8px 14px', background: '#EF4444', color: '#FFFFFF', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 800, cursor: 'pointer' }}
-                            >
-                              Cancel Order
-                            </button>
-                          </>
-                        )}
-                        {order.status === 'SHIPPED' && (
-                          <>
-                            <button
-                              onClick={() => handleUpdateConsumerStatus(order.id, 'DELIVERED')}
-                              disabled={barcodeLoading}
-                              style={{ padding: '8px 14px', background: '#10B981', color: '#FFFFFF', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
-                            >
-                              <CheckCircle style={{ width: 14, height: 14 }} /> Deliver Order
-                            </button>
-                            <button
-                              onClick={() => handleUpdateConsumerStatus(order.id, 'FAILED')}
-                              disabled={barcodeLoading}
-                              style={{ padding: '8px 14px', background: '#EF4444', color: '#FFFFFF', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 800, cursor: 'pointer' }}
-                            >
-                              Mark Failed
-                            </button>
-                          </>
-                        )}
-                        {order.status === 'DELIVERED' && (
-                          <div style={{ fontSize: 11, color: '#10B981', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
-                            <CheckCircle style={{ width: 13, height: 13 }} /> Order Completed
-                          </div>
-                        )}
-                      </div>
-                    </div>
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center', borderTop: '1px solid var(--card-border)', paddingTop: 14 }}>
+                  <button type="button" onClick={() => setDeliveryTiers([...deliveryTiers, { maxKm: 5, fee: 50 }])} style={{ padding: '8px 14px', border: '1px solid var(--card-border)', background: 'var(--card-bg)', color: 'var(--text-secondary)', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>+ Add Fee Tier</button>
+                  <button type="button" onClick={handleSaveDeliverySettings} disabled={deliverySettingsSaving} style={{ padding: '8px 16px', border: 'none', background: '#10B981', color: '#FFFFFF', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', marginLeft: 'auto' }}>{deliverySettingsSaving ? 'Saving…' : 'Save Configuration'}</button>
+                </div>
+                {deliverySettingsMsg.text && (
+                  <div style={{ fontSize: 12, fontWeight: 600, color: deliverySettingsMsg.isError ? '#EF4444' : '#10B981', marginTop: 4 }}>
+                    {deliverySettingsMsg.isError ? '❌' : '✅'} {deliverySettingsMsg.text}
                   </div>
-                );
-              })
+                )}
+              </div>
             )}
+          </div>
+
+          {/* Online table list filter header with Detailed view toggle */}
+          <div style={{ display: 'flex', gap: 10, padding: '12px 16px', background: 'var(--card-bg)', borderRadius: 10, border: '1px solid var(--card-border)', flexWrap: 'wrap', alignItems: 'center' }}>
+            <span style={{ fontSize: 13, fontWeight: 650, color: 'var(--text-secondary)' }}>Online Orders Registry</span>
+            <button
+              onClick={() => setDetailedViewB2C(!detailedViewB2C)}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 8, border: '1px solid var(--card-border)', background: 'var(--card-bg)', color: 'var(--text-secondary)', fontSize: 12, fontWeight: 600, cursor: 'pointer', marginLeft: 'auto' }}
+            >
+              <LayoutList style={{ width: 14, height: 14 }} />
+              {detailedViewB2C ? 'Simple View' : 'Detailed View'}
+            </button>
+          </div>
+
+          {/* Online table list */}
+          <div style={{ background: 'var(--card-bg)', borderRadius: 12, border: '1px solid var(--card-border)', overflow: 'hidden' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead>
+                <tr style={{ background: 'var(--table-header-bg)', borderBottom: '1px solid var(--card-border)' }}>
+                  <th style={thStyle}>Tracking ID</th>
+                  <th style={thStyle}>Patient Name</th>
+                  {detailedViewB2C && <th style={thStyle}>Medicines List</th>}
+                  <th style={thStyle}>Price</th>
+                  <th style={thStyle}>Delivery Address</th>
+                  <th style={thStyle}>Status</th>
+                  <th style={{ ...thStyle, textAlign: 'center' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredConsumer.map((o) => (
+                  <tr
+                    key={o.id}
+                    onClick={() => setSelectedB2COrder(o)}
+                    style={{ borderBottom: '1px solid var(--card-border)', cursor: 'pointer' }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--table-header-bg)')}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = '')}
+                  >
+                    <td style={{ padding: '12px 16px', fontFamily: 'monospace', fontWeight: 600 }}>{o.trackingCode}</td>
+                    <td style={{ padding: '12px 16px' }}>
+                      <div style={{ fontWeight: 600 }}>{o.buyerName}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{o.buyerPhone}</div>
+                    </td>
+                    {detailedViewB2C && (
+                      <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--text-secondary)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {o.items?.map((item: any) => `${item.product?.name || 'Medicine'} (x${item.quantity})`).join(', ') || '—'}
+                      </td>
+                    )}
+                    <td style={{ padding: '12px 16px', fontFamily: 'monospace', fontWeight: 600 }}>Rs. {o.totalAmount}</td>
+                    <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--text-secondary)' }}>{o.deliveryAddress || '—'}</td>
+                    <td style={{ padding: '12px 16px' }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6, background: o.status === 'DELIVERED' ? '#F0FDF4' : o.status === 'PENDING' ? '#FFFBEB' : '#EFF6FF', color: o.status === 'DELIVERED' ? '#10B981' : o.status === 'PENDING' ? '#D97706' : '#3B82F6' }}>{o.status}</span>
+                    </td>
+                    <td style={{ padding: '12px 16px', textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
+                      <select value={o.status} onChange={(e) => handleUpdateOnlineStatus(o.id, e.target.value)} style={{ padding: 4, borderRadius: 6, border: '1px solid var(--card-border)', background: 'var(--card-bg)', fontSize: 12 }}>
+                        <option value="PENDING">PENDING</option>
+                        <option value="SHIPPED">SHIPPED</option>
+                        <option value="DELIVERED">DELIVERED</option>
+                        <option value="FAILED">FAILED</option>
+                      </select>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
 
       {/* ── Order Detail Modal ── */}
-      {selectedOrder && (() => {
-        const sm = STATUS_META[selectedOrder.status] || { color: 'var(--text-secondary)', bg: 'rgba(100,116,139,0.08)', icon: AlertCircle };
-        return (
-          <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(15,23,42,0.35)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-            <div style={{ width: '100%', maxWidth: 580, background: 'var(--card-bg)', borderRadius: 24, border: '1px solid var(--card-border)', overflow: 'hidden', boxShadow: 'none', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}>
-              
-              {/* Header */}
-              <div style={{ padding: '22px 28px', borderBottom: '1px solid #F1F5F9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div style={{ width: 40, height: 40, borderRadius: 12, background: 'rgba(245,158,11,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <FileText style={{ width: 20, height: 20, color: '#F59E0B' }} />
-                  </div>
-                  <div>
-                    <h3 style={{ fontSize: 16, fontWeight: 900, color: 'var(--text-primary)', margin: 0 }}>B2B Order Detail</h3>
-                    <p style={{ fontSize: 14, color: 'var(--text-muted)', margin: 0, fontFamily: 'monospace' }}>#{selectedOrder.id.toUpperCase()}</p>
-                  </div>
-                </div>
-                <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                  <span style={{ padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, color: sm.color, background: sm.bg }}>
-                    {selectedOrder.status}
-                  </span>
-                  <button onClick={() => setSelectedOrder(null)} style={{ background: 'var(--table-header-bg)', border: '1px solid var(--card-border)', borderRadius: 8, padding: '6px', cursor: 'pointer', color: 'var(--text-secondary)' }}>
-                    <X style={{ width: 16, height: 16 }} />
-                  </button>
-                </div>
+      {selectedOrder && (
+        <Modal onClose={() => setSelectedOrder(null)} title={`Purchase Order Details`}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div style={{ background: 'var(--table-header-bg)', borderRadius: 8, padding: 10 }}>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Supplier Node</div>
+                <div style={{ fontSize: 13, fontWeight: 700, marginTop: 2 }}>{selectedOrder.wholesaler.companyName}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{selectedOrder.wholesaler.phone}</div>
               </div>
-
-              {/* Body */}
-              <div style={{ padding: 28, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
-                {/* Meta details */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                  <div style={{ background: 'var(--table-header-bg)', padding: 14, borderRadius: 12 }}>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 700 }}>SUPPLIER WHOLESALER</div>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', marginTop: 4 }}>{selectedOrder.wholesaler.companyName}</div>
-                    <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>{selectedOrder.wholesaler.phone} · {selectedOrder.wholesaler.address}</div>
-                  </div>
-                  <div style={{ background: 'var(--table-header-bg)', padding: 14, borderRadius: 12 }}>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 700 }}>CREATION DATE</div>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', marginTop: 4 }}>{new Date(selectedOrder.createdAt).toLocaleString()}</div>
-                    <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>Barcode: ORD-{selectedOrder.id.substring(0, 12).toUpperCase()}</div>
-                  </div>
-                </div>
-
-                {/* Items */}
-                <div>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 700, marginBottom: 8 }}>MEDICINE BASKET</div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {selectedOrder.items.map((item) => (
-                      <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--table-header-bg)', padding: 12, borderRadius: 10 }}>
-                        <div>
-                          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>{item.product.name}</div>
-                          <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'monospace' }}>{item.product.sku}</div>
-                        </div>
-                        <div style={{ textAlign: 'right' }}>
-                          <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)' }}>Rs. {(item.quantity * item.pricePerUnit).toLocaleString()}</div>
-                          <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{item.quantity} units × Rs. {item.pricePerUnit.toLocaleString()}</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Pricing Summary */}
-                <div style={{ borderTop: '1px solid #E2E8F0', paddingTop: 14, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: 'var(--text-secondary)' }}>
-                    <span>Gross cost:</span>
-                    <span>Rs. {selectedOrder.totalAmount.toLocaleString()}</span>
-                  </div>
-                  {selectedOrder.discountAmount > 0 && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: '#EF4444' }}>
-                      <span>Loyalty Discount:</span>
-                      <span>-Rs. {selectedOrder.discountAmount.toLocaleString()}</span>
-                    </div>
-                  )}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 18, fontWeight: 900, color: 'var(--text-primary)', marginTop: 4 }}>
-                    <span>Net Cost:</span>
-                    <span>Rs. {selectedOrder.netAmount.toLocaleString()}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Footer */}
-              <div style={{ padding: '18px 28px', borderTop: '1px solid #F1F5F9', display: 'flex', gap: 12, background: 'var(--table-header-bg)' }}>
-                <button onClick={() => setSelectedOrder(null)} style={{ flex: 1, padding: 11, borderRadius: 10, border: '1px solid var(--card-border)', background: 'var(--card-bg)', color: 'var(--text-secondary)', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
-                  Close
-                </button>
-                <button onClick={() => { setPrintPreviewOrder(selectedOrder); setSelectedOrder(null); }} style={{ flex: 2, padding: 11, borderRadius: 10, border: 'none', background: '#F59E0B', color: '#FFFFFF', fontSize: 14, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                  <Printer style={{ width: 14, height: 14 }} />
-                  Show Print Preview
-                </button>
+              <div style={{ background: 'var(--table-header-bg)', borderRadius: 8, padding: 10 }}>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Date Placed</div>
+                <div style={{ fontSize: 13, fontWeight: 700, marginTop: 2 }}>{new Date(selectedOrder.createdAt).toLocaleDateString()}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{new Date(selectedOrder.createdAt).toLocaleTimeString()}</div>
               </div>
             </div>
+
+            <div style={{ background: 'var(--table-header-bg)', borderRadius: 8, padding: 12 }}>
+              <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600, marginBottom: 8 }}>Voucher Item List</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {selectedOrder.items.map((item) => (
+                  <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '4px 0', borderBottom: '1px solid var(--card-border)' }}>
+                    <span>{item.product.name} (×{item.quantity})</span>
+                    <span style={{ fontWeight: 600, fontFamily: 'monospace' }}>Rs. {(item.quantity * item.pricePerUnit).toLocaleString()}</span>
+                  </div>
+                ))}
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, fontWeight: 700, marginTop: 8, paddingTop: 6, borderTop: '1px dashed var(--card-border)' }}>
+                <span>Gross Payable</span>
+                <span style={{ color: '#F59E0B', fontFamily: 'monospace' }}>Rs. {selectedOrder.netAmount.toLocaleString()}</span>
+              </div>
+            </div>
+            <button onClick={() => printOrderVoucher(selectedOrder)} style={{ padding: '10px', background: '#F59E0B', border: 'none', borderRadius: 8, color: '#FFFFFF', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+              <Printer style={{ width: 14, height: 14 }} /> Print Order Invoice
+            </button>
           </div>
-        );
-      })()}
-
-      {/* ── Print Preview Modal ── */}
-      {printPreviewOrder && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 210, background: 'rgba(15,23,42,0.4)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-          <div style={{ width: '100%', maxWidth: 500, background: 'var(--card-bg)', borderRadius: 20, overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 60px rgba(0,0,0,0.15)' }}>
-            <div style={{ padding: '16px 20px', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontWeight: 800, fontSize: 14, color: 'var(--text-primary)' }}>Voucher Print Preview</span>
-              <button onClick={() => setPrintPreviewOrder(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
-                <X style={{ width: 16, height: 16 }} />
-              </button>
-            </div>
-            
-            {/* Styled Voucher Preview */}
-            <div style={{ padding: 24, overflowY: 'auto', flex: 1, background: 'var(--table-header-bg)' }}>
-              <div style={{ background: 'var(--card-bg)', border: '1px solid var(--card-border)', borderRadius: 8, padding: 20, fontFamily: 'monospace', color: '#000', fontSize: 14, boxShadow: 'none' }}>
-                <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: 18, marginBottom: 4 }}>MEDHUB PHARMACY NODE</div>
-                <div style={{ textAlign: 'center', fontSize: 11, borderBottom: '1px dashed #000', paddingBottom: 10, marginBottom: 12 }}>B2B PURCHASE ORDER VOUCHER</div>
-                
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 14 }}>
-                  <div><strong>Order #:</strong> {printPreviewOrder.id.toUpperCase()}</div>
-                  <div><strong>Date:</strong> {new Date(printPreviewOrder.createdAt).toLocaleString()}</div>
-                  <div><strong>Supplier:</strong> {printPreviewOrder.wholesaler.companyName}</div>
-                  <div><strong>Status:</strong> {printPreviewOrder.status}</div>
-                </div>
-
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, marginBottom: 12 }}>
-                  <thead>
-                    <tr style={{ borderBottom: '1px solid #000' }}>
-                      <th style={{ textAlign: 'left', padding: '4px 0' }}>Item</th>
-                      <th style={{ textAlign: 'right', padding: '4px 0' }}>Qty</th>
-                      <th style={{ textAlign: 'right', padding: '4px 0' }}>Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {printPreviewOrder.items.map(item => (
-                      <tr key={item.id}>
-                        <td style={{ padding: '4px 0' }}>{item.product.name}</td>
-                        <td style={{ textAlign: 'right', padding: '4px 0' }}>{item.quantity}</td>
-                        <td style={{ textAlign: 'right', padding: '4px 0' }}>Rs. ${(item.quantity * item.pricePerUnit).toLocaleString()}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-
-                <div style={{ textAlign: 'right', borderTop: '1px dashed #000', paddingTop: 8, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  <div>Gross Total: Rs. {printPreviewOrder.totalAmount.toLocaleString()}</div>
-                  {printPreviewOrder.discountAmount > 0 && <div style={{ color: 'red' }}>Discount: -Rs. {printPreviewOrder.discountAmount.toLocaleString()}</div>}
-                  <div style={{ fontWeight: 'bold', fontSize: 14, marginTop: 4 }}>NET PAYABLE: Rs. {printPreviewOrder.netAmount.toLocaleString()}</div>
-                </div>
-              </div>
-            </div>
-
-            <div style={{ padding: '16px 20px', borderTop: '1px solid #E2E8F0', display: 'flex', gap: 10, background: 'var(--card-bg)' }}>
-              <button onClick={() => setPrintPreviewOrder(null)} style={{ flex: 1, padding: 11, borderRadius: 8, border: '1px solid var(--card-border)', background: 'var(--card-bg)', color: 'var(--text-secondary)', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
-                Back
-              </button>
-              <button onClick={() => printOrderVoucher(printPreviewOrder)} style={{ flex: 2, padding: 11, borderRadius: 8, border: 'none', background: '#10B981', color: '#FFFFFF', fontSize: 14, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                <Printer style={{ width: 14, height: 14 }} />
-                Print Voucher
-              </button>
-            </div>
-          </div>
-        </div>
+        </Modal>
       )}
-      {/* ── Confirm & Settle Package Intake Modal ── */}
-      {intakeOrder && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 220, background: 'rgba(15,23,42,0.35)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-          <div style={{ width: '100%', maxWidth: 650, background: 'var(--card-bg)', borderRadius: 24, border: '1px solid var(--card-border)', overflow: 'hidden', boxShadow: '0 24px 60px rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}>
-            
-            {/* Header */}
-            <div style={{ padding: '20px 24px', background: 'var(--table-header-bg)', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 38, height: 38, borderRadius: 10, background: 'rgba(245,158,11,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <QrCode style={{ width: 18, height: 18, color: '#F59E0B' }} />
-                </div>
-                <div>
-                  <h3 style={{ fontSize: 18, fontWeight: 900, color: 'var(--text-primary)', margin: 0 }}>Confirm B2B Intake & Pricing</h3>
-                  <p style={{ fontSize: 11, color: 'var(--text-secondary)', margin: 0 }}>Order ID: #{intakeOrder.id.toUpperCase()}</p>
-                </div>
+
+      {/* ── B2C Online Sales Order Detail Modal ── */}
+      {selectedB2COrder && (
+        <Modal onClose={() => setSelectedB2COrder(null)} title={`B2C Online Order Details`}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div style={{ background: 'var(--table-header-bg)', borderRadius: 8, padding: 10 }}>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Patient Details</div>
+                <div style={{ fontSize: 13, fontWeight: 700, marginTop: 2 }}>{selectedB2COrder.buyerName}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{selectedB2COrder.buyerPhone}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{selectedB2COrder.buyerEmail}</div>
               </div>
-              <button onClick={() => setIntakeOrder(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
-                <X style={{ width: 18, height: 18 }} />
-              </button>
+              <div style={{ background: 'var(--table-header-bg)', borderRadius: 8, padding: 10 }}>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Delivery Details</div>
+                <div style={{ fontSize: 12, fontWeight: 600, marginTop: 2, color: 'var(--text-secondary)' }}>{selectedB2COrder.deliveryAddress || '— No address provided'}</div>
+              </div>
             </div>
 
-            {/* Body */}
-            <div style={{ padding: '24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
-              
-              {/* Wholesaler info */}
-              <div style={{ background: 'rgba(245,158,11,0.03)', border: '1px dashed rgba(245,158,11,0.3)', padding: 14, borderRadius: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 700 }}>SUPPLIER WHOLESALER</div>
-                  <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)', marginTop: 2 }}>{intakeOrder.wholesaler?.companyName}</div>
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 700 }}>NET PAYABLE</div>
-                  <div style={{ fontSize: 18, fontWeight: 900, color: '#F59E0B', marginTop: 2 }}>Rs. {intakeOrder.netAmount?.toLocaleString()}</div>
-                </div>
-              </div>
-
-              {/* Items Table */}
-              <div>
-                <div style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: 10 }}>Configure Medicine Pricing (Per Box)</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {intakeOrder.items.map((item: any) => {
-                    const priceKey = item.productId;
-                    const val = intakeCustomPrices[priceKey] || { buyingPrice: 0, sellingPrice: 0 };
-                    return (
-                      <div key={item.id} style={{ background: 'var(--table-header-bg)', border: '1px solid var(--card-border)', borderRadius: 12, padding: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-                        <div style={{ minWidth: 150 }}>
-                          <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)' }}>{item.product.name}</div>
-                          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>Qty: {item.quantity} base units</div>
-                        </div>
-                        <div style={{ display: 'flex', gap: 12 }}>
-                          {/* Buying price per box */}
-                          <div>
-                            <label style={{ fontSize: 9, fontWeight: 750, color: 'var(--text-secondary)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Buying Price / Box</label>
-                            <input
-                              type="number"
-                              value={val.buyingPrice}
-                              onChange={(e) => setIntakeCustomPrices({
-                                ...intakeCustomPrices,
-                                [priceKey]: { ...val, buyingPrice: parseFloat(e.target.value) || 0 }
-                              })}
-                              style={{ width: 100, padding: '6px 10px', borderRadius: 6, border: '1px solid var(--card-border)', fontSize: 14, outline: 'none' }}
-                            />
-                          </div>
-                          {/* Selling price per box */}
-                          <div>
-                            <label style={{ fontSize: 9, fontWeight: 750, color: 'var(--text-secondary)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Selling Price / Box</label>
-                            <input
-                              type="number"
-                              value={val.sellingPrice}
-                              onChange={(e) => setIntakeCustomPrices({
-                                ...intakeCustomPrices,
-                                [priceKey]: { ...val, sellingPrice: parseFloat(e.target.value) || 0 }
-                              })}
-                              style={{ width: 100, padding: '6px 10px', borderRadius: 6, border: '1px solid var(--card-border)', fontSize: 14, outline: 'none' }}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Barcode Verification section */}
-              <div style={{ borderTop: '1px solid #E2E8F0', paddingTop: 16 }}>
-                <div style={{ background: '#FFFBEB', border: '1px solid #FEF3C7', padding: 16, borderRadius: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <label style={{ fontSize: 11, fontWeight: 800, color: '#D97706', textTransform: 'uppercase' }}>Scan/Enter Order Barcode to Verify Intake</label>
-                  <input
-                    type="text"
-                    placeholder="Scan package barcode (e.g. ORD-XXXX)"
-                    value={intakeBarcodeVerification}
-                    onChange={(e) => setIntakeBarcodeVerification(e.target.value)}
-                    style={{ width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid var(--card-border)', outline: 'none', fontSize: 14 }}
-                  />
-                  {intakeBarcodeVerification.trim().toUpperCase() === `ORD-${intakeOrder.id.substring(0, 12).toUpperCase()}` ? (
-                    <div style={{ fontSize: 14, color: '#10B981', fontWeight: 800, display: 'flex', alignItems: 'center', gap: 4, marginTop: 4 }}>
-                      <CheckCircle style={{ width: 14, height: 14 }} /> Barcode verified successfully.
-                    </div>
-                  ) : (
-                    <div style={{ fontSize: 11, color: '#EF4444', fontWeight: 700, marginTop: 4 }}>
-                      Please enter the correct barcode (ORD-{intakeOrder.id.substring(0, 12).toUpperCase()}) to enable confirmation.
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Settlement section */}
-              <div style={{ borderTop: '1px solid #E2E8F0', paddingTop: 16 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-                  <input
-                    type="checkbox"
-                    id="settle-now-chk"
-                    checked={intakeSettleNow}
-                    onChange={(e) => setIntakeSettleNow(e.target.checked)}
-                    style={{ width: 16, height: 16, accentColor: '#F59E0B' }}
-                  />
-                  <label htmlFor="settle-now-chk" style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)', cursor: 'pointer' }}>
-                    Settle Payment Immediately on Delivery
-                  </label>
-                </div>
-
-                {intakeSettleNow && (
-                  <div style={{ background: 'var(--table-header-bg)', border: '1px solid var(--card-border)', borderRadius: 12, padding: 16, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                    <div>
-                      <label style={{ fontSize: 11, fontWeight: 750, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>Settle Amount (Rs.)</label>
-                      <input
-                        type="number"
-                        value={intakeSettleAmount}
-                        onChange={(e) => setIntakeSettleAmount(e.target.value)}
-                        style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1.5px solid #CBD5E1', fontSize: 14, outline: 'none' }}
-                      />
-                    </div>
-                    <div>
-                      <label style={{ fontSize: 11, fontWeight: 750, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>Method</label>
-                      <select
-                        value={intakeSettleMethod}
-                        onChange={(e) => setIntakeSettleMethod(e.target.value)}
-                        style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1.5px solid #CBD5E1', fontSize: 14, outline: 'none', background: 'var(--card-bg)' }}
-                      >
-                        <option value="CASH">Cash</option>
-                        <option value="COD">Cash on Delivery (COD)</option>
-                      </select>
-                    </div>
+            <div style={{ background: 'var(--table-header-bg)', borderRadius: 8, padding: 12 }}>
+              <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600, marginBottom: 8 }}>Itemized Sales List</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {selectedB2COrder.items?.map((item: any, idx: number) => (
+                  <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '4px 0', borderBottom: '1px solid var(--card-border)' }}>
+                    <span>{item.product?.name || 'Medicine'} (×{item.quantity})</span>
+                    <span style={{ fontWeight: 600, fontFamily: 'monospace' }}>Rs. {(item.quantity * item.pricePerUnit).toLocaleString()}</span>
                   </div>
-                )}
+                ))}
               </div>
-
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, fontWeight: 700, marginTop: 8, paddingTop: 6, borderTop: '1px dashed var(--card-border)' }}>
+                <span>Order Grand Total</span>
+                <span style={{ color: '#10B981', fontFamily: 'monospace' }}>Rs. {selectedB2COrder.totalAmount.toLocaleString()}</span>
+              </div>
             </div>
-
-            {/* Footer */}
-            <div style={{ padding: '16px 24px', background: 'var(--table-header-bg)', borderTop: '1px solid #E2E8F0', display: 'flex', gap: 12 }}>
-              <button onClick={() => setIntakeOrder(null)} style={{ flex: 1, padding: 11, borderRadius: 8, border: '1px solid var(--card-border)', background: 'var(--card-bg)', color: 'var(--text-secondary)', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
-                Cancel
-              </button>
-              <button
-                onClick={handleConfirmIntakeSubmit}
-                disabled={barcodeLoading || intakeBarcodeVerification.trim().toUpperCase() !== `ORD-${intakeOrder.id.substring(0, 12).toUpperCase()}`}
-                style={{ flex: 2, padding: 11, borderRadius: 8, border: 'none', background: intakeBarcodeVerification.trim().toUpperCase() === `ORD-${intakeOrder.id.substring(0, 12).toUpperCase()}` ? 'linear-gradient(135deg, #F59E0B, #D97706)' : '#CBD5E1', color: '#FFFFFF', fontSize: 14, fontWeight: 800, cursor: intakeBarcodeVerification.trim().toUpperCase() === `ORD-${intakeOrder.id.substring(0, 12).toUpperCase()}` ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+            
+            <div style={{ display: 'flex', gap: 10 }}>
+              <select
+                value={selectedB2COrder.status}
+                onChange={(e) => { handleUpdateOnlineStatus(selectedB2COrder.id, e.target.value); setSelectedB2COrder(null); }}
+                style={{ flex: 1, padding: 10, borderRadius: 8, border: '1px solid var(--card-border)', background: 'var(--card-bg)', fontSize: 13 }}
               >
-                {barcodeLoading ? 'Confirming...' : 'Confirm Delivery & Ingest'}
+                <option value="PENDING">PENDING</option>
+                <option value="SHIPPED">SHIPPED</option>
+                <option value="DELIVERED">DELIVERED</option>
+                <option value="FAILED">FAILED</option>
+              </select>
+              <button onClick={() => setSelectedB2COrder(null)} style={{ flex: 1, padding: '10px', background: 'var(--table-header-bg)', border: '1px solid var(--card-border)', borderRadius: 8, color: 'var(--text-secondary)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                Close
               </button>
             </div>
-
           </div>
-        </div>
+        </Modal>
       )}
+
+      {/* ── Intake Modal ── */}
+      {intakeOrder && (
+        <Modal onClose={() => setIntakeOrder(null)} title={`Receive B2B Package`}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Set purchasing price and selling values below for each medicine:</div>
+            {intakeOrder.items.map((item: any) => {
+              const priceKey = item.productId || (item as any).productId;
+              const val = intakeCustomPrices[priceKey] || { buyingPrice: 0, sellingPrice: 0 };
+              return (
+                <div key={item.id} style={{ background: 'var(--table-header-bg)', border: '1px solid var(--card-border)', borderRadius: 10, padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600 }}>{item.product.name}</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    <div>
+                      <label style={{ fontSize: 10, color: 'var(--text-muted)', display: 'block', marginBottom: 3 }}>Buying/Box</label>
+                      <input type="number" value={val.buyingPrice} onChange={e => setIntakeCustomPrices({ ...intakeCustomPrices, [priceKey]: { ...val, buyingPrice: parseFloat(e.target.value) || 0 } })} style={inputStyle} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: 10, color: 'var(--text-muted)', display: 'block', marginBottom: 3 }}>Selling/Box</label>
+                      <input type="number" value={val.sellingPrice} onChange={e => setIntakeCustomPrices({ ...intakeCustomPrices, [priceKey]: { ...val, sellingPrice: parseFloat(e.target.value) || 0 } })} style={inputStyle} />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+
+            <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', padding: 12, borderRadius: 8 }}>
+              <label style={{ fontSize: 11, fontWeight: 700, color: '#92400E', display: 'block', marginBottom: 4 }}>Verify Order Barcode</label>
+              <input type="text" placeholder={`Type: ORD-${intakeOrder.id.substring(0, 12).toUpperCase()}`} value={intakeBarcodeVerification} onChange={e => setIntakeBarcodeVerification(e.target.value)} style={inputStyle} />
+            </div>
+
+            <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+              <button onClick={() => setIntakeOrder(null)} style={{ flex: 1, padding: 10, borderRadius: 8, border: '1px solid var(--card-border)', background: 'var(--card-bg)', fontSize: 13, cursor: 'pointer' }}>Cancel</button>
+              <button onClick={handleConfirmIntakeSubmit} disabled={intakeBarcodeVerification.trim().toUpperCase() !== `ORD-${intakeOrder.id.substring(0, 12).toUpperCase()}`} style={{ flex: 2, padding: 10, borderRadius: 8, border: 'none', background: '#10B981', color: '#FFFFFF', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Confirm delivery &amp; ingest</button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
     </div>
   );
 }

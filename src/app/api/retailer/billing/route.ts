@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getSessionUser } from '@/lib/auth';
+import { broadcastToWholesaler } from '@/app/api/events/route';
 
 export async function GET(request: Request) {
   try {
@@ -123,15 +124,16 @@ export async function POST(request: Request) {
 
     const order = await db.order.findUnique({
       where: { id: orderId },
+      select: { id: true, wholesalerId: true, retailerId: true },
     });
 
     if (!order) {
       return NextResponse.json({ error: 'Order not found' }, { status: 404 });
     }
 
-    const updatedOrder = await db.$transaction(async (tx) => {
+    const newSettlement = await db.$transaction(async (tx) => {
       // Create a pending settlement request
-      await tx.b2BSettlement.create({
+      const settle = await tx.b2BSettlement.create({
         data: {
           orderId,
           amount: parseFloat(amount),
@@ -140,13 +142,26 @@ export async function POST(request: Request) {
         },
       });
 
-      return tx.order.update({
+      await tx.order.update({
         where: { id: orderId },
         data: {
           settleStatus: 'PENDING_VERIFICATION',
         },
       });
+
+      return settle;
     });
+
+    // Notify wholesaler so their dashboard alert appears instantly
+    if (order.wholesalerId) {
+      broadcastToWholesaler(order.wholesalerId, 'BILLING_UPDATE', {
+        type: 'SETTLEMENT_REQUEST',
+        orderId,
+        amount: parseFloat(amount),
+        method: method || 'CASH',
+        settlementId: newSettlement.id,
+      });
+    }
 
     await db.systemAuditLog.create({
       data: {
@@ -156,7 +171,7 @@ export async function POST(request: Request) {
       },
     });
 
-    return NextResponse.json({ success: true, order: updatedOrder });
+    return NextResponse.json({ success: true, settlementId: newSettlement.id });
   } catch (error: any) {
     console.error('Error recording B2B settlement request:', error);
     return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });

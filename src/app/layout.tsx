@@ -28,7 +28,7 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
-      <body className="min-h-full flex flex-col" style={{ fontFamily: "'Inter', var(--font-geist-sans), system-ui, -apple-system, sans-serif" }}>{children}</body>
+      <body className="min-h-full flex flex-col" style={{ fontFamily: "'Inter', var(--font-geist-sans), system-ui, -apple-system, sans-serif" }} suppressHydrationWarning>{children}</body>
     </html>
   );
 }
