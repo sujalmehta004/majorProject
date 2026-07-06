@@ -554,34 +554,34 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
       {/* ── Header ── */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
         <div>
-          <h1 style={{ fontSize: 24, fontWeight: 900, color: '#1E293B', margin: 0 }}>B2B Ordering Panel</h1>
-          <p style={{ fontSize: 13, color: '#64748B', margin: '4px 0 0' }}>
+          <h1 style={{ fontSize: 24, fontWeight: 900, color: 'var(--text-primary)', margin: 0 }}>B2B Ordering Panel</h1>
+          <p style={{ fontSize: 14, color: 'var(--text-secondary)', margin: '4px 0 0' }}>
             Manage pending shipments, scan barcodes for package arrivals, and order from live wholesalers &nbsp;
-            <span style={{ fontSize: 11, color: '#94A3B8' }}>[ F8 ] Tracker · [ F9 ] New B2B Order · [ F10 ] Intake scanner</span>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>[ F8 ] Tracker · [ F9 ] New B2B Order · [ F10 ] Intake scanner</span>
           </p>
         </div>
         <div style={{ display: 'flex', gap: 12 }}>
           <button
             onClick={() => setActiveTab('tracker')}
-            style={{ padding: '10px 16px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s', background: activeTab === 'tracker' ? '#F59E0B' : '#FFFFFF', border: activeTab === 'tracker' ? 'none' : '1.5px solid #E2E8F0', color: activeTab === 'tracker' ? '#FFFFFF' : '#475569' }}
+            style={{ padding: '10px 16px', borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s', background: activeTab === 'tracker' ? '#F59E0B' : '#FFFFFF', border: activeTab === 'tracker' ? 'none' : '1.5px solid #E2E8F0', color: activeTab === 'tracker' ? '#FFFFFF' : '#475569' }}
           >
             My Purchase Orders
           </button>
           <button
             onClick={() => setActiveTab('order')}
-            style={{ padding: '10px 16px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s', background: activeTab === 'order' ? '#F59E0B' : '#FFFFFF', border: activeTab === 'order' ? 'none' : '1.5px solid #E2E8F0', color: activeTab === 'order' ? '#FFFFFF' : '#475569' }}
+            style={{ padding: '10px 16px', borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s', background: activeTab === 'order' ? '#F59E0B' : '#FFFFFF', border: activeTab === 'order' ? 'none' : '1.5px solid #E2E8F0', color: activeTab === 'order' ? '#FFFFFF' : '#475569' }}
           >
             Create B2B Purchase
           </button>
           <button
             onClick={() => setActiveTab('intake')}
-            style={{ padding: '10px 16px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s', background: activeTab === 'intake' ? '#F59E0B' : '#FFFFFF', border: activeTab === 'intake' ? 'none' : '1.5px solid #E2E8F0', color: activeTab === 'intake' ? '#FFFFFF' : '#475569' }}
+            style={{ padding: '10px 16px', borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s', background: activeTab === 'intake' ? '#F59E0B' : '#FFFFFF', border: activeTab === 'intake' ? 'none' : '1.5px solid #E2E8F0', color: activeTab === 'intake' ? '#FFFFFF' : '#475569' }}
           >
             Barcode Package Intake
           </button>
           <button
             onClick={() => setActiveTab('online')}
-            style={{ padding: '10px 16px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s', background: activeTab === 'online' ? '#10B981' : '#FFFFFF', border: activeTab === 'online' ? 'none' : '1.5px solid #E2E8F0', color: activeTab === 'online' ? '#FFFFFF' : '#475569' }}
+            style={{ padding: '10px 16px', borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s', background: activeTab === 'online' ? '#10B981' : '#FFFFFF', border: activeTab === 'online' ? 'none' : '1.5px solid #E2E8F0', color: activeTab === 'online' ? '#FFFFFF' : '#475569' }}
           >
             Online B2C Orders
           </button>
@@ -592,22 +592,22 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
       {activeTab === 'tracker' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           {/* Tracker Filters */}
-          <div style={{ display: 'flex', gap: 12, padding: '14px 18px', background: '#FFFFFF', borderRadius: 14, border: '1.5px solid #F1F5F9', flexWrap: 'wrap', alignItems: 'center' }}>
-            <div style={{ flex: 1, minWidth: 200, display: 'flex', alignItems: 'center', gap: 8, background: '#F8FAFC', padding: '8px 14px', borderRadius: 8, border: '1px solid #E2E8F0' }}>
-              <Search style={{ width: 14, height: 14, color: '#94A3B8' }} />
+          <div style={{ display: 'flex', gap: 12, padding: '14px 18px', background: 'var(--card-bg)', borderRadius: 14, border: '1px solid var(--card-border)', flexWrap: 'wrap', alignItems: 'center' }}>
+            <div style={{ flex: 1, minWidth: 200, display: 'flex', alignItems: 'center', gap: 8, background: 'var(--table-header-bg)', padding: '8px 14px', borderRadius: 8, border: '1px solid var(--card-border)' }}>
+              <Search style={{ width: 14, height: 14, color: 'var(--text-muted)' }} />
               <input
                 type="text"
                 placeholder="Search order ID or wholesaler…"
                 value={filterSearch}
                 onChange={(e) => setFilterSearch(e.target.value)}
-                style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%', fontSize: 12, color: '#334155' }}
+                style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%', fontSize: 14, color: '#334155' }}
               />
             </div>
 
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
-              style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 12, outline: 'none', background: '#F8FAFC', color: '#475569', fontWeight: 600 }}
+              style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--card-border)', fontSize: 14, outline: 'none', background: 'var(--table-header-bg)', color: 'var(--text-secondary)', fontWeight: 600 }}
             >
               <option value="all">All Orders</option>
               <option value="PENDING">PENDING</option>
@@ -620,29 +620,29 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
               <button
                 onClick={handleBulkConfirmDelivery}
                 disabled={barcodeLoading}
-                style={{ background: '#10B981', color: '#FFFFFF', border: 'none', padding: '8px 16px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+                style={{ background: '#10B981', color: '#FFFFFF', border: 'none', padding: '8px 16px', borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
               >
                 <CheckCircle style={{ width: 14, height: 14 }} />
                 Bulk Intake ({selectedOrderIds.length})
               </button>
             )}
 
-            <div style={{ fontSize: 12, color: '#94A3B8', fontWeight: 600 }}>
+            <div style={{ fontSize: 14, color: 'var(--text-muted)', fontWeight: 600 }}>
               {filtered.length} matching entries
             </div>
           </div>
 
           {/* Orders Table */}
-          <div style={{ background: '#FFFFFF', borderRadius: 16, border: '1.5px solid #F1F5F9', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.03)' }}>
+          <div style={{ background: 'var(--card-bg)', borderRadius: 16, border: '1px solid var(--card-border)', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.03)' }}>
             {filtered.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '80px', color: '#94A3B8', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+              <div style={{ textAlign: 'center', padding: '80px', color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
                 <Truck style={{ width: 48, height: 48, color: '#E2E8F0' }} />
                 <div style={{ fontSize: 14, fontWeight: 600 }}>No B2B orders found</div>
               </div>
             ) : (
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 13 }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 14 }}>
                 <thead>
-                  <tr style={{ background: '#F8FAFC', borderBottom: '2px solid #F1F5F9' }}>
+                  <tr style={{ background: 'var(--table-header-bg)', borderBottom: '2px solid #F1F5F9' }}>
                     <th style={{ padding: '14px 20px', width: 40, textAlign: 'center' }}>
                       <button onClick={toggleSelectAll} style={{ border: 'none', background: 'none', cursor: 'pointer', padding: 0 }}>
                         {selectedOrderIds.length === filtered.length ? (
@@ -652,18 +652,18 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
                         )}
                       </button>
                     </th>
-                    <th style={{ padding: '14px 20px', color: '#64748B', fontWeight: 700 }}>Order ID / Barcode</th>
-                    <th style={{ padding: '14px 20px', color: '#64748B', fontWeight: 700 }}>Wholesaler</th>
-                    <th style={{ padding: '14px 20px', color: '#64748B', fontWeight: 700 }}>Items</th>
-                    <th style={{ padding: '14px 20px', color: '#64748B', fontWeight: 700 }}>Net Cost</th>
-                    <th style={{ padding: '14px 20px', color: '#64748B', fontWeight: 700 }}>Status</th>
-                    <th style={{ padding: '14px 20px', color: '#64748B', fontWeight: 700 }}>Date</th>
-                    <th style={{ padding: '14px 20px', color: '#64748B', fontWeight: 700, textAlign: 'center' }}>Actions</th>
+                    <th style={{ padding: '14px 20px', color: 'var(--text-secondary)', fontWeight: 700 }}>Order ID / Barcode</th>
+                    <th style={{ padding: '14px 20px', color: 'var(--text-secondary)', fontWeight: 700 }}>Wholesaler</th>
+                    <th style={{ padding: '14px 20px', color: 'var(--text-secondary)', fontWeight: 700 }}>Items</th>
+                    <th style={{ padding: '14px 20px', color: 'var(--text-secondary)', fontWeight: 700 }}>Net Cost</th>
+                    <th style={{ padding: '14px 20px', color: 'var(--text-secondary)', fontWeight: 700 }}>Status</th>
+                    <th style={{ padding: '14px 20px', color: 'var(--text-secondary)', fontWeight: 700 }}>Date</th>
+                    <th style={{ padding: '14px 20px', color: 'var(--text-secondary)', fontWeight: 700, textAlign: 'center' }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.map((order) => {
-                    const sm = STATUS_META[order.status] || { color: '#64748B', bg: 'rgba(100,116,139,0.08)', icon: AlertCircle };
+                    const sm = STATUS_META[order.status] || { color: 'var(--text-secondary)', bg: 'rgba(100,116,139,0.08)', icon: AlertCircle };
                     const StatusIcon = sm.icon;
                     const isSelected = selectedOrderIds.includes(order.id);
                     const barcodeLabel = `ORD-${order.id.substring(0, 12).toUpperCase()}`;
@@ -687,24 +687,24 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
                         <td style={{ padding: '16px 20px' }}>
                           {order.status === 'DELIVERED' ? (
                              <>
-                               <div style={{ fontWeight: 800, color: '#1E293B', fontFamily: 'monospace' }}>#{order.id.substring(0, 8).toUpperCase()}</div>
-                               <div style={{ fontSize: 10, color: '#94A3B8', marginTop: 2, fontFamily: 'monospace' }}>{barcodeLabel}</div>
+                               <div style={{ fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'monospace' }}>#{order.id.substring(0, 8).toUpperCase()}</div>
+                               <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2, fontFamily: 'monospace' }}>{barcodeLabel}</div>
                              </>
                            ) : (
-                             <div style={{ fontSize: 12, color: '#64748B', fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: 4 }}>
+                             <div style={{ fontSize: 14, color: 'var(--text-secondary)', fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: 4 }}>
                                <Clock style={{ width: 12, height: 12, color: '#F59E0B' }} /> Awaiting Delivery
                              </div>
                            )}
                         </td>
                         <td style={{ padding: '16px 20px' }}>
                           <div style={{ fontWeight: 700, color: '#334155' }}>{order.wholesaler.companyName}</div>
-                          <div style={{ fontSize: 11, color: '#94A3B8' }}>{order.wholesaler.phone}</div>
+                          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{order.wholesaler.phone}</div>
                         </td>
-                        <td style={{ padding: '16px 20px', fontWeight: 600, color: '#475569' }}>
+                        <td style={{ padding: '16px 20px', fontWeight: 600, color: 'var(--text-secondary)' }}>
                           {order.items.length} medicine{order.items.length !== 1 ? 's' : ''}
                         </td>
                         <td style={{ padding: '16px 20px' }}>
-                          <div style={{ fontWeight: 800, color: '#1E293B' }}>Rs. {order.netAmount.toLocaleString()}</div>
+                          <div style={{ fontWeight: 800, color: 'var(--text-primary)' }}>Rs. {order.netAmount.toLocaleString()}</div>
                           {order.discountAmount > 0 && (
                             <div style={{ fontSize: 11, color: '#EF4444' }}>-Rs. {order.discountAmount.toLocaleString()}</div>
                           )}
@@ -715,9 +715,9 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
                             {order.status}
                           </span>
                         </td>
-                        <td style={{ padding: '16px 20px', color: '#64748B' }}>
+                        <td style={{ padding: '16px 20px', color: 'var(--text-secondary)' }}>
                           <div>{new Date(order.createdAt).toLocaleDateString()}</div>
-                          <div style={{ fontSize: 10, color: '#CBD5E1', marginTop: 2 }}>{new Date(order.createdAt).toLocaleTimeString()}</div>
+                          <div style={{ fontSize: 12, color: '#CBD5E1', marginTop: 2 }}>{new Date(order.createdAt).toLocaleTimeString()}</div>
                         </td>
                         <td style={{ padding: '16px 20px', textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
                            <div style={{ display: 'flex', gap: 6, justifyContent: 'center', alignItems: 'center' }}>
@@ -731,7 +731,7 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
                              )}
                              <button
                                onClick={() => setSelectedOrder(order)}
-                               style={{ padding: '6px', background: '#F1F5F9', border: 'none', borderRadius: 6, color: '#64748B', cursor: 'pointer', display: 'flex' }}
+                               style={{ padding: '6px', background: '#F1F5F9', border: 'none', borderRadius: 6, color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex' }}
                              >
                                <Eye style={{ width: 13, height: 13 }} />
                              </button>
@@ -751,15 +751,15 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
         <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 24, alignItems: 'start' }}>
           {/* Wholesaler selector */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Select Wholesaler</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Select Wholesaler</div>
             {wholesalers.map((w) => (
               <button
                 key={w.id}
                 onClick={() => { setSelectedWholesalerId(w.id); setCart([]); }}
                 style={{ width: '100%', padding: 14, borderRadius: 12, background: selectedWholesalerId === w.id ? 'rgba(245,158,11,0.06)' : '#FFFFFF', border: selectedWholesalerId === w.id ? '2px solid #F59E0B' : '1.5px solid #F1F5F9', textAlign: 'left', cursor: 'pointer', transition: 'all 0.15s' }}
               >
-                <div style={{ fontWeight: 800, color: '#1E293B', fontSize: 13 }}>{w.companyName}</div>
-                <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>{w.address}</div>
+                <div style={{ fontWeight: 800, color: 'var(--text-primary)', fontSize: 14 }}>{w.companyName}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{w.address}</div>
               </button>
             ))}
           </div>
@@ -767,10 +767,10 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
           {/* Wholesaler Stock Browse */}
           <div>
             {!selectedWholesaler ? (
-              <div style={{ background: '#FFFFFF', borderRadius: 16, border: '1.5px solid #F1F5F9', padding: 80, textAlign: 'center' }}>
+              <div style={{ background: 'var(--card-bg)', borderRadius: 16, border: '1px solid var(--card-border)', padding: 80, textAlign: 'center' }}>
                 <Building style={{ width: 48, height: 48, color: '#E2E8F0', margin: '0 auto 12px' }} />
-                <h3 style={{ fontSize: 15, fontWeight: 700, color: '#1E293B' }}>Choose a Wholesaler</h3>
-                <p style={{ fontSize: 12, color: '#94A3B8', marginTop: 4 }}>Select a wholesaler from the left panel to browse catalog and build order basket</p>
+                <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)' }}>Choose a Wholesaler</h3>
+                <p style={{ fontSize: 14, color: 'var(--text-muted)', marginTop: 4 }}>Select a wholesaler from the left panel to browse catalog and build order basket</p>
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -778,8 +778,8 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
                 {cart.length > 0 && (
                   <div style={{ background: 'rgba(245,158,11,0.06)', border: '1.5px solid rgba(245,158,11,0.2)', padding: '16px 20px', borderRadius: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
-                      <div style={{ fontSize: 14, fontWeight: 800, color: '#1E293B' }}>{cart.length} item(s) selected</div>
-                      <div style={{ fontSize: 11, color: '#94A3B8' }}>Est. Total: Rs. {cartTotal.toLocaleString()}</div>
+                      <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)' }}>{cart.length} item(s) selected</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Est. Total: Rs. {cartTotal.toLocaleString()}</div>
                     </div>
                     <form onSubmit={handlePlaceOrder} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                       {needsOverride && (
@@ -789,13 +789,13 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
                           placeholder="Provide limit override note..."
                           value={overrideMsg}
                           onChange={(e) => setOverrideMsg(e.target.value)}
-                          style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #EF4444', fontSize: 12 }}
+                          style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #EF4444', fontSize: 14 }}
                         />
                       )}
                       <button
                         type="submit"
                         disabled={placingOrder}
-                        style={{ padding: '10px 18px', background: '#F59E0B', color: '#FFFFFF', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 800, cursor: 'pointer' }}
+                        style={{ padding: '10px 18px', background: '#F59E0B', color: '#FFFFFF', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 800, cursor: 'pointer' }}
                       >
                         {placingOrder ? 'Submitting…' : 'Submit B2B Order'}
                       </button>
@@ -804,22 +804,22 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
                 )}
 
                 {orderMessage.text && (
-                  <div style={{ padding: '10px 14px', background: orderMessage.isError ? 'rgba(239,68,68,0.06)' : 'rgba(16,185,129,0.06)', border: `1px solid ${orderMessage.isError ? 'rgba(239,68,68,0.2)' : 'rgba(16,185,129,0.2)'}`, color: orderMessage.isError ? '#EF4444' : '#10B981', borderRadius: 8, fontSize: 12, fontWeight: 600 }}>
+                  <div style={{ padding: '10px 14px', background: orderMessage.isError ? 'rgba(239,68,68,0.06)' : 'rgba(16,185,129,0.06)', border: `1px solid ${orderMessage.isError ? 'rgba(239,68,68,0.2)' : 'rgba(16,185,129,0.2)'}`, color: orderMessage.isError ? '#EF4444' : '#10B981', borderRadius: 8, fontSize: 14, fontWeight: 600 }}>
                     {orderMessage.text}
                   </div>
                 )}
 
                 {/* Stock Table */}
-                <div style={{ background: '#FFFFFF', borderRadius: 16, border: '1.5px solid #F1F5F9', overflow: 'hidden' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                <div style={{ background: 'var(--card-bg)', borderRadius: 16, border: '1px solid var(--card-border)', overflow: 'hidden' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
                     <thead>
-                      <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #F1F5F9' }}>
-                        <th style={{ padding: '12px 20px', color: '#64748B', fontWeight: 700, textAlign: 'left' }}>Medicine Name</th>
-                        <th style={{ padding: '12px 20px', color: '#64748B', fontWeight: 700, textAlign: 'left' }}>Category</th>
-                        <th style={{ padding: '12px 20px', color: '#64748B', fontWeight: 700, textAlign: 'right' }}>Wholesaler Stock</th>
-                        <th style={{ padding: '12px 20px', color: '#64748B', fontWeight: 700, textAlign: 'right' }}>Price / Box</th>
-                        <th style={{ padding: '12px 20px', color: '#64748B', fontWeight: 700, textAlign: 'center' }}>Box Qty</th>
-                        <th style={{ padding: '12px 20px', color: '#64748B', fontWeight: 700, textAlign: 'center' }}>Action</th>
+                      <tr style={{ background: 'var(--table-header-bg)', borderBottom: '1px solid #F1F5F9' }}>
+                        <th style={{ padding: '12px 20px', color: 'var(--text-secondary)', fontWeight: 700, textAlign: 'left' }}>Medicine Name</th>
+                        <th style={{ padding: '12px 20px', color: 'var(--text-secondary)', fontWeight: 700, textAlign: 'left' }}>Category</th>
+                        <th style={{ padding: '12px 20px', color: 'var(--text-secondary)', fontWeight: 700, textAlign: 'right' }}>Wholesaler Stock</th>
+                        <th style={{ padding: '12px 20px', color: 'var(--text-secondary)', fontWeight: 700, textAlign: 'right' }}>Price / Box</th>
+                        <th style={{ padding: '12px 20px', color: 'var(--text-secondary)', fontWeight: 700, textAlign: 'center' }}>Box Qty</th>
+                        <th style={{ padding: '12px 20px', color: 'var(--text-secondary)', fontWeight: 700, textAlign: 'center' }}>Action</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -833,15 +833,15 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
                         return (
                           <tr key={prod.id} style={{ borderBottom: '1px solid #F8FAFC' }}>
                             <td style={{ padding: '12px 20px' }}>
-                              <div style={{ fontWeight: 800, color: '#1E293B' }}>{prod.name}</div>
-                              <div style={{ fontSize: 11, color: '#94A3B8', fontFamily: 'monospace' }}>{prod.sku}</div>
+                              <div style={{ fontWeight: 800, color: 'var(--text-primary)' }}>{prod.name}</div>
+                              <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'monospace' }}>{prod.sku}</div>
                             </td>
                             <td style={{ padding: '12px 20px' }}>
-                              <span style={{ padding: '3px 8px', borderRadius: 6, background: '#F1F5F9', fontSize: 11, fontWeight: 600, color: '#475569' }}>{prod.category}</span>
+                              <span style={{ padding: '3px 8px', borderRadius: 6, background: '#F1F5F9', fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)' }}>{prod.category}</span>
                             </td>
                             <td style={{ padding: '12px 20px', textAlign: 'right' }}>
                               <div style={{ fontWeight: 700 }}>{totalBoxes} boxes</div>
-                              <div style={{ fontSize: 10, color: '#94A3B8' }}>{totalUnits.toLocaleString()} units</div>
+                              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{totalUnits.toLocaleString()} units</div>
                             </td>
                             <td style={{ padding: '12px 20px', textAlign: 'right' }}>
                               <div style={{ fontWeight: 800, color: '#F59E0B' }}>Rs. {price.toLocaleString()}</div>
@@ -850,7 +850,7 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
                                   const tiers = JSON.parse(prod.tierPricingJson || '[]');
                                   if (tiers.length > 0) {
                                     return (
-                                      <div style={{ fontSize: 9, color: '#64748B', marginTop: 4 }}>
+                                      <div style={{ fontSize: 9, color: 'var(--text-secondary)', marginTop: 4 }}>
                                         {tiers.map((t: any, idx: number) => (
                                           <div key={idx}>
                                             {t.minQty}-{t.maxQty || '+'}: Rs. {t.pricePerBox}
@@ -871,7 +871,7 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
                                 max={totalBoxes}
                                 placeholder="0"
                                 defaultValue={cartItem ? String(cartItem.qtyBoxes) : ''}
-                                style={{ width: 60, padding: '5px', borderRadius: 6, border: '1px solid #E2E8F0', textAlign: 'center' }}
+                                style={{ width: 60, padding: '5px', borderRadius: 6, border: '1px solid var(--card-border)', textAlign: 'center' }}
                               />
                             </td>
                             <td style={{ padding: '12px 20px', textAlign: 'center' }}>
@@ -898,12 +898,12 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
       )}
 
       {activeTab === 'intake' && (
-        <div style={{ maxWidth: 540, background: '#FFFFFF', border: '1.5px solid #F1F5F9', borderRadius: 20, padding: 28, margin: '0 auto', boxShadow: '0 4px 20px rgba(0,0,0,0.03)' }}>
+        <div style={{ maxWidth: 540, background: 'var(--card-bg)', border: '1px solid var(--card-border)', borderRadius: 20, padding: 28, margin: '0 auto', boxShadow: '0 4px 20px rgba(0,0,0,0.03)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
             <QrCode style={{ width: 22, height: 22, color: '#F59E0B' }} />
-            <h3 style={{ fontSize: 16, fontWeight: 800, color: '#1E293B', margin: 0 }}>Confirm Dispatch Delivery</h3>
+            <h3 style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>Confirm Dispatch Delivery</h3>
           </div>
-          <p style={{ fontSize: 13, color: '#64748B', lineHeight: '20px', margin: '0 0 20px' }}>
+          <p style={{ fontSize: 14, color: 'var(--text-secondary)', lineHeight: '20px', margin: '0 0 20px' }}>
             Input the order barcode printed on the wholesaler dispatch slip. The package contents will automatically transfer and register in your active stock.
           </p>
           <form onSubmit={handleBarcodeIntake} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -913,19 +913,19 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
               placeholder="e.g. ORD-2BC02F83-1C7 or UUID"
               value={barcodeInput}
               onChange={(e) => setBarcodeInput(e.target.value)}
-              style={{ padding: '12px 14px', borderRadius: 8, border: '1.5px solid #E2E8F0', fontSize: 14, outline: 'none' }}
+              style={{ padding: '12px 14px', borderRadius: 8, border: '1px solid var(--card-border)', fontSize: 14, outline: 'none' }}
             />
             <button
               type="submit"
               disabled={barcodeLoading}
-              style={{ background: '#F59E0B', color: '#FFFFFF', border: 'none', borderRadius: 8, padding: '12px', fontSize: 13, fontWeight: 800, cursor: 'pointer' }}
+              style={{ background: '#F59E0B', color: '#FFFFFF', border: 'none', borderRadius: 8, padding: '12px', fontSize: 14, fontWeight: 800, cursor: 'pointer' }}
             >
               {barcodeLoading ? 'Verifying Dispatch…' : 'Confirm Package Delivery'}
             </button>
           </form>
 
           {barcodeMessage.text && (
-            <div style={{ marginTop: 16, padding: '12px 16px', background: barcodeMessage.isError ? 'rgba(239,68,68,0.06)' : 'rgba(16,185,129,0.06)', border: `1.5px solid ${barcodeMessage.isError ? 'rgba(239,68,68,0.2)' : 'rgba(16,185,129,0.2)'}`, color: barcodeMessage.isError ? '#EF4444' : '#10B981', borderRadius: 8, fontSize: 12, fontWeight: 600 }}>
+            <div style={{ marginTop: 16, padding: '12px 16px', background: barcodeMessage.isError ? 'rgba(239,68,68,0.06)' : 'rgba(16,185,129,0.06)', border: `1.5px solid ${barcodeMessage.isError ? 'rgba(239,68,68,0.2)' : 'rgba(16,185,129,0.2)'}`, color: barcodeMessage.isError ? '#EF4444' : '#10B981', borderRadius: 8, fontSize: 14, fontWeight: 600 }}>
               {barcodeMessage.text}
             </div>
           )}
@@ -936,9 +936,9 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
           {/* Delivery Fee Settings Panel */}
-          <div style={{ background: '#FFFFFF', borderRadius: 16, border: '1.5px solid #F1F5F9', overflow: 'hidden' }}>
+          <div style={{ background: 'var(--card-bg)', borderRadius: 16, border: '1px solid var(--card-border)', overflow: 'hidden' }}>
             <div
-              style={{ padding: '14px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', background: '#F8FAFC', borderBottom: deliverySettingsLoaded ? '1px solid #F1F5F9' : 'none' }}
+              style={{ padding: '14px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', background: 'var(--table-header-bg)', borderBottom: deliverySettingsLoaded ? '1px solid #F1F5F9' : 'none' }}
               onClick={async () => {
                 if (!deliverySettingsLoaded) {
                   const res = await getDeliveryFeeSettingsAction(profileId);
@@ -956,24 +956,24 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
                   <DollarSign style={{ width: 18, height: 18, color: '#10B981' }} />
                 </div>
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 800, color: '#1E293B' }}>Delivery Fee Settings</div>
-                  <div style={{ fontSize: 11, color: '#94A3B8' }}>Set km radius tiers and delivery charges for online orders</div>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)' }}>Delivery Fee Settings</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Set km radius tiers and delivery charges for online orders</div>
                 </div>
               </div>
-              <span style={{ fontSize: 12, color: '#64748B' }}>{deliverySettingsLoaded ? '▲ Collapse' : '▼ Expand'}</span>
+              <span style={{ fontSize: 14, color: 'var(--text-secondary)' }}>{deliverySettingsLoaded ? '▲ Collapse' : '▼ Expand'}</span>
             </div>
 
             {deliverySettingsLoaded && (
               <div style={{ padding: '18px 20px' }}>
-                <div style={{ marginBottom: 12, fontSize: 12, color: '#64748B' }}>
+                <div style={{ marginBottom: 12, fontSize: 14, color: 'var(--text-secondary)' }}>
                   Add tiers below — e.g. "Up to 5 km → Free (Rs. 0)", "Up to 10 km → Rs. 100". Customers beyond all tiers pay the last tier's fee.
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {deliveryTiers.map((tier, idx) => (
-                    <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 10, alignItems: 'center', background: '#F8FAFC', padding: '10px 14px', borderRadius: 10, border: '1px solid #E2E8F0' }}>
+                    <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 10, alignItems: 'center', background: 'var(--table-header-bg)', padding: '10px 14px', borderRadius: 10, border: '1px solid var(--card-border)' }}>
                       <div>
-                        <label style={{ fontSize: 10, fontWeight: 800, color: '#64748B', textTransform: 'uppercase', display: 'block', marginBottom: 3 }}>Up to (km)</label>
+                        <label style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', display: 'block', marginBottom: 3 }}>Up to (km)</label>
                         <input
                           type="number" min="0.1" step="0.5"
                           value={tier.maxKm}
@@ -982,11 +982,11 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
                             updated[idx] = { ...updated[idx], maxKm: parseFloat(e.target.value) || 0 };
                             setDeliveryTiers(updated);
                           }}
-                          style={{ width: '100%', padding: '7px 10px', borderRadius: 7, border: '1px solid #CBD5E1', fontSize: 13, outline: 'none' }}
+                          style={{ width: '100%', padding: '7px 10px', borderRadius: 7, border: '1px solid #CBD5E1', fontSize: 14, outline: 'none' }}
                         />
                       </div>
                       <div>
-                        <label style={{ fontSize: 10, fontWeight: 800, color: '#64748B', textTransform: 'uppercase', display: 'block', marginBottom: 3 }}>Delivery Fee (Rs.)</label>
+                        <label style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', display: 'block', marginBottom: 3 }}>Delivery Fee (Rs.)</label>
                         <input
                           type="number" min="0"
                           value={tier.fee}
@@ -995,7 +995,7 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
                             updated[idx] = { ...updated[idx], fee: parseFloat(e.target.value) || 0 };
                             setDeliveryTiers(updated);
                           }}
-                          style={{ width: '100%', padding: '7px 10px', borderRadius: 7, border: '1px solid #CBD5E1', fontSize: 13, outline: 'none' }}
+                          style={{ width: '100%', padding: '7px 10px', borderRadius: 7, border: '1px solid #CBD5E1', fontSize: 14, outline: 'none' }}
                           placeholder="0 = Free"
                         />
                       </div>
@@ -1012,19 +1012,19 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
                 <div style={{ display: 'flex', gap: 10, marginTop: 12, flexWrap: 'wrap', alignItems: 'center' }}>
                   <button
                     onClick={() => setDeliveryTiers([...deliveryTiers, { maxKm: 5, fee: 0 }])}
-                    style={{ padding: '8px 14px', background: '#F1F5F9', color: '#475569', border: '1px solid #E2E8F0', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                    style={{ padding: '8px 14px', background: '#F1F5F9', color: 'var(--text-secondary)', border: '1px solid var(--card-border)', borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}
                   >
                     + Add Tier
                   </button>
                   <button
                     onClick={saveDeliverySettings}
                     disabled={deliverySettingsSaving}
-                    style={{ padding: '8px 18px', background: '#10B981', color: '#FFFFFF', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 800, cursor: 'pointer' }}
+                    style={{ padding: '8px 18px', background: '#10B981', color: '#FFFFFF', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 800, cursor: 'pointer' }}
                   >
                     {deliverySettingsSaving ? 'Saving...' : 'Save Fee Settings'}
                   </button>
                   {deliverySettingsMsg.text && (
-                    <span style={{ fontSize: 12, fontWeight: 700, color: deliverySettingsMsg.isError ? '#EF4444' : '#10B981' }}>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: deliverySettingsMsg.isError ? '#EF4444' : '#10B981' }}>
                       {deliverySettingsMsg.text}
                     </span>
                   )}
@@ -1034,22 +1034,22 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
           </div>
 
           {/* Filters */}
-          <div style={{ display: 'flex', gap: 12, padding: '14px 18px', background: '#FFFFFF', borderRadius: 14, border: '1.5px solid #F1F5F9', flexWrap: 'wrap', alignItems: 'center' }}>
-            <div style={{ flex: 1, minWidth: 200, display: 'flex', alignItems: 'center', gap: 8, background: '#F8FAFC', padding: '8px 14px', borderRadius: 8, border: '1px solid #E2E8F0' }}>
-              <Search style={{ width: 14, height: 14, color: '#94A3B8' }} />
+          <div style={{ display: 'flex', gap: 12, padding: '14px 18px', background: 'var(--card-bg)', borderRadius: 14, border: '1px solid var(--card-border)', flexWrap: 'wrap', alignItems: 'center' }}>
+            <div style={{ flex: 1, minWidth: 200, display: 'flex', alignItems: 'center', gap: 8, background: 'var(--table-header-bg)', padding: '8px 14px', borderRadius: 8, border: '1px solid var(--card-border)' }}>
+              <Search style={{ width: 14, height: 14, color: 'var(--text-muted)' }} />
               <input
                 type="text"
                 placeholder="Search tracker code, customer name, email, phone…"
                 value={filterSearch}
                 onChange={(e) => setFilterSearch(e.target.value)}
-                style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%', fontSize: 12, color: '#334155' }}
+                style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%', fontSize: 14, color: '#334155' }}
               />
             </div>
 
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
-              style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 12, outline: 'none', background: '#F8FAFC', color: '#475569', fontWeight: 600 }}
+              style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--card-border)', fontSize: 14, outline: 'none', background: 'var(--table-header-bg)', color: 'var(--text-secondary)', fontWeight: 600 }}
             >
               <option value="all">All Orders</option>
               <option value="PENDING">PENDING</option>
@@ -1059,7 +1059,7 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
               <option value="RETURNED">RETURNED</option>
             </select>
 
-            <div style={{ fontSize: 12, color: '#94A3B8', fontWeight: 600 }}>
+            <div style={{ fontSize: 14, color: 'var(--text-muted)', fontWeight: 600 }}>
               {filteredConsumer.length} matching entries
             </div>
           </div>
@@ -1067,21 +1067,21 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
           {/* Cards/List */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 16 }}>
             {filteredConsumer.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '80px', color: '#94A3B8', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, background: '#FFFFFF', borderRadius: 16, border: '1.5px solid #F1F5F9' }}>
+              <div style={{ textAlign: 'center', padding: '80px', color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, background: 'var(--card-bg)', borderRadius: 16, border: '1px solid var(--card-border)' }}>
                 <ShoppingBag style={{ width: 48, height: 48, color: '#E2E8F0' }} />
                 <div style={{ fontSize: 14, fontWeight: 600 }}>No B2C online orders found</div>
               </div>
             ) : (
               filteredConsumer.map((order) => {
-                const sm = STATUS_META[order.status] || { color: '#64748B', bg: 'rgba(100,116,139,0.08)', icon: AlertCircle };
+                const sm = STATUS_META[order.status] || { color: 'var(--text-secondary)', bg: 'rgba(100,116,139,0.08)', icon: AlertCircle };
                 const StatusIcon = sm.icon;
 
                 return (
-                  <div key={order.id} style={{ background: '#FFFFFF', borderRadius: 16, border: '1.5px solid #F1F5F9', padding: 20, boxShadow: '0 2px 8px rgba(0,0,0,0.02)', display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  <div key={order.id} style={{ background: 'var(--card-bg)', borderRadius: 16, border: '1px solid var(--card-border)', padding: 20, boxShadow: 'none', display: 'flex', flexDirection: 'column', gap: 16 }}>
                     {/* Top Row */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, borderBottom: '1px solid #F1F5F9', paddingBottom: 12 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <span style={{ fontSize: 15, fontWeight: 900, color: '#1E293B', fontFamily: 'monospace' }}>
+                        <span style={{ fontSize: 18, fontWeight: 900, color: 'var(--text-primary)', fontFamily: 'monospace' }}>
                           {order.trackingCode}
                         </span>
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, color: sm.color, background: sm.bg }}>
@@ -1089,7 +1089,7 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
                           {order.status}
                         </span>
                       </div>
-                      <div style={{ fontSize: 12, color: '#94A3B8' }}>
+                      <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>
                         {new Date(order.createdAt).toLocaleString()}
                       </div>
                     </div>
@@ -1098,8 +1098,8 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
                     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(200px, 1.2fr) minmax(250px, 2fr)', gap: 24 }}>
                       {/* Customer & Delivery Details */}
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                        <div style={{ fontSize: 10, color: '#94A3B8', fontWeight: 800, textTransform: 'uppercase' }}>Customer & Delivery</div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: '#F8FAFC', padding: 12, borderRadius: 10, fontSize: 12 }}>
+                        <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase' }}>Customer & Delivery</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: 'var(--table-header-bg)', padding: 12, borderRadius: 10, fontSize: 14 }}>
                           <div><strong>Name:</strong> {order.buyerName}</div>
                           <div><strong>Email:</strong> {order.buyerEmail}</div>
                           <div><strong>Phone:</strong> {order.buyerPhone}</div>
@@ -1107,7 +1107,7 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
                             <strong>Address:</strong> {order.deliveryAddress}
                           </div>
                           {(order.latitude && order.longitude) && (
-                            <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>
+                            <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
                               Coords: {order.latitude.toFixed(5)}, {order.longitude.toFixed(5)}
                             </div>
                           )}
@@ -1116,17 +1116,17 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
 
                       {/* Items List */}
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                        <div style={{ fontSize: 10, color: '#94A3B8', fontWeight: 800, textTransform: 'uppercase' }}>Items Ordered</div>
+                        <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase' }}>Items Ordered</div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                           {order.items.map((item: any) => (
-                            <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#F8FAFC', padding: '8px 12px', borderRadius: 8, fontSize: 12 }}>
+                            <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--table-header-bg)', padding: '8px 12px', borderRadius: 8, fontSize: 14 }}>
                               <div>
-                                <span style={{ fontWeight: 700, color: '#1E293B' }}>{item.product.name}</span>
-                                <span style={{ color: '#94A3B8', fontSize: 10, marginLeft: 6 }}>{item.product.sku}</span>
+                                <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{item.product.name}</span>
+                                <span style={{ color: 'var(--text-muted)', fontSize: 12, marginLeft: 6 }}>{item.product.sku}</span>
                               </div>
                               <div style={{ textAlign: 'right' }}>
                                 <span style={{ fontWeight: 800, color: '#334155' }}>Rs. {(item.quantity * item.pricePerUnit).toLocaleString()}</span>
-                                <div style={{ fontSize: 10, color: '#94A3B8' }}>{item.quantity} base units @ Rs. {item.pricePerUnit}</div>
+                                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{item.quantity} base units @ Rs. {item.pricePerUnit}</div>
                               </div>
                             </div>
                           ))}
@@ -1137,7 +1137,7 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
                     {/* Bottom Row: Total & Actions */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, borderTop: '1px solid #F1F5F9', paddingTop: 14 }}>
                       <div>
-                        <div style={{ fontSize: 10, color: '#94A3B8', fontWeight: 800 }}>TOTAL AMOUNT (COD)</div>
+                        <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 800 }}>TOTAL AMOUNT (COD)</div>
                         <div style={{ fontSize: 18, fontWeight: 900, color: '#10B981', marginTop: 2 }}>
                           Rs. {order.totalAmount.toLocaleString()}
                         </div>
@@ -1149,14 +1149,14 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
                             <button
                               onClick={() => handleUpdateConsumerStatus(order.id, 'SHIPPED')}
                               disabled={barcodeLoading}
-                              style={{ padding: '8px 14px', background: '#8B5CF6', color: '#FFFFFF', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+                              style={{ padding: '8px 14px', background: '#8B5CF6', color: '#FFFFFF', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
                             >
                               <Truck style={{ width: 14, height: 14 }} /> Ship Order
                             </button>
                             <button
                               onClick={() => handleUpdateConsumerStatus(order.id, 'FAILED')}
                               disabled={barcodeLoading}
-                              style={{ padding: '8px 14px', background: '#EF4444', color: '#FFFFFF', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 800, cursor: 'pointer' }}
+                              style={{ padding: '8px 14px', background: '#EF4444', color: '#FFFFFF', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 800, cursor: 'pointer' }}
                             >
                               Cancel Order
                             </button>
@@ -1167,14 +1167,14 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
                             <button
                               onClick={() => handleUpdateConsumerStatus(order.id, 'DELIVERED')}
                               disabled={barcodeLoading}
-                              style={{ padding: '8px 14px', background: '#10B981', color: '#FFFFFF', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+                              style={{ padding: '8px 14px', background: '#10B981', color: '#FFFFFF', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
                             >
                               <CheckCircle style={{ width: 14, height: 14 }} /> Deliver Order
                             </button>
                             <button
                               onClick={() => handleUpdateConsumerStatus(order.id, 'FAILED')}
                               disabled={barcodeLoading}
-                              style={{ padding: '8px 14px', background: '#EF4444', color: '#FFFFFF', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 800, cursor: 'pointer' }}
+                              style={{ padding: '8px 14px', background: '#EF4444', color: '#FFFFFF', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 800, cursor: 'pointer' }}
                             >
                               Mark Failed
                             </button>
@@ -1197,10 +1197,10 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
 
       {/* ── Order Detail Modal ── */}
       {selectedOrder && (() => {
-        const sm = STATUS_META[selectedOrder.status] || { color: '#64748B', bg: 'rgba(100,116,139,0.08)', icon: AlertCircle };
+        const sm = STATUS_META[selectedOrder.status] || { color: 'var(--text-secondary)', bg: 'rgba(100,116,139,0.08)', icon: AlertCircle };
         return (
           <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(15,23,42,0.35)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-            <div style={{ width: '100%', maxWidth: 580, background: '#FFFFFF', borderRadius: 24, border: '1.5px solid #F1F5F9', overflow: 'hidden', boxShadow: '0 24px 60px rgba(0,0,0,0.12)', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}>
+            <div style={{ width: '100%', maxWidth: 580, background: 'var(--card-bg)', borderRadius: 24, border: '1px solid var(--card-border)', overflow: 'hidden', boxShadow: 'none', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}>
               
               {/* Header */}
               <div style={{ padding: '22px 28px', borderBottom: '1px solid #F1F5F9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1209,15 +1209,15 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
                     <FileText style={{ width: 20, height: 20, color: '#F59E0B' }} />
                   </div>
                   <div>
-                    <h3 style={{ fontSize: 16, fontWeight: 900, color: '#1E293B', margin: 0 }}>B2B Order Detail</h3>
-                    <p style={{ fontSize: 12, color: '#94A3B8', margin: 0, fontFamily: 'monospace' }}>#{selectedOrder.id.toUpperCase()}</p>
+                    <h3 style={{ fontSize: 16, fontWeight: 900, color: 'var(--text-primary)', margin: 0 }}>B2B Order Detail</h3>
+                    <p style={{ fontSize: 14, color: 'var(--text-muted)', margin: 0, fontFamily: 'monospace' }}>#{selectedOrder.id.toUpperCase()}</p>
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                   <span style={{ padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, color: sm.color, background: sm.bg }}>
                     {selectedOrder.status}
                   </span>
-                  <button onClick={() => setSelectedOrder(null)} style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: '6px', cursor: 'pointer', color: '#64748B' }}>
+                  <button onClick={() => setSelectedOrder(null)} style={{ background: 'var(--table-header-bg)', border: '1px solid var(--card-border)', borderRadius: 8, padding: '6px', cursor: 'pointer', color: 'var(--text-secondary)' }}>
                     <X style={{ width: 16, height: 16 }} />
                   </button>
                 </div>
@@ -1227,31 +1227,31 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
               <div style={{ padding: 28, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
                 {/* Meta details */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                  <div style={{ background: '#F8FAFC', padding: 14, borderRadius: 12 }}>
-                    <div style={{ fontSize: 10, color: '#94A3B8', fontWeight: 700 }}>SUPPLIER WHOLESALER</div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: '#1E293B', marginTop: 4 }}>{selectedOrder.wholesaler.companyName}</div>
-                    <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>{selectedOrder.wholesaler.phone} · {selectedOrder.wholesaler.address}</div>
+                  <div style={{ background: 'var(--table-header-bg)', padding: 14, borderRadius: 12 }}>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 700 }}>SUPPLIER WHOLESALER</div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', marginTop: 4 }}>{selectedOrder.wholesaler.companyName}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>{selectedOrder.wholesaler.phone} · {selectedOrder.wholesaler.address}</div>
                   </div>
-                  <div style={{ background: '#F8FAFC', padding: 14, borderRadius: 12 }}>
-                    <div style={{ fontSize: 10, color: '#94A3B8', fontWeight: 700 }}>CREATION DATE</div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: '#1E293B', marginTop: 4 }}>{new Date(selectedOrder.createdAt).toLocaleString()}</div>
-                    <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>Barcode: ORD-{selectedOrder.id.substring(0, 12).toUpperCase()}</div>
+                  <div style={{ background: 'var(--table-header-bg)', padding: 14, borderRadius: 12 }}>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 700 }}>CREATION DATE</div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', marginTop: 4 }}>{new Date(selectedOrder.createdAt).toLocaleString()}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>Barcode: ORD-{selectedOrder.id.substring(0, 12).toUpperCase()}</div>
                   </div>
                 </div>
 
                 {/* Items */}
                 <div>
-                  <div style={{ fontSize: 10, color: '#94A3B8', fontWeight: 700, marginBottom: 8 }}>MEDICINE BASKET</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 700, marginBottom: 8 }}>MEDICINE BASKET</div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {selectedOrder.items.map((item) => (
-                      <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#F8FAFC', padding: 12, borderRadius: 10 }}>
+                      <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--table-header-bg)', padding: 12, borderRadius: 10 }}>
                         <div>
-                          <div style={{ fontSize: 13, fontWeight: 700, color: '#1E293B' }}>{item.product.name}</div>
-                          <div style={{ fontSize: 11, color: '#94A3B8', fontFamily: 'monospace' }}>{item.product.sku}</div>
+                          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>{item.product.name}</div>
+                          <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'monospace' }}>{item.product.sku}</div>
                         </div>
                         <div style={{ textAlign: 'right' }}>
-                          <div style={{ fontSize: 13, fontWeight: 800, color: '#1E293B' }}>Rs. {(item.quantity * item.pricePerUnit).toLocaleString()}</div>
-                          <div style={{ fontSize: 10, color: '#94A3B8' }}>{item.quantity} units × Rs. {item.pricePerUnit.toLocaleString()}</div>
+                          <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)' }}>Rs. {(item.quantity * item.pricePerUnit).toLocaleString()}</div>
+                          <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{item.quantity} units × Rs. {item.pricePerUnit.toLocaleString()}</div>
                         </div>
                       </div>
                     ))}
@@ -1260,17 +1260,17 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
 
                 {/* Pricing Summary */}
                 <div style={{ borderTop: '1px solid #E2E8F0', paddingTop: 14, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#64748B' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: 'var(--text-secondary)' }}>
                     <span>Gross cost:</span>
                     <span>Rs. {selectedOrder.totalAmount.toLocaleString()}</span>
                   </div>
                   {selectedOrder.discountAmount > 0 && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#EF4444' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: '#EF4444' }}>
                       <span>Loyalty Discount:</span>
                       <span>-Rs. {selectedOrder.discountAmount.toLocaleString()}</span>
                     </div>
                   )}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15, fontWeight: 900, color: '#1E293B', marginTop: 4 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 18, fontWeight: 900, color: 'var(--text-primary)', marginTop: 4 }}>
                     <span>Net Cost:</span>
                     <span>Rs. {selectedOrder.netAmount.toLocaleString()}</span>
                   </div>
@@ -1278,11 +1278,11 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
               </div>
 
               {/* Footer */}
-              <div style={{ padding: '18px 28px', borderTop: '1px solid #F1F5F9', display: 'flex', gap: 12, background: '#F8FAFC' }}>
-                <button onClick={() => setSelectedOrder(null)} style={{ flex: 1, padding: 11, borderRadius: 10, border: '1.5px solid #E2E8F0', background: '#FFFFFF', color: '#475569', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+              <div style={{ padding: '18px 28px', borderTop: '1px solid #F1F5F9', display: 'flex', gap: 12, background: 'var(--table-header-bg)' }}>
+                <button onClick={() => setSelectedOrder(null)} style={{ flex: 1, padding: 11, borderRadius: 10, border: '1px solid var(--card-border)', background: 'var(--card-bg)', color: 'var(--text-secondary)', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
                   Close
                 </button>
-                <button onClick={() => { setPrintPreviewOrder(selectedOrder); setSelectedOrder(null); }} style={{ flex: 2, padding: 11, borderRadius: 10, border: 'none', background: '#F59E0B', color: '#FFFFFF', fontSize: 13, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                <button onClick={() => { setPrintPreviewOrder(selectedOrder); setSelectedOrder(null); }} style={{ flex: 2, padding: 11, borderRadius: 10, border: 'none', background: '#F59E0B', color: '#FFFFFF', fontSize: 14, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
                   <Printer style={{ width: 14, height: 14 }} />
                   Show Print Preview
                 </button>
@@ -1295,18 +1295,18 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
       {/* ── Print Preview Modal ── */}
       {printPreviewOrder && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 210, background: 'rgba(15,23,42,0.4)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-          <div style={{ width: '100%', maxWidth: 500, background: '#FFFFFF', borderRadius: 20, overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 60px rgba(0,0,0,0.15)' }}>
+          <div style={{ width: '100%', maxWidth: 500, background: 'var(--card-bg)', borderRadius: 20, overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 60px rgba(0,0,0,0.15)' }}>
             <div style={{ padding: '16px 20px', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontWeight: 800, fontSize: 14, color: '#1E293B' }}>Voucher Print Preview</span>
-              <button onClick={() => setPrintPreviewOrder(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8' }}>
+              <span style={{ fontWeight: 800, fontSize: 14, color: 'var(--text-primary)' }}>Voucher Print Preview</span>
+              <button onClick={() => setPrintPreviewOrder(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
                 <X style={{ width: 16, height: 16 }} />
               </button>
             </div>
             
             {/* Styled Voucher Preview */}
-            <div style={{ padding: 24, overflowY: 'auto', flex: 1, background: '#F8FAFC' }}>
-              <div style={{ background: '#FFFFFF', border: '1.5px solid #E2E8F0', borderRadius: 8, padding: 20, fontFamily: 'monospace', color: '#000', fontSize: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
-                <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: 15, marginBottom: 4 }}>MEDHUB PHARMACY NODE</div>
+            <div style={{ padding: 24, overflowY: 'auto', flex: 1, background: 'var(--table-header-bg)' }}>
+              <div style={{ background: 'var(--card-bg)', border: '1px solid var(--card-border)', borderRadius: 8, padding: 20, fontFamily: 'monospace', color: '#000', fontSize: 14, boxShadow: 'none' }}>
+                <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: 18, marginBottom: 4 }}>MEDHUB PHARMACY NODE</div>
                 <div style={{ textAlign: 'center', fontSize: 11, borderBottom: '1px dashed #000', paddingBottom: 10, marginBottom: 12 }}>B2B PURCHASE ORDER VOUCHER</div>
                 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 14 }}>
@@ -1338,16 +1338,16 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
                 <div style={{ textAlign: 'right', borderTop: '1px dashed #000', paddingTop: 8, display: 'flex', flexDirection: 'column', gap: 2 }}>
                   <div>Gross Total: Rs. {printPreviewOrder.totalAmount.toLocaleString()}</div>
                   {printPreviewOrder.discountAmount > 0 && <div style={{ color: 'red' }}>Discount: -Rs. {printPreviewOrder.discountAmount.toLocaleString()}</div>}
-                  <div style={{ fontWeight: 'bold', fontSize: 13, marginTop: 4 }}>NET PAYABLE: Rs. {printPreviewOrder.netAmount.toLocaleString()}</div>
+                  <div style={{ fontWeight: 'bold', fontSize: 14, marginTop: 4 }}>NET PAYABLE: Rs. {printPreviewOrder.netAmount.toLocaleString()}</div>
                 </div>
               </div>
             </div>
 
-            <div style={{ padding: '16px 20px', borderTop: '1px solid #E2E8F0', display: 'flex', gap: 10, background: '#FFFFFF' }}>
-              <button onClick={() => setPrintPreviewOrder(null)} style={{ flex: 1, padding: 11, borderRadius: 8, border: '1.5px solid #E2E8F0', background: '#FFFFFF', color: '#475569', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+            <div style={{ padding: '16px 20px', borderTop: '1px solid #E2E8F0', display: 'flex', gap: 10, background: 'var(--card-bg)' }}>
+              <button onClick={() => setPrintPreviewOrder(null)} style={{ flex: 1, padding: 11, borderRadius: 8, border: '1px solid var(--card-border)', background: 'var(--card-bg)', color: 'var(--text-secondary)', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
                 Back
               </button>
-              <button onClick={() => printOrderVoucher(printPreviewOrder)} style={{ flex: 2, padding: 11, borderRadius: 8, border: 'none', background: '#10B981', color: '#FFFFFF', fontSize: 12, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+              <button onClick={() => printOrderVoucher(printPreviewOrder)} style={{ flex: 2, padding: 11, borderRadius: 8, border: 'none', background: '#10B981', color: '#FFFFFF', fontSize: 14, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
                 <Printer style={{ width: 14, height: 14 }} />
                 Print Voucher
               </button>
@@ -1358,20 +1358,20 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
       {/* ── Confirm & Settle Package Intake Modal ── */}
       {intakeOrder && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 220, background: 'rgba(15,23,42,0.35)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-          <div style={{ width: '100%', maxWidth: 650, background: '#FFFFFF', borderRadius: 24, border: '1.5px solid #E2E8F0', overflow: 'hidden', boxShadow: '0 24px 60px rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}>
+          <div style={{ width: '100%', maxWidth: 650, background: 'var(--card-bg)', borderRadius: 24, border: '1px solid var(--card-border)', overflow: 'hidden', boxShadow: '0 24px 60px rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}>
             
             {/* Header */}
-            <div style={{ padding: '20px 24px', background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ padding: '20px 24px', background: 'var(--table-header-bg)', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div style={{ width: 38, height: 38, borderRadius: 10, background: 'rgba(245,158,11,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <QrCode style={{ width: 18, height: 18, color: '#F59E0B' }} />
                 </div>
                 <div>
-                  <h3 style={{ fontSize: 15, fontWeight: 900, color: '#1E293B', margin: 0 }}>Confirm B2B Intake & Pricing</h3>
-                  <p style={{ fontSize: 11, color: '#64748B', margin: 0 }}>Order ID: #{intakeOrder.id.toUpperCase()}</p>
+                  <h3 style={{ fontSize: 18, fontWeight: 900, color: 'var(--text-primary)', margin: 0 }}>Confirm B2B Intake & Pricing</h3>
+                  <p style={{ fontSize: 11, color: 'var(--text-secondary)', margin: 0 }}>Order ID: #{intakeOrder.id.toUpperCase()}</p>
                 </div>
               </div>
-              <button onClick={() => setIntakeOrder(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8' }}>
+              <button onClick={() => setIntakeOrder(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
                 <X style={{ width: 18, height: 18 }} />
               </button>
             </div>
@@ -1382,32 +1382,32 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
               {/* Wholesaler info */}
               <div style={{ background: 'rgba(245,158,11,0.03)', border: '1px dashed rgba(245,158,11,0.3)', padding: 14, borderRadius: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
-                  <div style={{ fontSize: 10, color: '#94A3B8', fontWeight: 700 }}>SUPPLIER WHOLESALER</div>
-                  <div style={{ fontSize: 13, fontWeight: 800, color: '#1E293B', marginTop: 2 }}>{intakeOrder.wholesaler?.companyName}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 700 }}>SUPPLIER WHOLESALER</div>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)', marginTop: 2 }}>{intakeOrder.wholesaler?.companyName}</div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: 10, color: '#94A3B8', fontWeight: 700 }}>NET PAYABLE</div>
-                  <div style={{ fontSize: 15, fontWeight: 900, color: '#F59E0B', marginTop: 2 }}>Rs. {intakeOrder.netAmount?.toLocaleString()}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 700 }}>NET PAYABLE</div>
+                  <div style={{ fontSize: 18, fontWeight: 900, color: '#F59E0B', marginTop: 2 }}>Rs. {intakeOrder.netAmount?.toLocaleString()}</div>
                 </div>
               </div>
 
               {/* Items Table */}
               <div>
-                <div style={{ fontSize: 11, color: '#64748B', fontWeight: 800, textTransform: 'uppercase', marginBottom: 10 }}>Configure Medicine Pricing (Per Box)</div>
+                <div style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: 10 }}>Configure Medicine Pricing (Per Box)</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {intakeOrder.items.map((item: any) => {
                     const priceKey = item.productId;
                     const val = intakeCustomPrices[priceKey] || { buyingPrice: 0, sellingPrice: 0 };
                     return (
-                      <div key={item.id} style={{ background: '#F8FAFC', border: '1.5px solid #F1F5F9', borderRadius: 12, padding: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+                      <div key={item.id} style={{ background: 'var(--table-header-bg)', border: '1px solid var(--card-border)', borderRadius: 12, padding: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
                         <div style={{ minWidth: 150 }}>
-                          <div style={{ fontSize: 13, fontWeight: 800, color: '#1E293B' }}>{item.product.name}</div>
-                          <div style={{ fontSize: 10, color: '#94A3B8', marginTop: 2 }}>Qty: {item.quantity} base units</div>
+                          <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)' }}>{item.product.name}</div>
+                          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>Qty: {item.quantity} base units</div>
                         </div>
                         <div style={{ display: 'flex', gap: 12 }}>
                           {/* Buying price per box */}
                           <div>
-                            <label style={{ fontSize: 9, fontWeight: 750, color: '#64748B', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Buying Price / Box</label>
+                            <label style={{ fontSize: 9, fontWeight: 750, color: 'var(--text-secondary)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Buying Price / Box</label>
                             <input
                               type="number"
                               value={val.buyingPrice}
@@ -1415,12 +1415,12 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
                                 ...intakeCustomPrices,
                                 [priceKey]: { ...val, buyingPrice: parseFloat(e.target.value) || 0 }
                               })}
-                              style={{ width: 100, padding: '6px 10px', borderRadius: 6, border: '1.5px solid #E2E8F0', fontSize: 12, outline: 'none' }}
+                              style={{ width: 100, padding: '6px 10px', borderRadius: 6, border: '1px solid var(--card-border)', fontSize: 14, outline: 'none' }}
                             />
                           </div>
                           {/* Selling price per box */}
                           <div>
-                            <label style={{ fontSize: 9, fontWeight: 750, color: '#64748B', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Selling Price / Box</label>
+                            <label style={{ fontSize: 9, fontWeight: 750, color: 'var(--text-secondary)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Selling Price / Box</label>
                             <input
                               type="number"
                               value={val.sellingPrice}
@@ -1428,7 +1428,7 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
                                 ...intakeCustomPrices,
                                 [priceKey]: { ...val, sellingPrice: parseFloat(e.target.value) || 0 }
                               })}
-                              style={{ width: 100, padding: '6px 10px', borderRadius: 6, border: '1.5px solid #E2E8F0', fontSize: 12, outline: 'none' }}
+                              style={{ width: 100, padding: '6px 10px', borderRadius: 6, border: '1px solid var(--card-border)', fontSize: 14, outline: 'none' }}
                             />
                           </div>
                         </div>
@@ -1447,10 +1447,10 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
                     placeholder="Scan package barcode (e.g. ORD-XXXX)"
                     value={intakeBarcodeVerification}
                     onChange={(e) => setIntakeBarcodeVerification(e.target.value)}
-                    style={{ width: '100%', padding: '10px 14px', borderRadius: 8, border: '1.5px solid #E2E8F0', outline: 'none', fontSize: 13 }}
+                    style={{ width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid var(--card-border)', outline: 'none', fontSize: 14 }}
                   />
                   {intakeBarcodeVerification.trim().toUpperCase() === `ORD-${intakeOrder.id.substring(0, 12).toUpperCase()}` ? (
-                    <div style={{ fontSize: 12, color: '#10B981', fontWeight: 800, display: 'flex', alignItems: 'center', gap: 4, marginTop: 4 }}>
+                    <div style={{ fontSize: 14, color: '#10B981', fontWeight: 800, display: 'flex', alignItems: 'center', gap: 4, marginTop: 4 }}>
                       <CheckCircle style={{ width: 14, height: 14 }} /> Barcode verified successfully.
                     </div>
                   ) : (
@@ -1471,28 +1471,28 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
                     onChange={(e) => setIntakeSettleNow(e.target.checked)}
                     style={{ width: 16, height: 16, accentColor: '#F59E0B' }}
                   />
-                  <label htmlFor="settle-now-chk" style={{ fontSize: 13, fontWeight: 800, color: '#1E293B', cursor: 'pointer' }}>
+                  <label htmlFor="settle-now-chk" style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)', cursor: 'pointer' }}>
                     Settle Payment Immediately on Delivery
                   </label>
                 </div>
 
                 {intakeSettleNow && (
-                  <div style={{ background: '#F8FAFC', border: '1.5px solid #E2E8F0', borderRadius: 12, padding: 16, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                  <div style={{ background: 'var(--table-header-bg)', border: '1px solid var(--card-border)', borderRadius: 12, padding: 16, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
                     <div>
-                      <label style={{ fontSize: 11, fontWeight: 750, color: '#475569', display: 'block', marginBottom: 6 }}>Settle Amount (Rs.)</label>
+                      <label style={{ fontSize: 11, fontWeight: 750, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>Settle Amount (Rs.)</label>
                       <input
                         type="number"
                         value={intakeSettleAmount}
                         onChange={(e) => setIntakeSettleAmount(e.target.value)}
-                        style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1.5px solid #CBD5E1', fontSize: 13, outline: 'none' }}
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1.5px solid #CBD5E1', fontSize: 14, outline: 'none' }}
                       />
                     </div>
                     <div>
-                      <label style={{ fontSize: 11, fontWeight: 750, color: '#475569', display: 'block', marginBottom: 6 }}>Method</label>
+                      <label style={{ fontSize: 11, fontWeight: 750, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>Method</label>
                       <select
                         value={intakeSettleMethod}
                         onChange={(e) => setIntakeSettleMethod(e.target.value)}
-                        style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1.5px solid #CBD5E1', fontSize: 13, outline: 'none', background: '#FFFFFF' }}
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1.5px solid #CBD5E1', fontSize: 14, outline: 'none', background: 'var(--card-bg)' }}
                       >
                         <option value="CASH">Cash</option>
                         <option value="COD">Cash on Delivery (COD)</option>
@@ -1505,14 +1505,14 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
             </div>
 
             {/* Footer */}
-            <div style={{ padding: '16px 24px', background: '#F8FAFC', borderTop: '1px solid #E2E8F0', display: 'flex', gap: 12 }}>
-              <button onClick={() => setIntakeOrder(null)} style={{ flex: 1, padding: 11, borderRadius: 8, border: '1.5px solid #E2E8F0', background: '#FFFFFF', color: '#475569', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+            <div style={{ padding: '16px 24px', background: 'var(--table-header-bg)', borderTop: '1px solid #E2E8F0', display: 'flex', gap: 12 }}>
+              <button onClick={() => setIntakeOrder(null)} style={{ flex: 1, padding: 11, borderRadius: 8, border: '1px solid var(--card-border)', background: 'var(--card-bg)', color: 'var(--text-secondary)', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
                 Cancel
               </button>
               <button
                 onClick={handleConfirmIntakeSubmit}
                 disabled={barcodeLoading || intakeBarcodeVerification.trim().toUpperCase() !== `ORD-${intakeOrder.id.substring(0, 12).toUpperCase()}`}
-                style={{ flex: 2, padding: 11, borderRadius: 8, border: 'none', background: intakeBarcodeVerification.trim().toUpperCase() === `ORD-${intakeOrder.id.substring(0, 12).toUpperCase()}` ? 'linear-gradient(135deg, #F59E0B, #D97706)' : '#CBD5E1', color: '#FFFFFF', fontSize: 13, fontWeight: 800, cursor: intakeBarcodeVerification.trim().toUpperCase() === `ORD-${intakeOrder.id.substring(0, 12).toUpperCase()}` ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                style={{ flex: 2, padding: 11, borderRadius: 8, border: 'none', background: intakeBarcodeVerification.trim().toUpperCase() === `ORD-${intakeOrder.id.substring(0, 12).toUpperCase()}` ? 'linear-gradient(135deg, #F59E0B, #D97706)' : '#CBD5E1', color: '#FFFFFF', fontSize: 14, fontWeight: 800, cursor: intakeBarcodeVerification.trim().toUpperCase() === `ORD-${intakeOrder.id.substring(0, 12).toUpperCase()}` ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
               >
                 {barcodeLoading ? 'Confirming...' : 'Confirm Delivery & Ingest'}
               </button>

@@ -141,6 +141,18 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
     setSuppliers(initialSuppliers);
   }, [initialSuppliers]);
 
+  // Read URL search param on mount to auto-filter (from command palette deep-link)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const searchParam = params.get('search');
+      if (searchParam) {
+        setSearchTerm(decodeURIComponent(searchParam));
+      }
+    }
+  }, []);
+
+
   // General Supplier Settlement Modal State
   const [showSupplierSettleModal, setShowSupplierSettleModal] = useState(false);
   const [supplierSettleAmount, setSupplierSettleAmount] = useState('');
@@ -411,16 +423,16 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
   const stats = selectedSupplier ? calculateSupplierStats(selectedSupplier) : { totalPurchased: 0, totalPaid: 0, totalOutstanding: 0, totalBoxesSupplied: 0 };
 
   return (
-    <div className="space-y-6 animate-fadeIn">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.80)', backdropFilter: 'blur(16px)', border: '1.5px solid rgba(14,165,233,0.5)', borderRadius: 20, padding: '20px 24px', boxShadow: '0 2px 12px rgba(14,165,233,0.07)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fff', border: '1px solid #E5E7EB', borderRadius: 8, padding: '16px 20px' }}>
         <div>
-          <h1 style={{ fontSize: 20, fontWeight: 800, color: '#1E293B', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Users style={{ width: 22, height: 22, color: '#0EA5E9' }} />
+          <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+            <Users style={{ width: 20, height: 20, color: '#2563EB' }} />
             Supplier Registry
           </h1>
-          <p style={{ fontSize: 13, color: '#64748B', marginTop: 4 }}>
-            Manage medicine manufacturer & supplier relationships, purchase invoices, and payment histories
+          <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+            Manage medicine manufacturer &amp; supplier relationships, purchase invoices, and payment histories
           </p>
         </div>
         <button
@@ -429,8 +441,7 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
             setSupName(''); setSupContact(''); setSupPhone(''); setSupEmail(''); setSupAddress('');
             setShowAddModal(true);
           }}
-          className="btn-primary"
-          style={{ background: 'linear-gradient(135deg, #0EA5E9, #38BDF8)', whiteSpace: 'nowrap' }}
+          style={{ padding: '8px 16px', background: '#2563EB', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 600, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}
         >
           <UserPlus style={{ width: 14, height: 14 }} />
           Add Supplier
@@ -438,15 +449,10 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
       </div>
 
       {/* Filters */}
-      <div style={{
-        display: 'flex', flexWrap: 'wrap', gap: 12, padding: '14px 20px',
-        background: 'rgba(255,255,255,0.8)', backdropFilter: 'blur(12px)',
-        border: '1px solid rgba(226,232,240,0.8)', borderRadius: 16,
-        boxShadow: '0 4px 20px rgba(0,0,0,0.02)'
-      }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, padding: '12px 16px', background: '#fff', border: '1px solid #E5E7EB', borderRadius: 8, alignItems: 'flex-end' }}>
         <div style={{ minWidth: 200, flex: '1 1 200px' }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, fontWeight: 700, color: '#475569', textTransform: 'uppercase', marginBottom: 6 }}>
-            <Search style={{ width: 12, height: 12, color: '#0EA5E9' }} /> Search Suppliers
+          <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 4 }}>
+            <Search style={{ width: 11, height: 11 }} /> Search
           </label>
           <input
             type="text"
@@ -454,17 +460,17 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="filter-input"
-            style={{ width: '100%', padding: '8px 12px', fontSize: 12, border: '1.5px solid #E2E8F0', borderRadius: 10, outline: 'none', background: 'white' }}
+            style={{ width: '100%', padding: '8px 12px', fontSize: 14, border: '1px solid var(--card-border)', borderRadius: 10, outline: 'none', background: 'var(--card-bg)' }}
           />
         </div>
 
         <div style={{ minWidth: 160 }}>
-          <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#475569', textTransform: 'uppercase', marginBottom: 6 }}>Sort Order</label>
+          <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 6 }}>Sort Order</label>
           <select
             value={sortOrder}
             onChange={(e: any) => setSortOrder(e.target.value)}
             className="filter-select"
-            style={{ width: '100%', padding: '8px 12px', fontSize: 12, border: '1.5px solid #E2E8F0', borderRadius: 10, outline: 'none', background: 'white', cursor: 'pointer' }}
+            style={{ width: '100%', padding: '8px 12px', fontSize: 14, border: '1px solid var(--card-border)', borderRadius: 10, outline: 'none', background: 'var(--card-bg)', cursor: 'pointer' }}
           >
             <option value="name">Supplier Name (A-Z)</option>
             <option value="orders">Batches Supplied (Highest)</option>
@@ -480,7 +486,7 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div className="card" style={{ background: 'rgba(255,255,255,0.85)', padding: 10, display: 'flex', flexDirection: 'column', gap: 6, maxHeight: '68vh', overflowY: 'auto' }}>
             {filteredSuppliers.length === 0 ? (
-              <div style={{ padding: '48px 16px', textAlign: 'center', color: '#94A3B8', fontSize: 12, fontStyle: 'italic' }}>
+              <div style={{ padding: '48px 16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 14, fontStyle: 'italic' }}>
                 No suppliers found.
               </div>
             ) : (
@@ -508,11 +514,11 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
                     }}
                   >
                     <div style={{ minWidth: 0, flex: 1 }}>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: '#1E293B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {s.name}
                       </div>
-                      <div style={{ fontSize: 11, color: '#64748B', marginTop: 3, display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <Database style={{ width: 11, height: 11, color: '#94A3B8' }} />
+                      <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 3, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <Database style={{ width: 11, height: 11, color: 'var(--text-muted)' }} />
                         <span>{s.batches.length} stock batches</span>
                       </div>
                     </div>
@@ -535,17 +541,17 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
             <div className="space-y-6 animate-fadeIn">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #F1F5F9', paddingBottom: 12 }}>
                 <div>
-                  <h3 style={{ fontSize: 15, fontWeight: 900, color: '#1E293B', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <h3 style={{ fontSize: 18, fontWeight: 900, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
                     <Users style={{ width: 18, height: 18, color: '#0EA5E9' }} />
                     Supplier Account: {selectedSupplier.name}
                   </h3>
-                  <p style={{ fontSize: 11, color: '#64748B', marginTop: 4 }}>Review delivery logs, invoice balances, and settlements history</p>
+                  <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4 }}>Review delivery logs, invoice balances, and settlements history</p>
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button onClick={() => openEditSupplier(selectedSupplier)} className="btn-ghost" style={{ padding: '6px 12px', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>
                     <Edit2 style={{ width: 12, height: 12 }} /> Edit Info
                   </button>
-                  <button onClick={() => setSelectedSupplierId(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8' }}>
+                  <button onClick={() => setSelectedSupplierId(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
                     <X style={{ width: 20, height: 20 }} />
                   </button>
                 </div>
@@ -553,12 +559,12 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
 
               {/* Information Cards */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, background: '#FAFCFF', border: '1.5px solid #E0F2FE', borderRadius: 16, padding: 16 }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12, color: '#475569' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 14, color: 'var(--text-secondary)' }}>
                   <div><strong>Contact Person:</strong> {selectedSupplier.contactPerson || 'N/A'}</div>
                   <div><strong>Phone:</strong> {selectedSupplier.phone || 'N/A'}</div>
                   <div><strong>Email:</strong> {selectedSupplier.email || 'N/A'}</div>
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12, color: '#475569' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 14, color: 'var(--text-secondary)' }}>
                   <div><strong>Address:</strong> {selectedSupplier.address || 'N/A'}</div>
                 </div>
               </div>
@@ -568,7 +574,7 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
                 <div className="card" style={{ padding: 14, background: '#ECFDF5', border: '1px solid #A7F3D0' }}>
                   <div style={{ fontSize: 9, fontWeight: 800, color: '#065F46', textTransform: 'uppercase' }}>Total Purchases</div>
                   <div style={{ fontSize: 16, fontWeight: 900, color: '#047857', fontFamily: 'monospace', marginTop: 4 }}>Rs. {stats.totalPurchased.toLocaleString()}</div>
-                  <div style={{ fontSize: 10, color: '#047857', fontWeight: 700, marginTop: 2 }}>{stats.totalBoxesSupplied} Boxes purchased</div>
+                  <div style={{ fontSize: 12, color: '#047857', fontWeight: 700, marginTop: 2 }}>{stats.totalBoxesSupplied} Boxes purchased</div>
                 </div>
                 <div className="card" style={{ padding: 14, background: '#F0F9FF', border: '1px solid #BAE6FD' }}>
                   <div style={{ fontSize: 9, fontWeight: 800, color: '#854D0E', textTransform: 'uppercase' }}>Total Settled / Paid</div>
@@ -586,7 +592,7 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
                         setShowSupplierSettleModal(true);
                       }} 
                       className="btn-primary" 
-                      style={{ padding: '4px 8px', fontSize: 10, background: '#EF4444', borderColor: '#EF4444', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 700, marginTop: 8 }}
+                      style={{ padding: '4px 8px', fontSize: 12, background: '#EF4444', borderColor: '#EF4444', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 700, marginTop: 8 }}
                     >
                       Settle Due Balance
                     </button>
@@ -597,7 +603,7 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
               {/* Medicine Batches Ingested */}
               <div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, gap: 10 }}>
-                  <h4 style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: '#475569', letterSpacing: '0.05em', margin: 0 }}>Medications Stock Batches Supplied</h4>
+                  <h4 style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-secondary)', letterSpacing: '0.05em', margin: 0 }}>Medications Stock Batches Supplied</h4>
                   
                   {/* Filters bar */}
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
@@ -610,7 +616,7 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
                       style={{ fontSize: 11, padding: '4px 8px', width: 140 }}
                     />
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <span style={{ fontSize: 10, color: '#64748B', fontWeight: 600 }}>Expiry:</span>
+                      <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>Expiry:</span>
                       <input
                         type="date"
                         value={batchExpiryFrom}
@@ -618,7 +624,7 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
                         className="input-crisp"
                         style={{ fontSize: 11, padding: '4px 8px', width: 110 }}
                       />
-                      <span style={{ fontSize: 10, color: '#64748B' }}>to</span>
+                      <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>to</span>
                       <input
                         type="date"
                         value={batchExpiryTo}
@@ -635,7 +641,7 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
                           setBatchExpiryTo('');
                         }}
                         className="btn-ghost"
-                        style={{ fontSize: 10, padding: '4px 8px', color: '#EF4444', borderColor: '#FECDD3', background: '#FEF2F2' }}
+                        style={{ fontSize: 12, padding: '4px 8px', color: '#EF4444', borderColor: '#FECDD3', background: '#FEF2F2' }}
                       >
                         Clear
                       </button>
@@ -672,7 +678,7 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
                         if (filtered.length === 0) {
                           return (
                             <tr>
-                              <td colSpan={5} style={{ padding: 24, textAlign: 'center', color: '#94A3B8', fontStyle: 'italic' }}>No medicine inventory batches match filters.</td>
+                              <td colSpan={5} style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)', fontStyle: 'italic' }}>No medicine inventory batches match filters.</td>
                             </tr>
                           );
                         }
@@ -686,7 +692,7 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
                               <td style={{ fontFamily: 'monospace', fontWeight: 700, color: '#0EA5E9' }}>{b.batchNumber}</td>
                               <td>
                                 <div style={{ fontWeight: 700 }}>{b.product.name}</div>
-                                <div style={{ fontSize: 10, color: '#64748B' }}>SKU: {b.product.sku}</div>
+                                <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>SKU: {b.product.sku}</div>
                               </td>
                               <td>{new Date(b.expiryDate).toLocaleDateString()}</td>
                               <td style={{ textAlign: 'right', fontFamily: 'monospace' }}>
@@ -705,7 +711,7 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
               {/* Purchase Bills Ledger & Settle payments */}
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                  <h4 style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: '#475569', letterSpacing: '0.05em' }}>Purchase Invoices Ledger</h4>
+                  <h4 style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-secondary)', letterSpacing: '0.05em' }}>Purchase Invoices Ledger</h4>
                   <button 
                     onClick={() => {
                       setBillNumber('');
@@ -716,7 +722,7 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
                       setShowBillModal(true);
                     }} 
                     className="btn-ghost" 
-                    style={{ fontSize: 10, padding: '4px 8px', color: '#0EA5E9', borderColor: '#BAE6FD' }}
+                    style={{ fontSize: 12, padding: '4px 8px', color: '#0EA5E9', borderColor: '#BAE6FD' }}
                   >
                     ＋ Log Purchase Bill
                   </button>
@@ -736,7 +742,7 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
                     <tbody>
                       {selectedSupplier.bills.length === 0 ? (
                         <tr>
-                          <td colSpan={6} style={{ padding: 24, textAlign: 'center', color: '#94A3B8', fontStyle: 'italic' }}>No bills recorded yet.</td>
+                          <td colSpan={6} style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)', fontStyle: 'italic' }}>No bills recorded yet.</td>
                         </tr>
                       ) : (
                         selectedSupplier.bills.map(b => {
@@ -759,7 +765,7 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
                                     <button 
                                       onClick={() => { setSettlingBillId(b.id); setSettleAmount((b.totalAmount - b.paidAmount).toString()); }}
                                       className="btn-ghost"
-                                      style={{ padding: '4px 8px', fontSize: 10, borderColor: '#BAE6FD', color: '#0EA5E9' }}
+                                      style={{ padding: '4px 8px', fontSize: 12, borderColor: '#BAE6FD', color: '#0EA5E9' }}
                                     >
                                       Settle
                                     </button>
@@ -778,8 +784,8 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
 
               {/* Consolidated Supplier Payment Settlements History */}
               <div>
-                <h4 style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: '#475569', letterSpacing: '0.05em', marginBottom: 10 }}>Payment Settlements History</h4>
-                <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 12, padding: 12, maxHeight: 200, overflowY: 'auto' }}>
+                <h4 style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-secondary)', letterSpacing: '0.05em', marginBottom: 10 }}>Payment Settlements History</h4>
+                <div style={{ background: 'var(--table-header-bg)', border: '1px solid var(--card-border)', borderRadius: 12, padding: 12, maxHeight: 200, overflowY: 'auto' }}>
                   {(() => {
                     const allSettle = selectedSupplier.bills.flatMap(b => 
                       (b.settlements || []).map(s => ({
@@ -791,7 +797,7 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
 
                     if (allSettle.length === 0) {
                       return (
-                        <div style={{ textAlign: 'center', color: '#94A3B8', fontSize: 11, padding: 12, fontStyle: 'italic' }}>
+                        <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 11, padding: 12, fontStyle: 'italic' }}>
                           No settlements recorded yet.
                         </div>
                       );
@@ -802,9 +808,9 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
                         {allSettle.map((settle: any) => (
                           <div key={settle.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, borderBottom: '1px solid #F1F5F9', paddingBottom: 6 }}>
                             <div>
-                              <span style={{ fontWeight: 700, color: '#1E293B' }}>Bill: {settle.billNumber}</span>
-                              <span style={{ color: '#64748B', marginLeft: 8 }}>{new Date(settle.date).toLocaleString()}</span>
-                              {settle.notes && <div style={{ fontSize: 9, color: '#94A3B8', marginTop: 1 }}>{settle.notes}</div>}
+                              <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>Bill: {settle.billNumber}</span>
+                              <span style={{ color: 'var(--text-secondary)', marginLeft: 8 }}>{new Date(settle.date).toLocaleString()}</span>
+                              {settle.notes && <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 1 }}>{settle.notes}</div>}
                             </div>
                             <span style={{ fontWeight: 800, color: '#059669' }}>+ Rs. {settle.amount.toLocaleString()} ({settle.paymentMethod})</span>
                           </div>
@@ -816,10 +822,10 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
               </div>
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', padding: '60px 20px', textAlign: 'center', color: '#94A3B8' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', padding: '60px 20px', textAlign: 'center', color: 'var(--text-muted)' }}>
               <Users style={{ width: 48, height: 48, color: '#E2E8F0', marginBottom: 16 }} />
-              <h3 style={{ fontSize: 14, fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Select a Supplier</h3>
-              <p style={{ fontSize: 12, color: '#94A3B8', marginTop: 6, maxWidth: 360, lineHeight: 1.6 }}>Choose a manufacturer or medicine vendor from the left panel directory to inspect purchase summaries, stock intake histories, and outstanding payment records side-by-side.</p>
+              <h3 style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Select a Supplier</h3>
+              <p style={{ fontSize: 14, color: 'var(--text-muted)', marginTop: 6, maxWidth: 360, lineHeight: 1.6 }}>Choose a manufacturer or medicine vendor from the left panel directory to inspect purchase summaries, stock intake histories, and outstanding payment records side-by-side.</p>
             </div>
           )}
         </div>
@@ -831,13 +837,13 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
           <div className="modal-card animate-scaleIn" style={{ '--modal-max-width': '500px' } as React.CSSProperties} onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <div>
-                <h3 style={{ fontSize: 15, fontWeight: 900, color: '#1E293B', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <h3 style={{ fontSize: 18, fontWeight: 900, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
                   <UserPlus style={{ width: 18, height: 18, color: '#0EA5E9' }} />
                   {editingSupplier ? 'Modify Supplier Account' : 'Register New Supplier'}
                 </h3>
-                <p style={{ fontSize: 11, color: '#94A3B8', marginTop: 4 }}>Add or edit medicine manufacturer/vendor credentials</p>
+                <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>Add or edit medicine manufacturer/vendor credentials</p>
               </div>
-              <button onClick={() => setShowAddModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8', padding: 4 }}>
+              <button onClick={() => setShowAddModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4 }}>
                 <X style={{ width: 18, height: 18 }} />
               </button>
             </div>
@@ -847,27 +853,27 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
               <form onSubmit={handleAddSupplier} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   <div style={{ gridColumn: 'span 2' }}>
-                    <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', marginBottom: 6 }}>Supplier / Company Name *</label>
-                    <input required value={supName} onChange={e => setSupName(e.target.value)} placeholder="e.g. Novartis Pharma" className="input-crisp" style={{ width: '100%', fontSize: 12 }} />
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 6 }}>Supplier / Company Name *</label>
+                    <input required value={supName} onChange={e => setSupName(e.target.value)} placeholder="e.g. Novartis Pharma" className="input-crisp" style={{ width: '100%', fontSize: 14 }} />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', marginBottom: 6 }}>Contact Person</label>
-                    <input value={supContact} onChange={e => setSupContact(e.target.value)} placeholder="e.g. Ram Prasad" className="input-crisp" style={{ width: '100%', fontSize: 12 }} />
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 6 }}>Contact Person</label>
+                    <input value={supContact} onChange={e => setSupContact(e.target.value)} placeholder="e.g. Ram Prasad" className="input-crisp" style={{ width: '100%', fontSize: 14 }} />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', marginBottom: 6 }}>Phone Number</label>
-                    <input value={supPhone} onChange={e => setSupPhone(e.target.value)} placeholder="98XXXXXXXX" className="input-crisp" style={{ width: '100%', fontSize: 12 }} />
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 6 }}>Phone Number</label>
+                    <input value={supPhone} onChange={e => setSupPhone(e.target.value)} placeholder="98XXXXXXXX" className="input-crisp" style={{ width: '100%', fontSize: 14 }} />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', marginBottom: 6 }}>Email Address</label>
-                    <input type="email" value={supEmail} onChange={e => setSupEmail(e.target.value)} placeholder="info@company.com" className="input-crisp" style={{ width: '100%', fontSize: 12 }} />
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 6 }}>Email Address</label>
+                    <input type="email" value={supEmail} onChange={e => setSupEmail(e.target.value)} placeholder="info@company.com" className="input-crisp" style={{ width: '100%', fontSize: 14 }} />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', marginBottom: 6 }}>Address</label>
-                    <input value={supAddress} onChange={e => setSupAddress(e.target.value)} placeholder="Street, City, District" className="input-crisp" style={{ width: '100%', fontSize: 12 }} />
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 6 }}>Address</label>
+                    <input value={supAddress} onChange={e => setSupAddress(e.target.value)} placeholder="Street, City, District" className="input-crisp" style={{ width: '100%', fontSize: 14 }} />
                   </div>
                 </div>
-                <button type="submit" disabled={supLoading} className="btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '13px', background: 'linear-gradient(135deg, #0EA5E9, #38BDF8)', fontSize: 12, opacity: supLoading ? 0.7 : 1 }}>
+                <button type="submit" disabled={supLoading} className="btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '13px', background: 'linear-gradient(135deg, #0EA5E9, #38BDF8)', fontSize: 14, opacity: supLoading ? 0.7 : 1 }}>
                   {supLoading ? 'Saving...' : 'Save Supplier Credentials'}
                 </button>
               </form>
@@ -882,13 +888,13 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
           <div className="modal-card animate-scaleIn" style={{ '--modal-max-width': '600px' } as React.CSSProperties} onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <div>
-                <h3 style={{ fontSize: 15, fontWeight: 900, color: '#1E293B', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <h3 style={{ fontSize: 18, fontWeight: 900, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
                   <Receipt style={{ width: 18, height: 18, color: '#0EA5E9' }} />
                   Log Purchase Bill
                 </h3>
-                <p style={{ fontSize: 11, color: '#94A3B8', marginTop: 4 }}>Record wholesale supplier invoice data for bookkeeping</p>
+                <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>Record wholesale supplier invoice data for bookkeeping</p>
               </div>
-              <button onClick={() => setShowBillModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8', padding: 4 }}>
+              <button onClick={() => setShowBillModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4 }}>
                 <X style={{ width: 18, height: 18 }} />
               </button>
             </div>
@@ -898,32 +904,32 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
               <form onSubmit={handleRecordBill} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   <div>
-                    <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', marginBottom: 6 }}>Bill Invoice Ref Number *</label>
-                    <input required value={billNumber} onChange={e => setBillNumber(e.target.value)} placeholder="e.g. BILL-99210" className="input-crisp" style={{ width: '100%', fontSize: 12 }} />
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 6 }}>Bill Invoice Ref Number *</label>
+                    <input required value={billNumber} onChange={e => setBillNumber(e.target.value)} placeholder="e.g. BILL-99210" className="input-crisp" style={{ width: '100%', fontSize: 14 }} />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', marginBottom: 6 }}>Bill Date *</label>
-                    <input required type="date" value={billDate} onChange={e => setBillDate(e.target.value)} className="input-crisp" style={{ width: '100%', fontSize: 12 }} />
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 6 }}>Bill Date *</label>
+                    <input required type="date" value={billDate} onChange={e => setBillDate(e.target.value)} className="input-crisp" style={{ width: '100%', fontSize: 14 }} />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', marginBottom: 6 }}>Total Invoice Amount *</label>
-                    <input required type="number" step="any" value={billTotalAmount} onChange={e => setBillTotalAmount(e.target.value)} placeholder="e.g. 50000" className="input-crisp" style={{ width: '100%', fontSize: 12 }} />
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 6 }}>Total Invoice Amount *</label>
+                    <input required type="number" step="any" value={billTotalAmount} onChange={e => setBillTotalAmount(e.target.value)} placeholder="e.g. 50000" className="input-crisp" style={{ width: '100%', fontSize: 14 }} />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', marginBottom: 6 }}>Paid Today (Rs.)</label>
-                    <input type="number" step="any" value={billPaidAmount} onChange={e => setBillPaidAmount(e.target.value)} placeholder="e.g. 10000" className="input-crisp" style={{ width: '100%', fontSize: 12 }} />
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 6 }}>Paid Today (Rs.)</label>
+                    <input type="number" step="any" value={billPaidAmount} onChange={e => setBillPaidAmount(e.target.value)} placeholder="e.g. 10000" className="input-crisp" style={{ width: '100%', fontSize: 14 }} />
                   </div>
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', marginBottom: 8 }}>Item Lines Purchased (Optional)</label>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 8 }}>Item Lines Purchased (Optional)</label>
 
                   {/* Column Headers */}
                   <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 80px 24px', gap: 6, padding: '4px 6px', background: '#F1F5F9', borderRadius: 8, marginBottom: 6 }}>
-                    <span style={{ fontSize: 9, fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Medicine / Product</span>
-                    <span style={{ fontSize: 9, fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: 'center' }}>Boxes (Qty)</span>
-                    <span style={{ fontSize: 9, fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: 'center' }}>Cost / Box (Rs.)</span>
-                    <span style={{ fontSize: 9, fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: 'right' }}>Subtotal</span>
+                    <span style={{ fontSize: 9, fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Medicine / Product</span>
+                    <span style={{ fontSize: 9, fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: 'center' }}>Boxes (Qty)</span>
+                    <span style={{ fontSize: 9, fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: 'center' }}>Cost / Box (Rs.)</span>
+                    <span style={{ fontSize: 9, fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: 'right' }}>Subtotal</span>
                     <span />
                   </div>
 
@@ -974,7 +980,7 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
                           className="input-crisp"
                           style={{ fontSize: 11, textAlign: 'center', width: '100%' }}
                         />
-                        <div style={{ fontSize: 11, fontWeight: 700, color: '#1E293B', fontFamily: 'monospace', textAlign: 'right', padding: '0 4px' }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'monospace', textAlign: 'right', padding: '0 4px' }}>
                           Rs. {(item.qtyBoxes * item.pricePerBox).toLocaleString()}
                         </div>
                         <button 
@@ -1008,11 +1014,11 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', marginBottom: 6 }}>Notes / Remarks</label>
-                  <textarea value={billNotes} onChange={e => setBillNotes(e.target.value)} placeholder="Log vendor payment details or delivery delay notes..." className="input-crisp" style={{ width: '100%', fontSize: 12, height: 60 }} />
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 6 }}>Notes / Remarks</label>
+                  <textarea value={billNotes} onChange={e => setBillNotes(e.target.value)} placeholder="Log vendor payment details or delivery delay notes..." className="input-crisp" style={{ width: '100%', fontSize: 14, height: 60 }} />
                 </div>
 
-                <button type="submit" disabled={billLoading} className="btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '13px', background: 'linear-gradient(135deg, #0EA5E9, #38BDF8)', fontSize: 12, opacity: billLoading ? 0.7 : 1 }}>
+                <button type="submit" disabled={billLoading} className="btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '13px', background: 'linear-gradient(135deg, #0EA5E9, #38BDF8)', fontSize: 14, opacity: billLoading ? 0.7 : 1 }}>
                   {billLoading ? 'Submitting...' : 'Register Purchase Invoice'}
                 </button>
               </form>
@@ -1033,38 +1039,38 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
             <div className="modal-card animate-scaleIn" style={{ '--modal-max-width': '600px' } as React.CSSProperties} onClick={e => e.stopPropagation()}>
               <div className="modal-header">
                 <div>
-                  <h3 style={{ fontSize: 14, fontWeight: 900, color: '#1E293B', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <h3 style={{ fontSize: 14, fontWeight: 900, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
                     <Receipt style={{ width: 18, height: 18, color: '#0EA5E9' }} /> Supplier Invoice Details
                   </h3>
-                  <p style={{ fontSize: 11, color: '#64748B', marginTop: 4 }}>Invoice: {activeBill.billNumber} · Registered on {new Date(activeBill.billDate).toLocaleDateString()}</p>
+                  <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4 }}>Invoice: {activeBill.billNumber} · Registered on {new Date(activeBill.billDate).toLocaleDateString()}</p>
                 </div>
-                <button onClick={() => setActiveBill(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8' }}>
+                <button onClick={() => setActiveBill(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
                   <X style={{ width: 20, height: 20 }} />
                 </button>
               </div>
 
               <div className="modal-body space-y-6">
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, background: '#F8FAFC', padding: 14, borderRadius: 16, border: '1px solid #E2E8F0' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, background: 'var(--table-header-bg)', padding: 14, borderRadius: 16, border: '1px solid var(--card-border)' }}>
                   <div>
-                    <div style={{ fontSize: 9, fontWeight: 800, color: '#94A3B8', textTransform: 'uppercase' }}>Total Due Amount</div>
+                    <div style={{ fontSize: 9, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Total Due Amount</div>
                     <div style={{ fontSize: 14, fontWeight: 900, color: '#DC2626', fontFamily: 'monospace', marginTop: 3 }}>Rs. {activeBill.totalAmount.toLocaleString()}</div>
                   </div>
                   <div>
-                    <div style={{ fontSize: 9, fontWeight: 800, color: '#94A3B8', textTransform: 'uppercase' }}>Amount Settled</div>
+                    <div style={{ fontSize: 9, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Amount Settled</div>
                     <div style={{ fontSize: 14, fontWeight: 900, color: '#059669', fontFamily: 'monospace', marginTop: 3 }}>Rs. {activeBill.paidAmount.toLocaleString()}</div>
                   </div>
                   <div>
-                    <div style={{ fontSize: 9, fontWeight: 800, color: '#94A3B8', textTransform: 'uppercase' }}>Remaining Balance</div>
+                    <div style={{ fontSize: 9, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Remaining Balance</div>
                     <div style={{ fontSize: 14, fontWeight: 900, color: '#0284C7', fontFamily: 'monospace', marginTop: 3 }}>Rs. {Math.max(activeBill.totalAmount - activeBill.paidAmount, 0).toLocaleString()}</div>
                   </div>
                 </div>
 
                 {itemsArray.length > 0 && (
                   <div>
-                    <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: '#475569', marginBottom: 8 }}>Supplied Medication Items</div>
-                    <div style={{ border: '1px solid #E2E8F0', borderRadius: 12, overflow: 'hidden' }}>
+                    <div style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-secondary)', marginBottom: 8 }}>Supplied Medication Items</div>
+                    <div style={{ border: '1px solid var(--card-border)', borderRadius: 12, overflow: 'hidden' }}>
                       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
-                        <thead style={{ background: '#F8FAFC' }}>
+                        <thead style={{ background: 'var(--table-header-bg)' }}>
                           <tr>
                             <th style={{ padding: '8px 12px', textAlign: 'left' }}>Item</th>
                             <th style={{ padding: '8px 12px', textAlign: 'center' }}>Boxes</th>
@@ -1097,10 +1103,10 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
                 )}
 
                 <div>
-                  <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: '#475569', marginBottom: 8 }}>Settlement Timeline Ledger</div>
-                  <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 12, padding: 12, maxHeight: 150, overflowY: 'auto' }}>
+                  <div style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-secondary)', marginBottom: 8 }}>Settlement Timeline Ledger</div>
+                  <div style={{ background: 'var(--table-header-bg)', border: '1px solid var(--card-border)', borderRadius: 12, padding: 12, maxHeight: 150, overflowY: 'auto' }}>
                     {activeBill.settlements.length === 0 ? (
-                      <div style={{ textAlign: 'center', color: '#94A3B8', fontSize: 11, padding: 12, fontStyle: 'italic' }}>
+                      <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 11, padding: 12, fontStyle: 'italic' }}>
                         No settlements recorded yet.
                       </div>
                     ) : (
@@ -1108,8 +1114,8 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
                         {activeBill.settlements.map((settle) => (
                           <div key={settle.id} style={{ display: 'flex', justifySelf: 'space-between', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, borderBottom: '1px solid #F1F5F9', paddingBottom: 6 }}>
                             <div>
-                              <span style={{ color: '#64748B' }}>{new Date(settle.date).toLocaleString()}</span>
-                              {settle.notes && <div style={{ fontSize: 9, color: '#94A3B8', marginTop: 1 }}>{settle.notes}</div>}
+                              <span style={{ color: 'var(--text-secondary)' }}>{new Date(settle.date).toLocaleString()}</span>
+                              {settle.notes && <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 1 }}>{settle.notes}</div>}
                             </div>
                             <span style={{ fontWeight: 800, color: '#059669' }}>+ Rs. {settle.amount.toLocaleString()} ({settle.paymentMethod})</span>
                           </div>
@@ -1128,21 +1134,21 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
         <div className="modal-overlay" onClick={() => setSettlingBillId(null)}>
           <div className="modal-card animate-scaleIn" style={{ '--modal-max-width': '400px', padding: 28 } as React.CSSProperties} onClick={e => e.stopPropagation()}>
             <div className="modal-header" style={{ padding: 0, border: 'none', marginBottom: 16 }}>
-              <h3 style={{ fontSize: 14, fontWeight: 900, color: '#1E293B', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <h3 style={{ fontSize: 14, fontWeight: 900, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
                 <CreditCard style={{ width: 16, height: 16, color: '#0EA5E9' }} /> Record Bill Settlement
               </h3>
-              <button onClick={() => setSettlingBillId(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8' }}>
+              <button onClick={() => setSettlingBillId(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
                 <X style={{ width: 18, height: 18 }} />
               </button>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div>
-                <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', marginBottom: 6 }}>Amount (Rs.) *</label>
-                <input type="number" required placeholder="Enter amount..." value={settleAmount} onChange={e => setSettleAmount(e.target.value)} className="input-crisp" style={{ fontSize: 12 }} />
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 6 }}>Amount (Rs.) *</label>
+                <input type="number" required placeholder="Enter amount..." value={settleAmount} onChange={e => setSettleAmount(e.target.value)} className="input-crisp" style={{ fontSize: 14 }} />
               </div>
               <div>
-                <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', marginBottom: 6 }}>Payment Method</label>
-                <select value={settleMethod} onChange={e => setSettleMethod(e.target.value)} className="select-crisp" style={{ fontSize: 12 }}>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 6 }}>Payment Method</label>
+                <select value={settleMethod} onChange={e => setSettleMethod(e.target.value)} className="select-crisp" style={{ fontSize: 14 }}>
                   <option value="CASH">💵 CASH</option>
                   <option value="BANK_TRANSFER">🏦 BANK TRANSFER</option>
                   <option value="MOBILE_BANKING">📱 MOBILE BANKING / FONEPAY</option>
@@ -1150,10 +1156,10 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
                 </select>
               </div>
               <div>
-                <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', marginBottom: 6 }}>Notes / Remarks</label>
-                <input type="text" placeholder="Transaction ID or payment ref..." value={settleNotes} onChange={e => setSettleNotes(e.target.value)} className="input-crisp" style={{ fontSize: 12 }} />
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 6 }}>Notes / Remarks</label>
+                <input type="text" placeholder="Transaction ID or payment ref..." value={settleNotes} onChange={e => setSettleNotes(e.target.value)} className="input-crisp" style={{ fontSize: 14 }} />
               </div>
-              <button onClick={() => handleSettleBillSubmit(settlingBillId)} className="btn-primary" style={{ width: '100%', padding: 12, fontSize: 12, marginTop: 8 }}>
+              <button onClick={() => handleSettleBillSubmit(settlingBillId)} className="btn-primary" style={{ width: '100%', padding: 12, fontSize: 14, marginTop: 8 }}>
                 Confirm Settlement
               </button>
             </div>
@@ -1166,24 +1172,24 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
         <div className="modal-overlay" onClick={() => setShowSupplierSettleModal(false)}>
           <div className="modal-card animate-scaleIn" style={{ '--modal-max-width': '400px', padding: 28 } as React.CSSProperties} onClick={e => e.stopPropagation()}>
             <div className="modal-header" style={{ padding: 0, border: 'none', marginBottom: 16 }}>
-              <h3 style={{ fontSize: 14, fontWeight: 900, color: '#1E293B', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <h3 style={{ fontSize: 14, fontWeight: 900, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
                 <CreditCard style={{ width: 16, height: 16, color: '#EF4444' }} /> Record Supplier Settlement
               </h3>
-              <button onClick={() => setShowSupplierSettleModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8' }}>
+              <button onClick={() => setShowSupplierSettleModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
                 <X style={{ width: 18, height: 18 }} />
               </button>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div>
-                <span style={{ fontSize: 11, color: '#64748B' }}>Settlement will be applied to outstanding bills starting from the oldest (FIFO).</span>
+                <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Settlement will be applied to outstanding bills starting from the oldest (FIFO).</span>
               </div>
               <div>
-                <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', marginBottom: 6 }}>Amount to Settle (Rs.) *</label>
-                <input type="number" required placeholder="Enter amount..." value={supplierSettleAmount} onChange={e => setSupplierSettleAmount(e.target.value)} className="input-crisp" style={{ fontSize: 12 }} />
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 6 }}>Amount to Settle (Rs.) *</label>
+                <input type="number" required placeholder="Enter amount..." value={supplierSettleAmount} onChange={e => setSupplierSettleAmount(e.target.value)} className="input-crisp" style={{ fontSize: 14 }} />
               </div>
               <div>
-                <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', marginBottom: 6 }}>Payment Method</label>
-                <select value={supplierSettleMethod} onChange={e => setSupplierSettleMethod(e.target.value)} className="select-crisp" style={{ fontSize: 12 }}>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 6 }}>Payment Method</label>
+                <select value={supplierSettleMethod} onChange={e => setSupplierSettleMethod(e.target.value)} className="select-crisp" style={{ fontSize: 14 }}>
                   <option value="CASH">💵 CASH</option>
                   <option value="BANK_TRANSFER">🏦 BANK TRANSFER</option>
                   <option value="MOBILE_BANKING">📱 MOBILE BANKING / FONEPAY</option>
@@ -1191,10 +1197,10 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
                 </select>
               </div>
               <div>
-                <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', marginBottom: 6 }}>Notes / Remarks</label>
-                <input type="text" placeholder="Transaction ID or payment ref..." value={supplierSettleNotes} onChange={e => setSupplierSettleNotes(e.target.value)} className="input-crisp" style={{ fontSize: 12 }} />
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 6 }}>Notes / Remarks</label>
+                <input type="text" placeholder="Transaction ID or payment ref..." value={supplierSettleNotes} onChange={e => setSupplierSettleNotes(e.target.value)} className="input-crisp" style={{ fontSize: 14 }} />
               </div>
-              <button onClick={handleSupplierSettleSubmit} disabled={supplierSettleLoading} className="btn-primary" style={{ width: '100%', padding: 12, fontSize: 12, marginTop: 8, background: '#EF4444', borderColor: '#EF4444' }}>
+              <button onClick={handleSupplierSettleSubmit} disabled={supplierSettleLoading} className="btn-primary" style={{ width: '100%', padding: 12, fontSize: 14, marginTop: 8, background: '#EF4444', borderColor: '#EF4444' }}>
                 {supplierSettleLoading ? 'Processing Settlement...' : 'Confirm Supplier Settlement'}
               </button>
             </div>
@@ -1207,10 +1213,10 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
         <div className="modal-overlay" onClick={() => setSelectedBatchDetails(null)}>
           <div className="modal-card animate-scaleIn" style={{ '--modal-max-width': '460px', padding: 28 } as React.CSSProperties} onClick={e => e.stopPropagation()}>
             <div className="modal-header" style={{ padding: 0, border: 'none', marginBottom: 16 }}>
-              <h3 style={{ fontSize: 14, fontWeight: 900, color: '#1E293B', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <h3 style={{ fontSize: 14, fontWeight: 900, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
                 <Database style={{ width: 16, height: 16, color: '#0EA5E9' }} /> Supplied Batch Details
               </h3>
-              <button onClick={() => setSelectedBatchDetails(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8' }}>
+              <button onClick={() => setSelectedBatchDetails(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
                 <X style={{ width: 18, height: 18 }} />
               </button>
             </div>
@@ -1218,31 +1224,31 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: '#FAFCFF', border: '1px solid #BAE6FD', borderRadius: 14, padding: 16 }}>
                 <div style={{ fontSize: 14, fontWeight: 900, color: '#0369A1' }}>{selectedBatchDetails.product.name}</div>
-                <div style={{ fontSize: 11, color: '#64748B' }}>SKU Code: <span style={{ fontFamily: 'monospace', fontWeight: 700 }}>{selectedBatchDetails.product.sku}</span></div>
-                <div style={{ fontSize: 11, color: '#64748B' }}>Batch Number: <span style={{ fontFamily: 'monospace', fontWeight: 700 }}>{selectedBatchDetails.batchNumber}</span></div>
+                <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>SKU Code: <span style={{ fontFamily: 'monospace', fontWeight: 700 }}>{selectedBatchDetails.product.sku}</span></div>
+                <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Batch Number: <span style={{ fontFamily: 'monospace', fontWeight: 700 }}>{selectedBatchDetails.batchNumber}</span></div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, fontSize: 12 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, fontSize: 14 }}>
                 <div>
-                  <div style={{ color: '#94A3B8', fontSize: 9, fontWeight: 800, textTransform: 'uppercase' }}>Expiry Date</div>
+                  <div style={{ color: 'var(--text-muted)', fontSize: 9, fontWeight: 800, textTransform: 'uppercase' }}>Expiry Date</div>
                   <div style={{ color: '#334155', fontWeight: 700, marginTop: 2 }}>{new Date(selectedBatchDetails.expiryDate).toLocaleDateString()}</div>
                 </div>
                 <div>
-                  <div style={{ color: '#94A3B8', fontSize: 9, fontWeight: 800, textTransform: 'uppercase' }}>Available Stock</div>
+                  <div style={{ color: 'var(--text-muted)', fontSize: 9, fontWeight: 800, textTransform: 'uppercase' }}>Available Stock</div>
                   <div style={{ color: '#334155', fontWeight: 700, marginTop: 2, fontFamily: 'monospace' }}>{selectedBatchDetails.availableBaseUnits} units</div>
                 </div>
                 <div>
-                  <div style={{ color: '#94A3B8', fontSize: 9, fontWeight: 800, textTransform: 'uppercase' }}>Purchase Price / Box</div>
+                  <div style={{ color: 'var(--text-muted)', fontSize: 9, fontWeight: 800, textTransform: 'uppercase' }}>Purchase Price / Box</div>
                   <div style={{ color: '#334155', fontWeight: 700, marginTop: 2, fontFamily: 'monospace' }}>Rs. {selectedBatchDetails.purchasePricePerBox.toFixed(2)}</div>
                 </div>
                 <div>
-                  <div style={{ color: '#94A3B8', fontSize: 9, fontWeight: 800, textTransform: 'uppercase' }}>Selling Price / Box</div>
+                  <div style={{ color: 'var(--text-muted)', fontSize: 9, fontWeight: 800, textTransform: 'uppercase' }}>Selling Price / Box</div>
                   <div style={{ color: '#0284C7', fontWeight: 700, marginTop: 2, fontFamily: 'monospace' }}>Rs. {selectedBatchDetails.sellingPricePerBox.toFixed(2)}</div>
                 </div>
               </div>
 
               <div style={{ borderTop: '1px solid #F1F5F9', paddingTop: 14 }}>
-                <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: '#475569', marginBottom: 8 }}>Linked Bill Information</div>
+                <div style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-secondary)', marginBottom: 8 }}>Linked Bill Information</div>
                 {(() => {
                   // Attempt to find a linked supplier bill that contains this product batch
                   const linkedBill = selectedSupplier?.bills.find(bill => {
@@ -1256,14 +1262,14 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
 
                   if (!linkedBill) {
                     return (
-                      <div style={{ background: '#F8FAFC', borderRadius: 12, padding: 12, fontSize: 11, color: '#64748B', fontStyle: 'italic', textAlign: 'center' }}>
+                      <div style={{ background: 'var(--table-header-bg)', borderRadius: 12, padding: 12, fontSize: 11, color: 'var(--text-secondary)', fontStyle: 'italic', textAlign: 'center' }}>
                         No specific bill transaction linked to this batch entry.
                       </div>
                     );
                   }
 
                   return (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 12, padding: 12, fontSize: 12 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 12, padding: 12, fontSize: 14 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                         <span style={{ color: '#166534', fontWeight: 600 }}>Bill Reference:</span>
                         <strong style={{ fontFamily: 'monospace' }}>{linkedBill.billNumber}</strong>
@@ -1289,7 +1295,7 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
                 })()}
               </div>
 
-              <button onClick={() => setSelectedBatchDetails(null)} className="btn-ghost" style={{ width: '100%', padding: 12, fontSize: 12, marginTop: 8 }}>
+              <button onClick={() => setSelectedBatchDetails(null)} className="btn-ghost" style={{ width: '100%', padding: 12, fontSize: 14, marginTop: 8 }}>
                 Close Details
               </button>
             </div>

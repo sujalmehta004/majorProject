@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (!q.trim()) {
-      return NextResponse.json({ medicines: [], transactions: [], customers: [] });
+      return NextResponse.json({ medicines: [], transactions: [], customers: [], suppliers: [] });
     }
 
     // 1. Search Medicines / Products (including batch search)
@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
       take: 5,
     });
 
-    // 3. Search Retailers / Customers (without requiring transactions)
+    // 3. Search Retailers / Customers
     const customers = await db.retailerProfile.findMany({
       where: {
         wholesalerId,
@@ -100,10 +100,25 @@ export async function GET(request: NextRequest) {
       take: 5,
     });
 
+    // 4. Search Suppliers
+    const suppliers = await db.supplier.findMany({
+      where: {
+        wholesalerId,
+        OR: [
+          { name: { contains: q, mode: 'insensitive' } },
+          { contactPerson: { contains: q, mode: 'insensitive' } },
+          { phone: { contains: q, mode: 'insensitive' } },
+          { email: { contains: q, mode: 'insensitive' } },
+        ],
+      },
+      take: 5,
+    });
+
     return NextResponse.json({
       medicines,
       transactions,
       customers,
+      suppliers,
     });
   } catch (error: any) {
     console.error('Search API error:', error);

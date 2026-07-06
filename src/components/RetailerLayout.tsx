@@ -197,6 +197,20 @@ export default function RetailerLayout({ children, user, profile }: RetailerLayo
     setMounted(true);
     const savedCollapsed = localStorage.getItem('retailer_sidebar_collapsed');
     if (savedCollapsed === 'true') setCollapsed(true);
+    
+    // Set theme on mount
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    if (savedTheme === 'dark') {
+      document.body.classList.add('dark-mode');
+    } else {
+      document.body.classList.remove('dark-mode');
+    }
+
+    // Set font scale on mount
+    const savedFontScale = localStorage.getItem('font_scale') || 'md';
+    document.body.classList.remove('font-sm', 'font-md', 'font-lg');
+    document.body.classList.add(`font-${savedFontScale}`);
+    
     logActivity('VIEW_PAGE', `Opened retailer page: ${pathname}`);
   }, [pathname]);
 
@@ -376,11 +390,11 @@ export default function RetailerLayout({ children, user, profile }: RetailerLayo
                 gap: 8,
                 width: '100%',
                 padding: '8px 12px',
-                borderRadius: 8,
-                border: '1.5px solid #FDE68A',
-                background: 'rgba(255,255,255,0.7)',
-                color: '#94A3B8',
-                fontSize: 12,
+                borderRadius: 6,
+                border: '1px solid #374151',
+                background: '#1F2937',
+                color: '#9CA3AF',
+                fontSize: 14,
                 cursor: 'pointer',
               }}
             >
@@ -395,7 +409,7 @@ export default function RetailerLayout({ children, user, profile }: RetailerLayo
             <div key={group.category} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               {!collapsed && (
                 <div style={{
-                  fontSize: 9, fontWeight: 900, textTransform: 'uppercase', color: '#94A3B8',
+                  fontSize: 9, fontWeight: 950, textTransform: 'uppercase', color: '#6B7280',
                   padding: '0 20px', marginBottom: 4, letterSpacing: '0.05em'
                 }}>
                   {group.category}
@@ -409,10 +423,10 @@ export default function RetailerLayout({ children, user, profile }: RetailerLayo
                     key={item.href}
                     href={item.href}
                     className={`sidebar-nav-item ${isActive ? 'active' : ''}`}
-                    style={isActive && !collapsed ? { borderLeft: '3px solid #F59E0B' } : {}}
+                    style={isActive && !collapsed ? { borderLeft: '3px solid #2563EB' } : {}}
                     data-label={item.name}
                   >
-                    <Icon className="nav-icon" style={isActive ? { color: '#F59E0B' } : {}} />
+                    <Icon className="nav-icon" style={isActive ? { color: '#FFFFFF' } : {}} />
                     <span className="sidebar-nav-label">{item.name}</span>
                   </Link>
                 );
@@ -428,18 +442,18 @@ export default function RetailerLayout({ children, user, profile }: RetailerLayo
               className={`sidebar-nav-item ${pathname === '/retailer/settings' ? 'active' : ''}`}
               style={{
                 marginBottom: 12,
-                borderRadius: 8,
-                ...(pathname === '/retailer/settings' && !collapsed ? { borderLeft: '3px solid #F59E0B' } : {})
+                borderRadius: 6,
+                ...(pathname === '/retailer/settings' && !collapsed ? { borderLeft: '3px solid #2563EB' } : {})
               }}
               data-label="Settings"
             >
-              <Settings className="nav-icon" style={pathname === '/retailer/settings' ? { color: '#F59E0B' } : {}} />
+              <Settings className="nav-icon" style={pathname === '/retailer/settings' ? { color: '#FFFFFF' } : {}} />
               <span className="sidebar-nav-label">Settings</span>
             </Link>
           )}
 
           <div className="sidebar-user" data-label={user.fullName || user.email.split('@')[0]}>
-            <div className="sidebar-user-avatar" style={{ background: '#F59E0B' }}>{userInitials}</div>
+            <div className="sidebar-user-avatar" style={{ background: '#374151' }}>{userInitials}</div>
             <div className="sidebar-user-info">
               <div className="sidebar-user-name">{user.fullName || user.email.split('@')[0]}</div>
               <div className="sidebar-user-role">{user.role === 'RETAILER_STAFF' ? 'Retail Staff' : 'Retail Owner'}</div>
@@ -454,9 +468,8 @@ export default function RetailerLayout({ children, user, profile }: RetailerLayo
         </div>
       </aside>
 
-      {/* MAIN CONTENT */}
       <main className={`main-content ${collapsed ? 'sidebar-collapsed' : ''}`}>
-        <div style={{ maxWidth: 1400 }} className="animate-fadeIn">{children}</div>
+        <div style={{ width: '100%' }} className="animate-fadeIn">{children}</div>
       </main>
 
       {/* COMMAND PALETTE */}
@@ -480,7 +493,7 @@ export default function RetailerLayout({ children, user, profile }: RetailerLayo
             style={{
               width: '100%',
               maxWidth: 540,
-              background: '#FFFFFF',
+              background: 'var(--card-bg)',
               borderRadius: 16,
               padding: 20,
               boxShadow: '0 20px 60px rgba(0,0,0,0.15)',
@@ -488,6 +501,57 @@ export default function RetailerLayout({ children, user, profile }: RetailerLayo
             }}
             onClick={(e) => e.stopPropagation()}
           >
+            {/* Theme & Scale Controls */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, paddingBottom: 8, borderBottom: '1px solid var(--card-border)', gap: 10, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
+                <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600 }}>Theme:</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    localStorage.setItem('theme', 'light');
+                    document.body.classList.remove('dark-mode');
+                  }}
+                  style={{ padding: '3px 8px', fontSize: 10, fontWeight: 700, borderRadius: 4, border: '1px solid #CBD5E1', cursor: 'pointer', background: '#fff', color: '#000' }}
+                >
+                  ☀️ Light
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    localStorage.setItem('theme', 'dark');
+                    document.body.classList.add('dark-mode');
+                  }}
+                  style={{ padding: '3px 8px', fontSize: 10, fontWeight: 700, borderRadius: 4, border: '1px solid #CBD5E1', cursor: 'pointer', background: '#0F172A', color: '#fff' }}
+                >
+                  🌙 Dark
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
+                <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600 }}>Scale:</span>
+                {([
+                  { k: 'xs', l: 'XS' },
+                  { k: 'sm', l: 'S' },
+                  { k: 'md', l: 'M' },
+                  { k: 'lg', l: 'L' },
+                  { k: 'xl', l: 'XL' }
+                ] as const).map(item => (
+                  <button
+                    key={item.k}
+                    type="button"
+                    onClick={() => {
+                      localStorage.setItem('font_scale', item.k);
+                      document.body.classList.remove('font-xs', 'font-sm', 'font-md', 'font-lg', 'font-xl');
+                      document.body.classList.add(`font-${item.k}`);
+                    }}
+                    style={{ padding: '3px 6px', fontSize: 10, fontWeight: 700, borderRadius: 4, border: '1px solid #CBD5E1', cursor: 'pointer', background: '#fff' }}
+                  >
+                    {item.l}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, borderBottom: '1px solid #E2E8F0', paddingBottom: 10 }}>
               <Search style={{ width: 18, height: 18, color: '#F59E0B' }} />
               <input
@@ -503,7 +567,7 @@ export default function RetailerLayout({ children, user, profile }: RetailerLayo
 
             <div style={{ maxHeight: 340, overflowY: 'auto', marginTop: 14, display: 'flex', flexDirection: 'column', gap: 6 }}>
               {flatResults.length === 0 ? (
-                <div style={{ padding: '20px 10px', fontSize: 13, color: '#94A3B8', textAlign: 'center' }}>
+                <div style={{ padding: '20px 10px', fontSize: 14, color: 'var(--text-muted)', textAlign: 'center' }}>
                   Type to search medicines, invoices, or setting tags...
                 </div>
               ) : (
@@ -533,8 +597,8 @@ export default function RetailerLayout({ children, user, profile }: RetailerLayo
                         <ResultIcon style={{ width: 16, height: 16 }} />
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 750, color: '#1E293B' }}>{item.title}</div>
-                        <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>{item.subtitle}</div>
+                        <div style={{ fontSize: 14, fontWeight: 750, color: 'var(--text-primary)' }}>{item.title}</div>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{item.subtitle}</div>
                       </div>
                       <span style={{ fontSize: 9, fontWeight: 800, padding: '3px 8px', borderRadius: 20, background: item.type === 'page' ? '#E0F2FE' : item.type === 'medicine' ? '#ECFDF5' : item.type === 'transaction' ? '#FEF2F2' : '#F5F3FF', color: item.type === 'page' ? '#0369A1' : item.type === 'medicine' ? '#047857' : item.type === 'transaction' ? '#B91C1C' : '#6D28D9', textTransform: 'uppercase' }}>
                         {item.type}

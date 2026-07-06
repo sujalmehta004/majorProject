@@ -444,15 +444,15 @@ export default function POSClient({ products }: POSClientProps) {
         {/* Left Column: Search & Add Products */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           <div style={{ background: 'linear-gradient(135deg, rgba(245,158,11,0.06), rgba(245,158,11,0.01))', border: '1.5px solid rgba(245,158,11,0.2)', padding: 18, borderRadius: 16 }}>
-            <h2 style={{ fontSize: 20, fontWeight: 900, color: '#1E293B', margin: 0 }}>POS Billing Center</h2>
-            <p style={{ fontSize: 13, color: '#64748B', marginTop: 4, marginBottom: 0 }}>
+            <h2 style={{ fontSize: 22, fontWeight: 900, color: 'var(--text-primary)', margin: 0 }}>POS Billing Center</h2>
+            <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 4, marginBottom: 0 }}>
               Verify inventory batches and dispense directly to patients. Use the keyboard shortcuts below for rapid data entry.
             </p>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {/* Barcode Scanner Input */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#FFFFFF', padding: '12px 16px', borderRadius: 12, border: '1.5px solid #F59E0B', boxShadow: '0 2px 6px rgba(245,158,11,0.06)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--card-bg)', padding: '12px 16px', borderRadius: 12, border: '1.5px solid #F59E0B', boxShadow: '0 2px 6px rgba(245,158,11,0.06)' }}>
               <span style={{ fontSize: 11, fontWeight: 900, color: '#D97706', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Scan Barcode / SKU:</span>
               <input
                 type="text"
@@ -474,13 +474,13 @@ export default function POSClient({ products }: POSClientProps) {
                     }
                   }
                 }}
-                style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%', fontSize: 13, fontFamily: 'monospace', fontWeight: 700 }}
+                style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%', fontSize: 14, fontFamily: 'monospace', fontWeight: 700 }}
               />
             </div>
 
             {/* Autocomplete Search input */}
-            <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 10, background: '#FFFFFF', padding: '12px 16px', borderRadius: 12, border: '1.5px solid #E2E8F0', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
-              <Search style={{ width: 16, height: 16, color: '#94A3B8' }} />
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 10, background: 'var(--card-bg)', padding: '12px 16px', borderRadius: 12, border: '1px solid var(--card-border)', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
+              <Search style={{ width: 16, height: 16, color: 'var(--text-muted)' }} />
               <input
                 ref={searchInputRef}
                 type="text"
@@ -491,13 +491,13 @@ export default function POSClient({ products }: POSClientProps) {
                   setShowSuggestions(true);
                 }}
                 onFocus={() => setShowSuggestions(true)}
-                style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%', fontSize: 13 }}
+                style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%', fontSize: 14 }}
               />
 
               {showSuggestions && searchQuery && (
-                <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#FFFFFF', border: '1.5px solid #E2E8F0', borderRadius: 12, boxShadow: '0 12px 30px rgba(0,0,0,0.1)', zIndex: 50, maxHeight: 320, overflowY: 'auto', marginTop: 6 }}>
+                <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--card-bg)', border: '1px solid var(--card-border)', borderRadius: 12, boxShadow: '0 12px 30px rgba(0,0,0,0.1)', zIndex: 50, maxHeight: 320, overflowY: 'auto', marginTop: 6 }}>
                   {filteredProducts.length === 0 ? (
-                    <div style={{ padding: 14, fontSize: 12, color: '#94A3B8', textAlign: 'center' }}>No medicines found</div>
+                    <div style={{ padding: 14, fontSize: 14, color: 'var(--text-muted)', textAlign: 'center' }}>No medicines found</div>
                   ) : (
                     filteredProducts.map((p) => {
                         const totalUnits = p.batches.reduce((sum, b) => sum + b.availableBaseUnits, 0);
@@ -515,31 +515,31 @@ export default function POSClient({ products }: POSClientProps) {
                               setSearchQuery('');
                               setShowSuggestions(false);
                             }}
-                            style={{ padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid #F1F5F9', fontSize: 13 }}
+                            style={{ padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid #F1F5F9', fontSize: 14 }}
                             onMouseEnter={(e) => (e.currentTarget.style.background = '#F8FAFC')}
                             onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
                           >
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                               <div style={{ flex: 1 }}>
-                                <div style={{ fontWeight: 800, color: '#1E293B' }}>{p.name}</div>
-                                <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>SKU: {p.sku} · {p.category}</div>
+                                <div style={{ fontWeight: 800, color: 'var(--text-primary)' }}>{p.name}</div>
+                                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>SKU: {p.sku} · {p.category}</div>
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 5 }}>
-                                  <span style={{ fontSize: 10, background: '#F1F5F9', color: '#475569', padding: '1px 7px', borderRadius: 4, fontWeight: 600 }}>
+                                  <span style={{ fontSize: 12, background: '#F1F5F9', color: 'var(--text-secondary)', padding: '1px 7px', borderRadius: 4, fontWeight: 600 }}>
                                     {p.batches.length} batch{p.batches.length !== 1 ? 'es' : ''}
                                   </span>
                                   {nearestExpiry && (
-                                    <span style={{ fontSize: 10, background: new Date(nearestExpiry) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) ? '#FEF3C7' : '#F0FDF4', color: new Date(nearestExpiry) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) ? '#92400E' : '#15803D', padding: '1px 7px', borderRadius: 4, fontWeight: 700 }}>
+                                    <span style={{ fontSize: 12, background: new Date(nearestExpiry) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) ? '#FEF3C7' : '#F0FDF4', color: new Date(nearestExpiry) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) ? '#92400E' : '#15803D', padding: '1px 7px', borderRadius: 4, fontWeight: 700 }}>
                                       Exp: {new Date(nearestExpiry).toLocaleDateString()}
                                     </span>
                                   )}
                                   {racks.map(rack => (
-                                    <span key={rack} style={{ fontSize: 10, background: '#FCD34D', color: '#78350F', padding: '1px 7px', borderRadius: 4, fontWeight: 900, fontFamily: 'monospace' }}>
+                                    <span key={rack} style={{ fontSize: 12, background: '#FCD34D', color: '#78350F', padding: '1px 7px', borderRadius: 4, fontWeight: 900, fontFamily: 'monospace' }}>
                                       📍 {rack}
                                     </span>
                                   ))}
                                 </div>
                               </div>
-                              <span style={{ fontSize: 12, color: '#D97706', fontWeight: 700, background: '#FEF3C7', padding: '2px 8px', borderRadius: 6, flexShrink: 0, marginLeft: 10 }}>
+                              <span style={{ fontSize: 14, color: '#D97706', fontWeight: 700, background: '#FEF3C7', padding: '2px 8px', borderRadius: 6, flexShrink: 0, marginLeft: 10 }}>
                                 {totalUnits} units
                               </span>
                             </div>
@@ -553,13 +553,13 @@ export default function POSClient({ products }: POSClientProps) {
           </div>
 
           {/* Catalog Selector */}
-          <div style={{ background: '#FFFFFF', borderRadius: 16, border: '1.5px solid #F1F5F9', padding: 20, display: 'flex', flexDirection: 'column', gap: 14, boxShadow: '0 4px 12px rgba(0,0,0,0.01)' }}>
+          <div style={{ background: 'var(--card-bg)', borderRadius: 16, border: '1px solid var(--card-border)', padding: 20, display: 'flex', flexDirection: 'column', gap: 14, boxShadow: '0 4px 12px rgba(0,0,0,0.01)' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <label style={{ fontSize: 11, fontWeight: 800, color: '#475569', letterSpacing: '0.02em' }}>1. SELECT MEDICINE</label>
+              <label style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-secondary)', letterSpacing: '0.02em' }}>1. SELECT MEDICINE</label>
               <select
                 value={selectedProductId}
                 onChange={(e) => { setSelectedProductId(e.target.value); setSelectedBatchId(''); }}
-                style={{ padding: '11px 14px', borderRadius: 8, border: '1.5px solid #E2E8F0', outline: 'none', fontSize: 13, background: '#FFFFFF' }}
+                style={{ padding: '11px 14px', borderRadius: 8, border: '1px solid var(--card-border)', outline: 'none', fontSize: 14, background: 'var(--card-bg)' }}
               >
                 <option value="">-- Choose Medicine --</option>
                 {filteredProducts.map((p) => (
@@ -570,11 +570,11 @@ export default function POSClient({ products }: POSClientProps) {
 
             {selectedProduct && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <label style={{ fontSize: 11, fontWeight: 800, color: '#475569', letterSpacing: '0.02em' }}>2. SELECT BATCH</label>
+                <label style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-secondary)', letterSpacing: '0.02em' }}>2. SELECT BATCH</label>
                 <select
                   value={selectedBatchId}
                   onChange={(e) => setSelectedBatchId(e.target.value)}
-                  style={{ padding: '11px 14px', borderRadius: 8, border: '1.5px solid #E2E8F0', outline: 'none', fontSize: 13, background: '#FFFFFF' }}
+                  style={{ padding: '11px 14px', borderRadius: 8, border: '1px solid var(--card-border)', outline: 'none', fontSize: 14, background: 'var(--card-bg)' }}
                 >
                   <option value="">-- Choose Batch --</option>
                   {selectedProduct.batches.map((b) => (
@@ -590,7 +590,7 @@ export default function POSClient({ products }: POSClientProps) {
               <div style={{ borderTop: '1.5px solid #F1F5F9', paddingTop: 14, display: 'flex', flexDirection: 'column', gap: 14 }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 12 }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    <label style={{ fontSize: 10, fontWeight: 850, color: '#475569' }}>PACKAGING UNIT (F2)</label>
+                    <label style={{ fontSize: 12, fontWeight: 850, color: 'var(--text-secondary)' }}>PACKAGING UNIT (F2)</label>
                     <div style={{ display: 'flex', gap: 4 }}>
                       {([
                         { id: 'box', label: 'Boxes' },
@@ -609,14 +609,14 @@ export default function POSClient({ products }: POSClientProps) {
                     </div>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    <label style={{ fontSize: 10, fontWeight: 850, color: '#475569' }}>QTY (F3)</label>
+                    <label style={{ fontSize: 12, fontWeight: 850, color: 'var(--text-secondary)' }}>QTY (F3)</label>
                     <input
                       id="pos-qty-input"
                       type="number"
                       min="1"
                       value={posQtyInput}
                       onChange={(e) => setPosQtyInput(parseInt(e.target.value) || 1)}
-                      style={{ padding: '8px 10px', borderRadius: 6, border: '1.5px solid #E2E8F0', fontSize: 13, outline: 'none' }}
+                      style={{ padding: '8px 10px', borderRadius: 6, border: '1px solid var(--card-border)', fontSize: 14, outline: 'none' }}
                     />
                   </div>
                 </div>
@@ -624,14 +624,14 @@ export default function POSClient({ products }: POSClientProps) {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: '#FEF3C7', border: '1.5px solid #FDE68A', borderRadius: 8 }}>
                     <svg style={{ width: 13, height: 13, color: '#B45309', flexShrink: 0 }} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                     <span style={{ fontSize: 11, fontWeight: 800, color: '#92400E' }}>Rack Location:</span>
-                    <span style={{ fontSize: 12, fontWeight: 900, color: '#B45309', fontFamily: 'monospace', background: '#FCD34D', padding: '1px 8px', borderRadius: 6 }}>{selectedBatch.rack}</span>
+                    <span style={{ fontSize: 14, fontWeight: 900, color: '#B45309', fontFamily: 'monospace', background: '#FCD34D', padding: '1px 8px', borderRadius: 6 }}>{selectedBatch.rack}</span>
                   </div>
                 )}
                 <button
                   id="add-to-basket-btn"
                   type="button"
                   onClick={handleAddToBasket}
-                  style={{ background: '#D97706', color: '#FFFFFF', border: 'none', padding: '12px', borderRadius: 8, fontSize: 13, fontWeight: 800, cursor: 'pointer', transition: 'background 0.1s' }}
+                  style={{ background: '#D97706', color: '#FFFFFF', border: 'none', padding: '12px', borderRadius: 8, fontSize: 14, fontWeight: 800, cursor: 'pointer', transition: 'background 0.1s' }}
                   onMouseEnter={(e) => (e.currentTarget.style.background = '#B45309')}
                   onMouseLeave={(e) => (e.currentTarget.style.background = '#D97706')}
                 >
@@ -645,42 +645,42 @@ export default function POSClient({ products }: POSClientProps) {
         {/* Right Column: Checkout Basket */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           {cart.length === 0 ? (
-            <div style={{ background: '#FFFFFF', borderRadius: 16, border: '1.5px solid #F1F5F9', padding: '90px 24px', textAlign: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.01)' }}>
+            <div style={{ background: 'var(--card-bg)', borderRadius: 16, border: '1px solid var(--card-border)', padding: '90px 24px', textAlign: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.01)' }}>
               <ShoppingBag style={{ width: 44, height: 44, color: '#E2E8F0', margin: '0 auto 12px' }} />
-              <h3 style={{ fontSize: 14, fontWeight: 800, color: '#1E293B', margin: 0 }}>Basket is Empty</h3>
-              <p style={{ fontSize: 12, color: '#94A3B8', marginTop: 4, marginBottom: 0 }}>Select products on the left side to compile patient bill</p>
+              <h3 style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>Basket is Empty</h3>
+              <p style={{ fontSize: 14, color: 'var(--text-muted)', marginTop: 4, marginBottom: 0 }}>Select products on the left side to compile patient bill</p>
             </div>
           ) : (
-            <form id="pos-checkout-form" onSubmit={handleCheckout} style={{ background: '#FFFFFF', borderRadius: 16, border: '1.5px solid #F1F5F9', padding: 20, display: 'flex', flexDirection: 'column', gap: 16, boxShadow: '0 4px 12px rgba(0,0,0,0.01)' }}>
+            <form id="pos-checkout-form" onSubmit={handleCheckout} style={{ background: 'var(--card-bg)', borderRadius: 16, border: '1px solid var(--card-border)', padding: 20, display: 'flex', flexDirection: 'column', gap: 16, boxShadow: '0 4px 12px rgba(0,0,0,0.01)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, borderBottom: '1px solid #F1F5F9', paddingBottom: 10 }}>
                 <ShoppingBag style={{ width: 18, height: 18, color: '#D97706' }} />
-                <h3 style={{ fontSize: 15, fontWeight: 900, color: '#1E293B', margin: 0 }}>Dispensed Items Basket</h3>
+                <h3 style={{ fontSize: 18, fontWeight: 900, color: 'var(--text-primary)', margin: 0 }}>Dispensed Items Basket</h3>
               </div>
 
               {/* List items */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 200, overflowY: 'auto' }}>
                 {cart.map((item, idx) => (
-                  <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: '#F8FAFC', borderRadius: 10, fontSize: 13, border: '1px solid #F1F5F9' }}>
+                  <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: 'var(--table-header-bg)', borderRadius: 10, fontSize: 14, border: '1px solid #F1F5F9' }}>
                     <div>
-                      <div style={{ fontWeight: 800, color: '#1E293B' }}>{item.name}</div>
-                      <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>
+                      <div style={{ fontWeight: 800, color: 'var(--text-primary)' }}>{item.name}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
                         Batch: <span style={{ fontFamily: 'monospace', fontWeight: 700 }}>{item.batchNumber}</span>
                       </div>
                       {item.rack && (
                         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 3 }}>
                           <span style={{ fontSize: 9, fontWeight: 800, color: '#92400E' }}>RACK:</span>
-                          <span style={{ fontSize: 10, fontWeight: 900, fontFamily: 'monospace', background: '#FCD34D', color: '#78350F', padding: '0px 6px', borderRadius: 4 }}>{item.rack}</span>
+                          <span style={{ fontSize: 12, fontWeight: 900, fontFamily: 'monospace', background: '#FCD34D', color: '#78350F', padding: '0px 6px', borderRadius: 4 }}>{item.rack}</span>
                         </div>
                       )}
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                       {/* Quantity adjustments */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 6, padding: '2px 4px' }}>
-                        <button type="button" onClick={() => adjustCartItemQty(item.productId, item.batchNumber, item.packaging, -1)} style={{ border: 'none', background: 'none', cursor: 'pointer', padding: '2px 6px', fontWeight: 850, color: '#64748B' }}>-</button>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--card-bg)', border: '1px solid var(--card-border)', borderRadius: 6, padding: '2px 4px' }}>
+                        <button type="button" onClick={() => adjustCartItemQty(item.productId, item.batchNumber, item.packaging, -1)} style={{ border: 'none', background: 'none', cursor: 'pointer', padding: '2px 6px', fontWeight: 850, color: 'var(--text-secondary)' }}>-</button>
                         <span style={{ fontSize: 11, fontWeight: 800, minWidth: 20, textAlign: 'center' }}>{item.qty} {item.packaging[0]}</span>
-                        <button type="button" onClick={() => adjustCartItemQty(item.productId, item.batchNumber, item.packaging, 1)} style={{ border: 'none', background: 'none', cursor: 'pointer', padding: '2px 6px', fontWeight: 850, color: '#64748B' }}>+</button>
+                        <button type="button" onClick={() => adjustCartItemQty(item.productId, item.batchNumber, item.packaging, 1)} style={{ border: 'none', background: 'none', cursor: 'pointer', padding: '2px 6px', fontWeight: 850, color: 'var(--text-secondary)' }}>+</button>
                       </div>
-                      <span style={{ fontWeight: 800, color: '#1E293B', minWidth: 70, textAlign: 'right' }}>Rs. {item.totalAmount.toLocaleString()}</span>
+                      <span style={{ fontWeight: 800, color: 'var(--text-primary)', minWidth: 70, textAlign: 'right' }}>Rs. {item.totalAmount.toLocaleString()}</span>
                       <button type="button" onClick={() => removeFromCart(item.productId, item.batchNumber, item.packaging)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#EF4444', padding: 2 }}>
                         <Trash2 style={{ width: 14, height: 14 }} />
                       </button>
@@ -690,19 +690,19 @@ export default function POSClient({ products }: POSClientProps) {
               </div>
 
               {/* Totals, Tax, discount */}
-              <div style={{ borderTop: '1px solid #F1F5F9', paddingTop: 14, display: 'flex', flexDirection: 'column', gap: 8, fontSize: 12 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748B', fontWeight: 600 }}>
+              <div style={{ borderTop: '1px solid #F1F5F9', paddingTop: 14, display: 'flex', flexDirection: 'column', gap: 8, fontSize: 14 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)', fontWeight: 600 }}>
                   <span>Subtotal:</span>
                   <span>Rs. {subtotal.toLocaleString()}</span>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    <label style={{ fontSize: 10, color: '#64748B', fontWeight: 800 }}>DISCOUNT (%)</label>
-                    <input type="number" value={discountPercent} onChange={(e) => setDiscountPercent(e.target.value)} style={{ padding: '8px 10px', borderRadius: 6, border: '1.5px solid #E2E8F0', fontSize: 12, outline: 'none' }} />
+                    <label style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 800 }}>DISCOUNT (%)</label>
+                    <input type="number" value={discountPercent} onChange={(e) => setDiscountPercent(e.target.value)} style={{ padding: '8px 10px', borderRadius: 6, border: '1px solid var(--card-border)', fontSize: 14, outline: 'none' }} />
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    <label style={{ fontSize: 10, color: '#64748B', fontWeight: 800 }}>TAX / VAT (%)</label>
-                    <input type="number" value={taxPercent} onChange={(e) => setTaxPercent(e.target.value)} style={{ padding: '8px 10px', borderRadius: 6, border: '1.5px solid #E2E8F0', fontSize: 12, outline: 'none' }} />
+                    <label style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 800 }}>TAX / VAT (%)</label>
+                    <input type="number" value={taxPercent} onChange={(e) => setTaxPercent(e.target.value)} style={{ padding: '8px 10px', borderRadius: 6, border: '1px solid var(--card-border)', fontSize: 14, outline: 'none' }} />
                   </div>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 950, fontSize: 16, borderTop: '1px solid #F1F5F9', paddingTop: 10, marginTop: 4 }}>
@@ -715,18 +715,18 @@ export default function POSClient({ products }: POSClientProps) {
               <div style={{ borderTop: '1px solid #F1F5F9', paddingTop: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    <label style={{ fontSize: 10, fontWeight: 800, color: '#475569' }}>Patient Name (F4)</label>
-                    <input id="patient-name-input" type="text" placeholder="Walk-in Patient" value={customerName} onChange={(e) => setCustomerName(e.target.value)} style={{ padding: '8px 10px', borderRadius: 8, border: '1.5px solid #E2E8F0', fontSize: 13, outline: 'none' }} />
+                    <label style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-secondary)' }}>Patient Name (F4)</label>
+                    <input id="patient-name-input" type="text" placeholder="Walk-in Patient" value={customerName} onChange={(e) => setCustomerName(e.target.value)} style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid var(--card-border)', fontSize: 14, outline: 'none' }} />
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    <label style={{ fontSize: 10, fontWeight: 800, color: '#475569' }}>Patient Phone</label>
-                    <input type="text" placeholder="N/A" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} style={{ padding: '8px 10px', borderRadius: 8, border: '1.5px solid #E2E8F0', fontSize: 13, outline: 'none' }} />
+                    <label style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-secondary)' }}>Patient Phone</label>
+                    <input type="text" placeholder="N/A" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid var(--card-border)', fontSize: 14, outline: 'none' }} />
                   </div>
                 </div>
 
                 {/* Payment Status */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <label style={{ fontSize: 10, fontWeight: 800, color: '#475569' }}>PAYMENT STATE (F7)</label>
+                  <label style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-secondary)' }}>PAYMENT STATE (F7)</label>
                   <div style={{ display: 'flex', gap: 4 }}>
                     {([
                       { id: 'FULL', label: 'Full Pay' },
@@ -747,20 +747,20 @@ export default function POSClient({ products }: POSClientProps) {
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 10 }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    <label style={{ fontSize: 10, fontWeight: 800, color: '#475569' }}>Payment Method (F8)</label>
-                    <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} style={{ padding: '8px 10px', borderRadius: 8, border: '1.5px solid #E2E8F0', fontSize: 13, background: '#FFFFFF', outline: 'none' }}>
+                    <label style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-secondary)' }}>Payment Method (F8)</label>
+                    <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid var(--card-border)', fontSize: 14, background: 'var(--card-bg)', outline: 'none' }}>
                       <option value="CASH">CASH</option>
                       <option value="MOBILE_BANKING">MOBILE BANKING / QR</option>
                       <option value="CARD">CARD</option>
                     </select>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    <label style={{ fontSize: 10, fontWeight: 800, color: '#475569' }}>Paid Amount (Rs.)</label>
+                    <label style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-secondary)' }}>Paid Amount (Rs.)</label>
                     <input
                       type="number"
                       value={paidAmountInput}
                       onChange={(e) => setPaidAmountInput(e.target.value)}
-                      style={{ padding: '8px 10px', borderRadius: 8, border: '1.5px solid #E2E8F0', fontSize: 13, fontWeight: 800, color: '#1E293B', outline: 'none' }}
+                      style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid var(--card-border)', fontSize: 14, fontWeight: 800, color: 'var(--text-primary)', outline: 'none' }}
                     />
                   </div>
                 </div>
@@ -778,7 +778,7 @@ export default function POSClient({ products }: POSClientProps) {
           )}
 
           {error && (
-            <div style={{ display: 'flex', gap: 8, padding: 12, background: 'rgba(239,68,68,0.08)', borderRadius: 8, color: '#EF4444', fontSize: 12, fontWeight: 600 }}>
+            <div style={{ display: 'flex', gap: 8, padding: 12, background: 'rgba(239,68,68,0.08)', borderRadius: 8, color: '#EF4444', fontSize: 14, fontWeight: 600 }}>
               <AlertCircle style={{ width: 15, height: 15, flexShrink: 0 }} />
               <span>{error}</span>
             </div>
@@ -787,7 +787,7 @@ export default function POSClient({ products }: POSClientProps) {
       </div>
 
       {/* ── Keyboard Shortcuts Status Bar ── */}
-      <div style={{ background: '#1E293B', borderRadius: 12, padding: '12px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, color: '#94A3B8', fontSize: 11, fontWeight: 700 }} className="no-print">
+      <div style={{ background: '#1E293B', borderRadius: 12, padding: '12px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, color: 'var(--text-muted)', fontSize: 11, fontWeight: 700 }} className="no-print">
         <span style={{ color: '#F59E0B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Keyboard Shortcuts:</span>
         <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
           <span><kbd style={{ background: '#334155', color: '#F8FAFC', padding: '2px 6px', borderRadius: 4, marginRight: 4 }}>F9</kbd> Search</span>
@@ -804,20 +804,20 @@ export default function POSClient({ products }: POSClientProps) {
       {/* Receipt Print Preview Modal */}
       {showReceiptModal && receipt && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(15,23,42,0.35)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-          <div style={{ width: '100%', maxWidth: 420, background: '#FFFFFF', borderRadius: 20, overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 60px rgba(0,0,0,0.15)' }}>
+          <div style={{ width: '100%', maxWidth: 420, background: 'var(--card-bg)', borderRadius: 20, overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 60px rgba(0,0,0,0.15)' }}>
             
             <div style={{ padding: '16px 20px', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontWeight: 800, fontSize: 14 }}>POS Receipt Preview</span>
-              <button onClick={() => setShowReceiptModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8' }}>
+              <button onClick={() => setShowReceiptModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
                 <X style={{ width: 16, height: 16 }} />
               </button>
             </div>
 
-            <div style={{ padding: 20, background: '#F8FAFC', flex: 1, overflowY: 'auto' }}>
+            <div style={{ padding: 20, background: 'var(--table-header-bg)', flex: 1, overflowY: 'auto' }}>
               {/* Styled receipt */}
-              <div style={{ background: '#FFFFFF', border: '1.5px solid #E2E8F0', padding: 20, fontFamily: 'monospace', color: '#000', fontSize: 11, borderRadius: 8 }}>
+              <div style={{ background: 'var(--card-bg)', border: '1px solid var(--card-border)', padding: 20, fontFamily: 'monospace', color: '#000', fontSize: 11, borderRadius: 8 }}>
                 <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: 14, marginBottom: 4 }}>MEDHUB RETAIL PHARMACY</div>
-                <div style={{ textAlign: 'center', fontSize: 10, borderBottom: '1px dashed #000', paddingBottom: 8, marginBottom: 12 }}>B2C COUNTER SALE INVOICE</div>
+                <div style={{ textAlign: 'center', fontSize: 12, borderBottom: '1px dashed #000', paddingBottom: 8, marginBottom: 12 }}>B2C COUNTER SALE INVOICE</div>
                 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 10 }}>
                   <div><strong>Ref ID:</strong> {receipt.order.id.substring(0, 12).toUpperCase()}</div>
@@ -827,7 +827,7 @@ export default function POSClient({ products }: POSClientProps) {
                   <div><strong>Payment:</strong> {receipt.paymentMethod}</div>
                 </div>
 
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10, marginBottom: 10 }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, marginBottom: 10 }}>
                   <thead>
                     <tr style={{ borderBottom: '1px dashed #000' }}>
                       <th style={{ textAlign: 'left', padding: '4px 0' }}>Medicine</th>
@@ -853,7 +853,7 @@ export default function POSClient({ products }: POSClientProps) {
                   <div>Subtotal: Rs. {receipt.subtotal.toLocaleString()}</div>
                   {receipt.discountAmount > 0 && <div style={{ color: 'red' }}>Discount: -Rs. {receipt.discountAmount.toLocaleString()}</div>}
                   {receipt.taxAmount > 0 && <div>Tax (13%): Rs. {receipt.taxAmount.toLocaleString()}</div>}
-                  <div style={{ fontWeight: 'bold', fontSize: 12, marginTop: 4 }}>Grand Total: Rs. {receipt.netAmount.toLocaleString()}</div>
+                  <div style={{ fontWeight: 'bold', fontSize: 14, marginTop: 4 }}>Grand Total: Rs. {receipt.netAmount.toLocaleString()}</div>
                   <div style={{ borderTop: '1px dashed #000', margin: '4px 0 2px', width: '60%', marginLeft: 'auto' }}></div>
                   <div style={{ color: '#10B981' }}>Paid: Rs. {receipt.paidAmount.toLocaleString()}</div>
                   {receipt.dueAmount > 0 && <div style={{ color: 'red', fontWeight: 'bold' }}>Due: Rs. {receipt.dueAmount.toLocaleString()}</div>}
@@ -862,10 +862,10 @@ export default function POSClient({ products }: POSClientProps) {
             </div>
 
             <div style={{ padding: '16px 20px', borderTop: '1px solid #E2E8F0', display: 'flex', gap: 10 }}>
-              <button onClick={() => setShowReceiptModal(false)} style={{ flex: 1, padding: 11, borderRadius: 8, border: '1.5px solid #E2E8F0', background: '#FFFFFF', color: '#475569', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+              <button onClick={() => setShowReceiptModal(false)} style={{ flex: 1, padding: 11, borderRadius: 8, border: '1px solid var(--card-border)', background: 'var(--card-bg)', color: 'var(--text-secondary)', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
                 Close
               </button>
-              <button onClick={() => printThermalInvoice(receipt)} style={{ flex: 2, padding: 11, borderRadius: 8, border: 'none', background: '#10B981', color: '#FFFFFF', fontSize: 12, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+              <button onClick={() => printThermalInvoice(receipt)} style={{ flex: 2, padding: 11, borderRadius: 8, border: 'none', background: '#10B981', color: '#FFFFFF', fontSize: 14, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
                 <Printer style={{ width: 14, height: 14 }} />
                 Print Voucher
               </button>

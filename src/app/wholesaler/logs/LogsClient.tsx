@@ -71,11 +71,11 @@ export default function LogsClient({ initialLogs }: LogsClientProps) {
         padding: '20px 24px', boxShadow: '0 2px 12px rgba(14,165,233,0.07)',
       }}>
         <div>
-          <h1 style={{ fontSize: 20, fontWeight: 800, color: '#1E293B', letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <h1 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: 8 }}>
             <Activity style={{ width: 22, height: 22, color: '#F97316' }} />
             Audit Trail Database
           </h1>
-          <p style={{ fontSize: 13, color: '#64748B', marginTop: 4 }}>
+          <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 4 }}>
             Chronological record of system accesses, order allocations, and POS checkout invoices.
           </p>
         </div>
@@ -140,7 +140,7 @@ export default function LogsClient({ initialLogs }: LogsClientProps) {
               Clear Filters
             </button>
           ) : (
-            <div style={{ height: 32, padding: '0 12px', background: 'rgba(241,245,249,0.5)', border: '1px solid rgba(226,232,240,0.5)', borderRadius: 8, fontSize: 10, color: '#94A3B8', fontFamily: 'monospace', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, textTransform: 'uppercase' }}>
+            <div style={{ height: 32, padding: '0 12px', background: 'rgba(241,245,249,0.5)', border: '1px solid rgba(226,232,240,0.5)', borderRadius: 8, fontSize: 12, color: 'var(--text-muted)', fontFamily: 'monospace', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, textTransform: 'uppercase' }}>
               No Filters
             </div>
           )}
@@ -150,11 +150,11 @@ export default function LogsClient({ initialLogs }: LogsClientProps) {
       {/* Audit Log Table */}
       <div className="card" style={{ background: 'rgba(255,255,255,0.85)', padding: 24 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #F1F5F9', paddingBottom: 12, marginBottom: 16 }}>
-          <h3 style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#1E293B', display: 'flex', alignItems: 'center', gap: 6 }}>
+          <h3 style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#0EA5E9', display: 'inline-block' }} />
             Ledger Output — {filteredLogs.length} entries
           </h3>
-          <span style={{ fontSize: 9, fontWeight: 700, color: '#94A3B8', fontFamily: 'monospace', textTransform: 'uppercase', background: '#F8FAFC', border: '1px solid #E2E8F0', padding: '3px 10px', borderRadius: 8 }}>
+          <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--text-muted)', fontFamily: 'monospace', textTransform: 'uppercase', background: 'var(--table-header-bg)', border: '1px solid var(--card-border)', padding: '3px 10px', borderRadius: 8 }}>
             SYNCED
           </span>
         </div>
@@ -173,7 +173,7 @@ export default function LogsClient({ initialLogs }: LogsClientProps) {
             <tbody>
               {filteredLogs.length === 0 ? (
                 <tr>
-                  <td colSpan={5} style={{ padding: '32px', textAlign: 'center', color: '#94A3B8', fontStyle: 'italic', fontSize: 12 }}>
+                  <td colSpan={5} style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)', fontStyle: 'italic', fontSize: 14 }}>
                     No registered audit logs matching search criteria.
                   </td>
                 </tr>
@@ -184,7 +184,7 @@ export default function LogsClient({ initialLogs }: LogsClientProps) {
 
                   return (
                     <tr key={log.id}>
-                      <td style={{ fontFamily: 'monospace', fontSize: 10, color: '#64748B', whiteSpace: 'nowrap' }}>{timestampStr}</td>
+                      <td style={{ fontFamily: 'monospace', fontSize: 12, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{timestampStr}</td>
                       <td>
                         <span style={{
                           fontSize: 9, fontWeight: 700, textTransform: 'uppercase', fontFamily: 'monospace',
@@ -195,10 +195,10 @@ export default function LogsClient({ initialLogs }: LogsClientProps) {
                         </span>
                       </td>
                       <td>
-                        <div style={{ fontWeight: 700, fontSize: 12, color: '#1E293B' }}>
+                        <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-primary)' }}>
                           {log.user?.fullName || log.user?.email.split('@')[0] || 'System'}
                         </div>
-                        <div style={{ fontSize: 10, color: '#94A3B8', fontFamily: 'monospace', marginTop: 2 }}>
+                        <div style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'monospace', marginTop: 2 }}>
                           {log.user?.email || 'system@medhub.com'}
                         </div>
                       </td>

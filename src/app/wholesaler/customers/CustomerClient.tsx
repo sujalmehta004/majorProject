@@ -157,6 +157,17 @@ export default function CustomerClient({ customers: initialCustomers, wholesaler
     setCustomers(initialCustomers);
   }, [initialCustomers]);
 
+  // Read URL search param on mount to auto-filter (from command palette deep-link)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const searchParam = params.get('search');
+      if (searchParam) {
+        setSearchTerm(decodeURIComponent(searchParam));
+      }
+    }
+  }, []);
+
   // Helper: get total verified paid for an order from DB
   const getOrderPaid = (order: any): number => {
     if (order.b2bSettlements && Array.isArray(order.b2bSettlements)) {
@@ -290,58 +301,51 @@ export default function CustomerClient({ customers: initialCustomers, wholesaler
   };
 
   return (
-    <div className="space-y-6 animate-fadeIn">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.80)', backdropFilter: 'blur(16px)', border: '1.5px solid rgba(186,230,253,0.5)', borderRadius: 20, padding: '20px 24px', boxShadow: '0 2px 12px rgba(14,165,233,0.07)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fff', border: '1px solid #E5E7EB', borderRadius: 8, padding: '16px 20px' }}>
         <div>
-          <h1 style={{ fontSize: 20, fontWeight: 800, color: '#1E293B', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Users style={{ width: 22, height: 22, color: '#0EA5E9' }} />
+          <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+            <Users style={{ width: 20, height: 20, color: '#2563EB' }} />
             Customer Directory
           </h1>
-          <p style={{ fontSize: 13, color: '#64748B', marginTop: 4 }}>
+          <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
             Manage retailer relations and review client-tier transaction statements
           </p>
         </div>
         <button
           onClick={() => setShowAddModal(true)}
-          className="btn-primary"
-          style={{ background: 'linear-gradient(135deg, #0EA5E9, #38BDF8)', whiteSpace: 'nowrap' }}
+          style={{ padding: '8px 16px', background: '#2563EB', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 600, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}
         >
           <UserPlus style={{ width: 14, height: 14 }} />
           Add Customer
         </button>
       </div>
 
-      {/* Advanced Filter Panel */}
-      <div style={{
-        display: 'flex', flexWrap: 'wrap', gap: 12, padding: '14px 20px',
-        background: 'rgba(255,255,255,0.8)', backdropFilter: 'blur(12px)',
-        border: '1px solid rgba(226,232,240,0.8)', borderRadius: 16,
-        boxShadow: '0 4px 20px rgba(0,0,0,0.02)'
-      }}>
+      {/* Filter Panel */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, padding: '12px 16px', background: '#fff', border: '1px solid #E5E7EB', borderRadius: 8, alignItems: 'flex-end' }}>
         {/* Search */}
         <div style={{ minWidth: 200, flex: '1 1 200px' }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, fontWeight: 700, color: '#475569', textTransform: 'uppercase', marginBottom: 6 }}>
-            <Search style={{ width: 12, height: 12, color: '#0EA5E9' }} /> Search Retailers
+          <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 4 }}>
+            <Search style={{ width: 11, height: 11 }} /> Search
           </label>
           <input
             type="text"
-            placeholder="Search by pharmacy, contact, phone..."
+            placeholder="Pharmacy, contact, phone..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="filter-input"
-            style={{ width: '100%', padding: '8px 12px', fontSize: 12, border: '1.5px solid #E2E8F0', borderRadius: 10, outline: 'none', background: 'white' }}
+            style={{ width: '100%', padding: '7px 10px', fontSize: 12, border: '1px solid #D1D5DB', borderRadius: 6, outline: 'none', background: '#fff' }}
           />
         </div>
 
         {/* Due Status Filter */}
         <div style={{ minWidth: 140 }}>
-          <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#475569', textTransform: 'uppercase', marginBottom: 6 }}>Due Status</label>
+          <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 6 }}>Due Status</label>
           <select
             value={dueFilter}
             onChange={(e: any) => setDueFilter(e.target.value)}
             className="filter-select"
-            style={{ width: '100%', padding: '8px 12px', fontSize: 12, border: '1.5px solid #E2E8F0', borderRadius: 10, outline: 'none', background: 'white', cursor: 'pointer' }}
+            style={{ width: '100%', padding: '8px 12px', fontSize: 14, border: '1px solid var(--card-border)', borderRadius: 10, outline: 'none', background: 'var(--card-bg)', cursor: 'pointer' }}
           >
             <option value="all">All Statuses</option>
             <option value="due">Has Outstanding Due</option>
@@ -351,12 +355,12 @@ export default function CustomerClient({ customers: initialCustomers, wholesaler
 
         {/* Spending Tier Filter */}
         <div style={{ minWidth: 140 }}>
-          <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#475569', textTransform: 'uppercase', marginBottom: 6 }}>Spending Tier</label>
+          <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 6 }}>Spending Tier</label>
           <select
             value={spendFilter}
             onChange={(e: any) => setSpendFilter(e.target.value)}
             className="filter-select"
-            style={{ width: '100%', padding: '8px 12px', fontSize: 12, border: '1.5px solid #E2E8F0', borderRadius: 10, outline: 'none', background: 'white', cursor: 'pointer' }}
+            style={{ width: '100%', padding: '8px 12px', fontSize: 14, border: '1px solid var(--card-border)', borderRadius: 10, outline: 'none', background: 'var(--card-bg)', cursor: 'pointer' }}
           >
             <option value="all">All Tiers</option>
             <option value="high">High Spend (&gt;Rs.100k)</option>
@@ -367,12 +371,12 @@ export default function CustomerClient({ customers: initialCustomers, wholesaler
 
         {/* Sorting Selection */}
         <div style={{ minWidth: 140 }}>
-          <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#475569', textTransform: 'uppercase', marginBottom: 6 }}>Sort Order</label>
+          <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 6 }}>Sort Order</label>
           <select
             value={sortOrder}
             onChange={(e: any) => setSortOrder(e.target.value)}
             className="filter-select"
-            style={{ width: '100%', padding: '8px 12px', fontSize: 12, border: '1.5px solid #E2E8F0', borderRadius: 10, outline: 'none', background: 'white', cursor: 'pointer' }}
+            style={{ width: '100%', padding: '8px 12px', fontSize: 14, border: '1px solid var(--card-border)', borderRadius: 10, outline: 'none', background: 'var(--card-bg)', cursor: 'pointer' }}
           >
             <option value="alpha">Pharmacy Name (A-Z)</option>
             <option value="spend">Lifetime Spend (Highest)</option>
@@ -403,7 +407,7 @@ export default function CustomerClient({ customers: initialCustomers, wholesaler
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div className="card" style={{ background: 'rgba(255,255,255,0.85)', padding: 10, display: 'flex', flexDirection: 'column', gap: 6, maxHeight: '68vh', overflowY: 'auto' }}>
             {filteredCustomers.length === 0 ? (
-              <div style={{ padding: '48px 16px', textAlign: 'center', color: '#94A3B8', fontSize: 12, fontStyle: 'italic' }}>
+              <div style={{ padding: '48px 16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 14, fontStyle: 'italic' }}>
                 No customers found matching filters.
               </div>
             ) : (
@@ -431,11 +435,11 @@ export default function CustomerClient({ customers: initialCustomers, wholesaler
                     }}
                   >
                     <div style={{ minWidth: 0, flex: 1 }}>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: '#1E293B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {c.pharmacyName}
                       </div>
-                      <div style={{ fontSize: 11, color: '#64748B', marginTop: 3, display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <CreditCard style={{ width: 11, height: 11, color: '#94A3B8' }} />
+                      <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 3, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <CreditCard style={{ width: 11, height: 11, color: 'var(--text-muted)' }} />
                         <span>Limit: Rs. {c.creditLimit.toLocaleString()}</span>
                       </div>
                     </div>
@@ -444,7 +448,7 @@ export default function CustomerClient({ customers: initialCustomers, wholesaler
                         {pendingVal > 0 ? `Due: Rs. ${pendingVal.toLocaleString()}` : 'Cleared'}
                       </span>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                        <span style={{ fontSize: 10, fontWeight: 800, color: '#64748B' }}>{c.orders.length} orders</span>
+                        <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-secondary)' }}>{c.orders.length} orders</span>
                         <ChevronRight style={{ width: 14, height: 14, color: isSelected ? '#0EA5E9' : '#CBD5E1' }} />
                       </div>
                     </div>
@@ -461,25 +465,25 @@ export default function CustomerClient({ customers: initialCustomers, wholesaler
             <div className="space-y-6">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #F1F5F9', paddingBottom: 12 }}>
                 <div>
-                  <h3 style={{ fontSize: 15, fontWeight: 900, color: '#1E293B', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <h3 style={{ fontSize: 18, fontWeight: 900, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
                     <Users style={{ width: 18, height: 18, color: '#0EA5E9' }} />
                     Customer Account: {selectedCustomer.pharmacyName}
                   </h3>
-                  <p style={{ fontSize: 11, color: '#64748B', marginTop: 4 }}>B2B transactions history, billing limits, and credit controls</p>
+                  <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4 }}>B2B transactions history, billing limits, and credit controls</p>
                 </div>
-                <button onClick={() => setSelectedCustomerId(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8' }}>
+                <button onClick={() => setSelectedCustomerId(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
                   <X style={{ width: 20, height: 20 }} />
                 </button>
               </div>
 
               {/* Contact information card */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, background: '#FAFCFF', border: '1.5px solid #E0F2FE', borderRadius: 16, padding: 16 }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12, color: '#475569' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 14, color: 'var(--text-secondary)' }}>
                   <div><strong>Contact Person:</strong> {selectedCustomer.user?.fullName || 'N/A'}</div>
                   <div><strong>Phone:</strong> {selectedCustomer.phone}</div>
                   <div><strong>Email:</strong> {selectedCustomer.user?.email}</div>
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12, color: '#475569' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 14, color: 'var(--text-secondary)' }}>
                   <div><strong>Address:</strong> {selectedCustomer.address || 'N/A'}</div>
                   <div><strong>Drug Registration:</strong> {selectedCustomer.registrationNumber}</div>
                 </div>
@@ -515,7 +519,7 @@ export default function CustomerClient({ customers: initialCustomers, wholesaler
                       type="number" 
                       value={editingCreditLimit} 
                       onChange={e => setEditingCreditLimit(e.target.value)} 
-                      style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #BAE6FD', fontSize: 12, width: '100%', outline: 'none', background: 'white', color: '#1E293B' }}
+                      style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #BAE6FD', fontSize: 14, width: '100%', outline: 'none', background: 'var(--card-bg)', color: 'var(--text-primary)' }}
                     />
                   </div>
                 </div>
@@ -523,7 +527,7 @@ export default function CustomerClient({ customers: initialCustomers, wholesaler
                   onClick={handleSaveCreditLimit} 
                   disabled={savingCreditLimit}
                   className="btn-primary" 
-                  style={{ alignSelf: 'flex-end', padding: '6px 12px', fontSize: 10, background: '#0EA5E9' }}
+                  style={{ alignSelf: 'flex-end', padding: '6px 12px', fontSize: 12, background: '#0EA5E9' }}
                 >
                   {savingCreditLimit ? 'Saving...' : 'Save Credit Limit'}
                 </button>
@@ -531,7 +535,7 @@ export default function CustomerClient({ customers: initialCustomers, wholesaler
 
               {/* Order ledger statement */}
               <div>
-                <h4 style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: '#475569', letterSpacing: '0.05em', marginBottom: 10 }}>Transaction Ledger Statement</h4>
+                <h4 style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-secondary)', letterSpacing: '0.05em', marginBottom: 10 }}>Transaction Ledger Statement</h4>
                 <div className="table-wrapper">
                   <table className="data-table">
                     <thead>
@@ -548,7 +552,7 @@ export default function CustomerClient({ customers: initialCustomers, wholesaler
                     <tbody>
                       {selectedCustomer.orders.length === 0 ? (
                         <tr>
-                          <td colSpan={selectedCustomer.pharmacyName === "Walk-in Customer (POS)" ? 7 : 6} style={{ padding: 24, textAlign: 'center', color: '#94A3B8', fontStyle: 'italic' }}>No billing orders registered for this customer.</td>
+                          <td colSpan={selectedCustomer.pharmacyName === "Walk-in Customer (POS)" ? 7 : 6} style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)', fontStyle: 'italic' }}>No billing orders registered for this customer.</td>
                         </tr>
                       ) : (
                         selectedCustomer.orders.map((o: any) => {
@@ -556,7 +560,7 @@ export default function CustomerClient({ customers: initialCustomers, wholesaler
                           const isFullyPaid = oPaid >= o.netAmount;
                           return (
                             <tr key={o.id}>
-                              <td style={{ fontSize: 11, color: '#64748B' }}>{new Date(o.createdAt).toLocaleDateString()}</td>
+                              <td style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{new Date(o.createdAt).toLocaleDateString()}</td>
                               <td>
                                 <button onClick={() => setActiveInvoice(o)} style={{ background: 'none', border: 'none', color: '#0EA5E9', fontWeight: 800, cursor: 'pointer', fontFamily: 'monospace', textDecoration: 'underline' }}>
                                   ORD-{o.id.substring(0, 8).toUpperCase()}
@@ -583,7 +587,7 @@ export default function CustomerClient({ customers: initialCustomers, wholesaler
                                           value={settleAmount} 
                                           onChange={e => setSettleAmount(e.target.value)} 
                                           className="input-crisp" 
-                                          style={{ width: 64, fontSize: 10, padding: 4 }} 
+                                          style={{ width: 64, fontSize: 12, padding: 4 }} 
                                         />
                                         <button 
                                           onClick={() => handleSettleSubmit(o.id, o.netAmount)}
@@ -602,7 +606,7 @@ export default function CustomerClient({ customers: initialCustomers, wholesaler
                                       <button 
                                         onClick={() => setSettlingOrderId(o.id)}
                                         className="btn-ghost"
-                                        style={{ padding: '4px 8px', fontSize: 10, borderColor: '#BAE6FD', color: '#0EA5E9' }}
+                                        style={{ padding: '4px 8px', fontSize: 12, borderColor: '#BAE6FD', color: '#0EA5E9' }}
                                       >
                                         Settle
                                       </button>
@@ -622,10 +626,10 @@ export default function CustomerClient({ customers: initialCustomers, wholesaler
               </div>
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', padding: '60px 20px', textAlign: 'center', color: '#94A3B8' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', padding: '60px 20px', textAlign: 'center', color: 'var(--text-muted)' }}>
               <Users style={{ width: 48, height: 48, color: '#E2E8F0', marginBottom: 16 }} />
-              <h3 style={{ fontSize: 14, fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Select a Retailer</h3>
-              <p style={{ fontSize: 12, color: '#94A3B8', marginTop: 6, maxWidth: 360, lineHeight: 1.6 }}>Choose a pharmacy retailer from the directory list on the left to inspect their lifetime spending metrics, credit warnings, and ledger invoices side-by-side.</p>
+              <h3 style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Select a Retailer</h3>
+              <p style={{ fontSize: 14, color: 'var(--text-muted)', marginTop: 6, maxWidth: 360, lineHeight: 1.6 }}>Choose a pharmacy retailer from the directory list on the left to inspect their lifetime spending metrics, credit warnings, and ledger invoices side-by-side.</p>
             </div>
           )}
         </div>
@@ -637,43 +641,43 @@ export default function CustomerClient({ customers: initialCustomers, wholesaler
           <div className="modal-card animate-scaleIn" style={{ '--modal-max-width': '500px' } as React.CSSProperties} onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <div>
-                <h3 style={{ fontSize: 15, fontWeight: 900, color: '#1E293B', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <h3 style={{ fontSize: 18, fontWeight: 900, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
                   <UserPlus style={{ width: 18, height: 18, color: '#0EA5E9' }} />
                   Register New Customer
                 </h3>
-                <p style={{ fontSize: 11, color: '#94A3B8', marginTop: 4 }}>Add a pharmacy retailer account to your customer directory</p>
+                <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>Add a pharmacy retailer account to your customer directory</p>
               </div>
-              <button onClick={() => { setShowAddModal(false); setAddError(''); setAddSuccess(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8', padding: 4, borderRadius: 8 }}>
+              <button onClick={() => { setShowAddModal(false); setAddError(''); setAddSuccess(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4, borderRadius: 8 }}>
                 <X style={{ width: 18, height: 18 }} />
               </button>
             </div>
             <div className="modal-body">
-              {addError && <div style={{ background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: 10, padding: '10px 14px', marginBottom: 14, fontSize: 12, color: '#DC2626', display: 'flex', alignItems: 'center', gap: 8 }}><AlertCircle style={{ width: 13, height: 13 }} />{addError}</div>}
-              {addSuccess && <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 10, padding: '10px 14px', marginBottom: 14, fontSize: 12, color: '#059669', display: 'flex', alignItems: 'center', gap: 8 }}><CheckCircle style={{ width: 13, height: 13 }} />{addSuccess}</div>}
+              {addError && <div style={{ background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: 10, padding: '10px 14px', marginBottom: 14, fontSize: 14, color: '#DC2626', display: 'flex', alignItems: 'center', gap: 8 }}><AlertCircle style={{ width: 13, height: 13 }} />{addError}</div>}
+              {addSuccess && <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 10, padding: '10px 14px', marginBottom: 14, fontSize: 14, color: '#059669', display: 'flex', alignItems: 'center', gap: 8 }}><CheckCircle style={{ width: 13, height: 13 }} />{addSuccess}</div>}
               <form onSubmit={handleAddCustomer} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   <div>
-                    <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Pharmacy Name *</label>
-                    <input required value={addPharmacy} onChange={e => setAddPharmacy(e.target.value)} placeholder="e.g. Sunrise Pharmacy" className="input-crisp" style={{ width: '100%', fontSize: 12 }} />
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Pharmacy Name *</label>
+                    <input required value={addPharmacy} onChange={e => setAddPharmacy(e.target.value)} placeholder="e.g. Sunrise Pharmacy" className="input-crisp" style={{ width: '100%', fontSize: 14 }} />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Contact Person *</label>
-                    <input required value={addContact} onChange={e => setAddContact(e.target.value)} placeholder="e.g. Ram Shrestha" className="input-crisp" style={{ width: '100%', fontSize: 12 }} />
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Contact Person *</label>
+                    <input required value={addContact} onChange={e => setAddContact(e.target.value)} placeholder="e.g. Ram Shrestha" className="input-crisp" style={{ width: '100%', fontSize: 14 }} />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Phone Number *</label>
-                    <input required value={addPhone} onChange={e => setAddPhone(e.target.value)} placeholder="98XXXXXXXX" className="input-crisp" style={{ width: '100%', fontSize: 12 }} />
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Phone Number *</label>
+                    <input required value={addPhone} onChange={e => setAddPhone(e.target.value)} placeholder="98XXXXXXXX" className="input-crisp" style={{ width: '100%', fontSize: 14 }} />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Email Address *</label>
-                    <input required type="email" value={addEmail} onChange={e => setAddEmail(e.target.value)} placeholder="pharmacy@email.com" className="input-crisp" style={{ width: '100%', fontSize: 12 }} />
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Email Address *</label>
+                    <input required type="email" value={addEmail} onChange={e => setAddEmail(e.target.value)} placeholder="pharmacy@email.com" className="input-crisp" style={{ width: '100%', fontSize: 14 }} />
                   </div>
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Dispatch Address</label>
-                  <input value={addAddress} onChange={e => setAddAddress(e.target.value)} placeholder="Street, City, District" className="input-crisp" style={{ width: '100%', fontSize: 12 }} />
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Dispatch Address</label>
+                  <input value={addAddress} onChange={e => setAddAddress(e.target.value)} placeholder="Street, City, District" className="input-crisp" style={{ width: '100%', fontSize: 14 }} />
                 </div>
-                <button type="submit" disabled={addLoading} className="btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '13px', background: 'linear-gradient(135deg, #0EA5E9, #38BDF8)', fontSize: 12, opacity: addLoading ? 0.7 : 1 }}>
+                <button type="submit" disabled={addLoading} className="btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '13px', background: 'linear-gradient(135deg, #0EA5E9, #38BDF8)', fontSize: 14, opacity: addLoading ? 0.7 : 1 }}>
                   {addLoading ? 'Registering...' : 'Register Customer Account'}
                 </button>
               </form>
@@ -695,49 +699,49 @@ export default function CustomerClient({ customers: initialCustomers, wholesaler
             <div className="modal-card animate-scaleIn" style={{ '--modal-max-width': '640px' } as React.CSSProperties} onClick={e => e.stopPropagation()}>
               <div className="modal-header">
                 <div>
-                  <h3 style={{ fontSize: 14, fontWeight: 900, color: '#1E293B', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <h3 style={{ fontSize: 14, fontWeight: 900, color: 'var(--text-primary)', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 6 }}>
                     <FileText style={{ width: 18, height: 18, color: '#0EA5E9' }} /> Sales Invoice Details
                   </h3>
-                  <p style={{ fontSize: 11, color: '#64748B', marginTop: 4 }}>Full transaction logs, itemized lines, and payment records</p>
+                  <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4 }}>Full transaction logs, itemized lines, and payment records</p>
                 </div>
-                <button onClick={() => setActiveInvoice(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8' }}>
+                <button onClick={() => setActiveInvoice(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
                   <X style={{ width: 20, height: 20 }} />
                 </button>
               </div>
 
               <div className="modal-body space-y-6">
-                <div style={{ display: 'grid', gridTemplateColumns: selectedCustomer?.pharmacyName === "Walk-in Customer (POS)" ? '1fr 1fr 1fr' : '1fr 1fr', gap: 12, background: '#F8FAFC', padding: 16, borderRadius: 16, border: '1px solid #E2E8F0' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: selectedCustomer?.pharmacyName === "Walk-in Customer (POS)" ? '1fr 1fr 1fr' : '1fr 1fr', gap: 12, background: 'var(--table-header-bg)', padding: 16, borderRadius: 16, border: '1px solid var(--card-border)' }}>
                   <div>
-                    <div style={{ fontSize: 9, fontWeight: 800, color: '#94A3B8', textTransform: 'uppercase' }}>Invoice ID</div>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: '#1E293B', fontFamily: 'monospace' }}>ORD-{activeInvoice.id.toUpperCase()}</div>
+                    <div style={{ fontSize: 9, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Invoice ID</div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'monospace' }}>ORD-{activeInvoice.id.toUpperCase()}</div>
                   </div>
                   {selectedCustomer?.pharmacyName === "Walk-in Customer (POS)" && (
                     <div>
-                      <div style={{ fontSize: 9, fontWeight: 800, color: '#94A3B8', textTransform: 'uppercase' }}>Walk-in Patient</div>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: '#0EA5E9' }}>
+                      <div style={{ fontSize: 9, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Walk-in Patient</div>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: '#0EA5E9' }}>
                         {getWalkInName(activeInvoice.overrideJustification)} {getWalkInPhone(activeInvoice.overrideJustification) && `(${getWalkInPhone(activeInvoice.overrideJustification)})`}
                       </div>
                     </div>
                   )}
                   <div>
-                    <div style={{ fontSize: 9, fontWeight: 800, color: '#94A3B8', textTransform: 'uppercase' }}>Status</div>
+                    <div style={{ fontSize: 9, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Status</div>
                     <span className={`status-pill status-pill-${activeInvoice.status.toLowerCase()}`} style={{ marginTop: 2, display: 'inline-block' }}>
                       {activeInvoice.status}
                     </span>
                   </div>
                   <div>
-                    <div style={{ fontSize: 9, fontWeight: 800, color: '#94A3B8', textTransform: 'uppercase' }}>Date</div>
-                    <div style={{ fontSize: 11, color: '#475569' }}>{new Date(activeInvoice.createdAt).toLocaleString()}</div>
+                    <div style={{ fontSize: 9, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Date</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{new Date(activeInvoice.createdAt).toLocaleString()}</div>
                   </div>
                   <div>
-                    <div style={{ fontSize: 9, fontWeight: 800, color: '#94A3B8', textTransform: 'uppercase' }}>Final Net Amount</div>
-                    <div style={{ fontSize: 13, fontWeight: 800, color: '#0EA5E9', fontFamily: 'monospace' }}>Rs. {activeInvoice.netAmount.toLocaleString()}</div>
+                    <div style={{ fontSize: 9, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Final Net Amount</div>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: '#0EA5E9', fontFamily: 'monospace' }}>Rs. {activeInvoice.netAmount.toLocaleString()}</div>
                   </div>
                 </div>
 
                 {/* Progress Bar */}
-                <div style={{ background: '#F1F5F9', borderRadius: 12, padding: 12, border: '1px solid #E2E8F0' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontWeight: 700, color: '#475569', marginBottom: 6 }}>
+                <div style={{ background: '#F1F5F9', borderRadius: 12, padding: 12, border: '1px solid var(--card-border)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6 }}>
                     <span>Payment Progress</span>
                     <span>{percentPaid}% ({orderPaid.toLocaleString()} / {activeInvoice.netAmount.toLocaleString()})</span>
                   </div>
@@ -747,22 +751,22 @@ export default function CustomerClient({ customers: initialCustomers, wholesaler
                 </div>
 
                 <div>
-                  <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: '#475569', marginBottom: 8 }}>Itemized Sales Lines</div>
-                  <div style={{ border: '1px solid #E2E8F0', borderRadius: 12, overflow: 'hidden' }}>
+                  <div style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-secondary)', marginBottom: 8 }}>Itemized Sales Lines</div>
+                  <div style={{ border: '1px solid var(--card-border)', borderRadius: 12, overflow: 'hidden' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
-                      <thead style={{ background: '#F8FAFC' }}>
+                      <thead style={{ background: 'var(--table-header-bg)' }}>
                         <tr>
-                          <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 700, color: '#475569' }}>Item</th>
-                          <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 700, color: '#475569' }}>Qty</th>
-                          <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, color: '#475569' }}>Rate</th>
-                          <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, color: '#475569' }}>Subtotal</th>
+                          <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 700, color: 'var(--text-secondary)' }}>Item</th>
+                          <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 700, color: 'var(--text-secondary)' }}>Qty</th>
+                          <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, color: 'var(--text-secondary)' }}>Rate</th>
+                          <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, color: 'var(--text-secondary)' }}>Subtotal</th>
                         </tr>
                       </thead>
                       <tbody>
                         {activeInvoice.items && activeInvoice.items.length > 0 ? (
                           activeInvoice.items.map(item => (
                             <tr key={item.id} style={{ borderTop: '1px solid #E2E8F0' }}>
-                              <td style={{ padding: '8px 12px', color: '#1E293B', fontWeight: 600 }}>{item.product.name}</td>
+                              <td style={{ padding: '8px 12px', color: 'var(--text-primary)', fontWeight: 600 }}>{item.product.name}</td>
                               <td style={{ padding: '8px 12px', textAlign: 'center', fontFamily: 'monospace' }}>{item.quantity}</td>
                               <td style={{ padding: '8px 12px', textAlign: 'right', fontFamily: 'monospace' }}>Rs. {item.pricePerUnit}</td>
                               <td style={{ padding: '8px 12px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 700 }}>Rs. {(item.quantity * item.pricePerUnit).toLocaleString()}</td>
@@ -770,7 +774,7 @@ export default function CustomerClient({ customers: initialCustomers, wholesaler
                           ))
                         ) : (
                           <tr>
-                            <td colSpan={4} style={{ padding: 12, textAlign: 'center', color: '#94A3B8', fontStyle: 'italic' }}>No item lines loaded.</td>
+                            <td colSpan={4} style={{ padding: 12, textAlign: 'center', color: 'var(--text-muted)', fontStyle: 'italic' }}>No item lines loaded.</td>
                           </tr>
                         )}
                       </tbody>
@@ -792,7 +796,7 @@ export default function CustomerClient({ customers: initialCustomers, wholesaler
                         value={settleAmount} 
                         onChange={e => setSettleAmount(e.target.value)} 
                         className="input-crisp" 
-                        style={{ flex: 1, fontSize: 12 }} 
+                        style={{ flex: 1, fontSize: 14 }} 
                       />
                       <button 
                         onClick={() => handleSettleSubmit(activeInvoice.id, activeInvoice.netAmount)}
@@ -807,22 +811,22 @@ export default function CustomerClient({ customers: initialCustomers, wholesaler
 
                 {/* Payment Logs List */}
                 <div>
-                  <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: '#475569', marginBottom: 8 }}>Payment Ledger Timeline</div>
-                  <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 12, padding: 12, maxHeight: 150, overflowY: 'auto' }}>
+                  <div style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-secondary)', marginBottom: 8 }}>Payment Ledger Timeline</div>
+                  <div style={{ background: 'var(--table-header-bg)', border: '1px solid var(--card-border)', borderRadius: 12, padding: 12, maxHeight: 150, overflowY: 'auto' }}>
                     {verifiedSettlements.length > 0 ? (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                         {verifiedSettlements.map((log: any, idx: number) => (
                           <div key={log.id || idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, borderBottom: '1px solid #F1F5F9', paddingBottom: 6 }}>
                             <div>
-                              <span style={{ color: '#64748B' }}>{new Date(log.createdAt || log.date).toLocaleString()}</span>
-                              {log.method && <div style={{ fontSize: 9, color: '#94A3B8', marginTop: 1 }}>{log.method}</div>}
+                              <span style={{ color: 'var(--text-secondary)' }}>{new Date(log.createdAt || log.date).toLocaleString()}</span>
+                              {log.method && <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 1 }}>{log.method}</div>}
                             </div>
                             <span style={{ fontWeight: 800, color: '#059669' }}>+ Rs. {(log.amount || 0).toLocaleString()}</span>
                           </div>
                         ))}
                       </div>
                     ) : (
-                      <div style={{ textAlign: 'center', color: '#94A3B8', fontSize: 11, padding: 12, fontStyle: 'italic' }}>
+                      <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 11, padding: 12, fontStyle: 'italic' }}>
                         No payments logged for this invoice.
                       </div>
                     )}

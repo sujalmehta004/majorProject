@@ -25,9 +25,10 @@ import {
   Clock,
   Bell,
   X,
-  Maximize2,
-  Minimize2,
   ArrowUpRight,
+  DollarSign,
+  ShoppingCart,
+  BarChart2,
 } from "lucide-react";
 import { useRealtimeData } from "@/hooks/useRealtimeData";
 import {
@@ -75,31 +76,16 @@ interface DashboardClientProps {
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
     return (
-      <div
-        style={{
-          background: "rgba(255, 255, 255, 0.95)",
-          border: "1.5px solid #E0F2FE",
-          padding: "12px 16px",
-          borderRadius: 12,
-          boxShadow: "0 10px 25px rgba(14,165,233,0.1)",
-        }}
-      >
-        <p
-          style={{
-            fontSize: 10,
-            fontWeight: 800,
-            textTransform: "uppercase",
-            color: "#64748B",
-            marginBottom: 6,
-          }}
-        >
-          {label}
-        </p>
+      <div style={{
+        background: "#fff",
+        border: "1px solid #E5E7EB",
+        borderRadius: 8,
+        padding: "10px 14px",
+        fontSize: 12,
+      }}>
+        <p style={{ fontWeight: 700, color: "#374151", marginBottom: 4 }}>{label}</p>
         {payload.map((p: any) => (
-          <p
-            key={p.name}
-            style={{ fontSize: 12, fontWeight: 700, color: p.color }}
-          >
+          <p key={p.name} style={{ color: p.color, fontWeight: 600 }}>
             {p.name}: Rs. {p.value.toLocaleString()}
           </p>
         ))}
@@ -109,21 +95,6 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   return null;
 };
 
-const SectionBreaker = ({ title, desc, icon: Icon }: { title: string; desc?: string; icon?: any }) => (
-  <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '28px 0 16px' }} className="no-print">
-    {Icon && (
-      <div style={{ padding: '6px', background: 'rgba(14,165,233,0.08)', border: '1px solid rgba(14,165,233,0.18)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Icon style={{ width: 13, height: 13, color: '#0EA5E9' }} />
-      </div>
-    )}
-    <div style={{ flexShrink: 0 }}>
-      <h4 style={{ fontSize: 10, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#64748B' }}>{title}</h4>
-      {desc && <p style={{ fontSize: 10, color: '#94A3B8', marginTop: 1 }}>{desc}</p>}
-    </div>
-    <div style={{ flexGrow: 1, height: '1px', background: 'linear-gradient(to right, rgba(226,232,240,0.8), rgba(226,232,240,0.1))', marginLeft: 12 }} />
-  </div>
-);
-
 export default function DashboardClient({
   profileId,
   metrics,
@@ -131,20 +102,23 @@ export default function DashboardClient({
   pendingSettlements = [],
   rejectedSettlements = [],
 }: DashboardClientProps) {
-  const [isFullscreen, setIsFullscreen] = useState(false);
-
-  const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => {});
-    } else {
-      document.exitFullscreen().then(() => setIsFullscreen(false)).catch(() => {});
-    }
-  };
+  const [period, setPeriod] = useState<"daily" | "weekly" | "monthly" | "yearly">("monthly");
+  const [lowStockBoxes, setLowStockBoxes] = useState(10);
+  const [lowStockStrips, setLowStockStrips] = useState(0);
+  const [lowStockTablets, setLowStockTablets] = useState(0);
+  const [expiryDays, setExpiryDays] = useState(30);
 
   useEffect(() => {
-    const handler = () => setIsFullscreen(!!document.fullscreenElement);
-    document.addEventListener("fullscreenchange", handler);
-    return () => document.removeEventListener("fullscreenchange", handler);
+    if (typeof window !== "undefined") {
+      const storedBoxes = localStorage.getItem("medhub_low_stock_threshold_boxes");
+      const storedStrips = localStorage.getItem("medhub_low_stock_threshold_strips");
+      const storedTablets = localStorage.getItem("medhub_low_stock_threshold_tablets");
+      if (storedBoxes) setLowStockBoxes(parseInt(storedBoxes, 10));
+      if (storedStrips) setLowStockStrips(parseInt(storedStrips, 10));
+      if (storedTablets) setLowStockTablets(parseInt(storedTablets, 10));
+      const storedExpiry = localStorage.getItem("medhub_expiry_alert_days");
+      if (storedExpiry) setExpiryDays(parseInt(storedExpiry, 10));
+    }
   }, []);
 
   const handleVerifySettlement = async (orderId: string, approve: boolean) => {
@@ -166,589 +140,178 @@ export default function DashboardClient({
     }
   };
 
-  const [widgets, setWidgets] = useState({
-    medicinesRegistered: true,
-    activeBatches: true,
-    pendingOrders: true,
-    inTransitDeliveries: true,
-    nearExpiryAlerts: true,
-    financialLedger: true,
-    recentActivity: true,
-    terminalStatus: true,
-    quickActions: true,
-  });
-
-  const [showConfig, setShowConfig] = useState(false);
-  const [period, setPeriod] = useState<
-    "daily" | "weekly" | "monthly" | "yearly"
-  >("monthly");
-
-  // Load user threshold settings
-  const [lowStockBoxes, setLowStockBoxes] = useState(10);
-  const [lowStockStrips, setLowStockStrips] = useState(0);
-  const [lowStockTablets, setLowStockTablets] = useState(0);
-  const [expiryDays, setExpiryDays] = useState(30);
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      // Add meta+f keydown listener inside dashboard as well
-      const handleKeyDown = (e: KeyboardEvent) => {
-        if ((e.ctrlKey || e.metaKey) && e.key?.toLowerCase() === 'f') {
-          e.preventDefault();
-          toggleFullscreen();
-        }
-      };
-      window.addEventListener("keydown", handleKeyDown);
-
-      const saved = localStorage.getItem("medhub_dashboard_widgets");
-      if (saved) {
-        try {
-          setWidgets(JSON.parse(saved));
-        } catch (e) {
-          console.error("Failed to parse dashboard widgets config", e);
-        }
-      }
-
-      const storedLowStockBoxes = localStorage.getItem("medhub_low_stock_threshold_boxes");
-      if (storedLowStockBoxes) {
-        setLowStockBoxes(parseInt(storedLowStockBoxes, 10));
-      } else {
-        const storedOld = localStorage.getItem("medhub_low_stock_threshold");
-        if (storedOld) setLowStockBoxes(parseInt(storedOld, 10));
-      }
-      const storedLowStockStrips = localStorage.getItem("medhub_low_stock_threshold_strips");
-      if (storedLowStockStrips) {
-        setLowStockStrips(parseInt(storedLowStockStrips, 10));
-      }
-      const storedLowStockTablets = localStorage.getItem("medhub_low_stock_threshold_tablets");
-      if (storedLowStockTablets) {
-        setLowStockTablets(parseInt(storedLowStockTablets, 10));
-      }
-
-      const storedExpiry = localStorage.getItem("medhub_expiry_alert_days");
-      if (storedExpiry) setExpiryDays(parseInt(storedExpiry, 10));
-
-      return () => {
-        window.removeEventListener("keydown", handleKeyDown);
-      };
-    }
-  }, []);
-
-  // Real-time telemetry via SWR + SSE
   const { data: analyticsData } = useRealtimeData<{
-    chartData: Array<{
-      label: string;
-      revenue: number;
-      profit: number;
-      orders: number;
-    }>;
+    chartData: Array<{ label: string; revenue: number; profit: number; orders: number }>;
     period: string;
     totalOrders: number;
     allProductStocks: Array<{ id: string; name: string; sku: string; units: number; stripsPerBox?: number; tabletsPerStrip?: number }>;
-  }>(
-    `/api/wholesaler/analytics?period=${period}&wholesalerId=${profileId}`,
-    profileId,
-  );
+  }>(`/api/wholesaler/analytics?period=${period}&wholesalerId=${profileId}`, profileId);
 
   const { data: batchesResponse } = useRealtimeData<{
     success: boolean;
-    batches: Array<{
-      id: string;
-      batchNumber: string;
-      availableBaseUnits: number;
-      expiryDate: string;
-      product: { name: string; sku: string };
-    }>;
+    batches: Array<{ id: string; batchNumber: string; availableBaseUnits: number; expiryDate: string; product: { name: string; sku: string } }>;
   }>(`/api/wholesaler/batches`, profileId);
 
-  // Compute Alerts dynamically based on custom thresholds
-  const lowStockItems =
-    analyticsData?.allProductStocks?.filter(
-      (item) => {
-        // default multipliers if not sent by api (or use standard 10 per box / 10 per strip if missing)
-        const spb = item.stripsPerBox || 10;
-        const tps = item.tabletsPerStrip || 10;
-        const totalThresholdUnits = (lowStockBoxes * spb * tps) + (lowStockStrips * tps) + lowStockTablets;
-        return item.units < totalThresholdUnits;
-      }
-    ) || [];
+  const lowStockItems = analyticsData?.allProductStocks?.filter((item) => {
+    const spb = item.stripsPerBox || 10;
+    const tps = item.tabletsPerStrip || 10;
+    const totalThresholdUnits = (lowStockBoxes * spb * tps) + (lowStockStrips * tps) + lowStockTablets;
+    return item.units < totalThresholdUnits;
+  }) || [];
 
-  const expiringBatches =
-    batchesResponse?.batches?.filter((batch) => {
-      if (batch.availableBaseUnits <= 0) return false;
-      const expiry = new Date(batch.expiryDate);
-      const diffTime = expiry.getTime() - new Date().getTime();
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      return diffDays > 0 && diffDays <= expiryDays;
-    }) || [];
+  const expiringBatches = batchesResponse?.batches?.filter((batch) => {
+    if (batch.availableBaseUnits <= 0) return false;
+    const expiry = new Date(batch.expiryDate);
+    const diffTime = expiry.getTime() - new Date().getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays > 0 && diffDays <= expiryDays;
+  }) || [];
 
-  const totalPeriodRevenue =
-    analyticsData?.chartData?.reduce((acc, curr) => acc + curr.revenue, 0) || 0;
-  const totalPeriodProfit =
-    analyticsData?.chartData?.reduce((acc, curr) => acc + curr.profit, 0) || 0;
-  const totalPeriodOrders =
-    analyticsData?.chartData?.reduce((acc, curr) => acc + curr.orders, 0) || 0;
-
-  const toggleWidget = (key: keyof typeof widgets) => {
-    const updated = { ...widgets, [key]: !widgets[key] };
-    setWidgets(updated);
-    localStorage.setItem("medhub_dashboard_widgets", JSON.stringify(updated));
-  };
+  const totalPeriodRevenue = analyticsData?.chartData?.reduce((acc, curr) => acc + curr.revenue, 0) || 0;
+  const totalPeriodProfit = analyticsData?.chartData?.reduce((acc, curr) => acc + curr.profit, 0) || 0;
+  const totalPeriodOrders = analyticsData?.chartData?.reduce((acc, curr) => acc + curr.orders, 0) || 0;
 
   const statCards = [
     {
-      key: "medicinesRegistered",
       label: "Medicines Registered",
       value: metrics.productCount,
       unit: "SKUs",
       icon: Package,
       href: "/wholesaler/inventory",
-      color: "#0EA5E9",
-      bg: "#F0F9FF",
+      accent: "#2563EB",
+      lightBg: "#EFF6FF",
     },
     {
-      key: "activeBatches",
       label: "Active Batches",
       value: metrics.activeBatches,
       unit: "batches",
       icon: Database,
       href: "/wholesaler/inventory",
-      color: "#0EA5E9",
-      bg: "#F0F9FF",
+      accent: "#7C3AED",
+      lightBg: "#F5F3FF",
     },
     {
-      key: "pendingOrders",
       label: "Pending Orders",
       value: metrics.pendingOrders,
       unit: "orders",
       icon: ShieldAlert,
       href: "/wholesaler/orders",
-      color: metrics.pendingOrders > 0 ? "#DC2626" : "#64748B",
-      bg: metrics.pendingOrders > 0 ? "#FEF2F2" : "#F8FAFC",
+      accent: metrics.pendingOrders > 0 ? "#DC2626" : "#6B7280",
+      lightBg: metrics.pendingOrders > 0 ? "#FEF2F2" : "#F9FAFB",
     },
     {
-      key: "inTransitDeliveries",
       label: "In-Transit",
       value: metrics.dispatchedOrders,
       unit: "shipped",
       icon: Truck,
       href: "/wholesaler/orders",
-      color: "#10B981",
-      bg: "#ECFDF5",
+      accent: "#059669",
+      lightBg: "#ECFDF5",
     },
   ];
 
   return (
-    <div className="space-y-8 animate-fadeIn">
-      {/* Page Header */}
-      <div
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          justifyContent: "space-between",
-          alignItems: "center",
-          gap: 16,
-          background: "rgba(255,255,255,0.85)",
-          backdropFilter: "blur(16px)",
-          border: "1.5px solid rgba(186,230,253,0.5)",
-          borderRadius: 20,
-          padding: "20px 24px",
-          boxShadow: "0 2px 12px rgba(14,165,233,0.07)",
-        }}
-      >
+    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+
+      {/* ── Page Header ── */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: 12 }}>
         <div>
-          <h1
-            style={{
-              fontSize: 20,
-              fontWeight: 800,
-              color: "#1E293B",
-              letterSpacing: "-0.02em",
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-            }}
-          >
-            <LayoutDashboard
-              style={{ width: 22, height: 22, color: "#0EA5E9" }}
-            />
+          <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+            <LayoutDashboard style={{ width: 20, height: 20, color: "#2563EB" }} />
             Operations Overview
           </h1>
-          <p style={{ fontSize: 13, color: "#64748B", marginTop: 4 }}>
-            Real-time summary of your wholesale supply chain —{" "}
-            {metrics.companyName}
+          <p style={{ fontSize: 13, color: "var(--text-secondary)" }}>
+            {metrics.companyName} · Real-time supply chain summary
           </p>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <button
-            onClick={toggleFullscreen}
-            title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '8px 14px',
-              borderRadius: 10,
-              border: '1.5px solid #BAE6FD',
-              background: isFullscreen ? '#0EA5E9' : '#FFFFFF',
-              color: isFullscreen ? '#FFFFFF' : '#475569',
-              fontSize: 12,
-              fontWeight: 700,
-              cursor: 'pointer',
-              transition: 'all 0.2s',
-            }}
-          >
-            {isFullscreen ? <Minimize2 style={{ width: 14, height: 14 }} /> : <Maximize2 style={{ width: 14, height: 14 }} />}
-            {isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
-          </button>
-          <button
-            onClick={() => setShowConfig(true)}
-            className="btn-ghost"
-            style={{ display: "none", alignItems: "center", gap: 6 }}
-          >
-            <Settings style={{ width: 14, height: 14, color: "#0EA5E9" }} />
-            Customize Widgets
-          </button>
-          {showConfig && (
-            <div className="modal-overlay" onClick={() => setShowConfig(false)}>
-              <div
-                className="modal-card animate-scaleIn"
-                style={
-                  {
-                    "--modal-max-width": "420px",
-                    border: "1.5px solid #FED7AA",
-                  } as React.CSSProperties
-                }
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    borderBottom: "1px solid #F1F5F9",
-                    paddingBottom: 14,
-                    padding: "22px 28px 16px",
-                  }}
-                >
-                  <h3
-                    style={{
-                      fontSize: 14,
-                      fontWeight: 800,
-                      color: "#1E293B",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 8,
-                    }}
-                  >
-                    <Settings
-                      style={{ width: 16, height: 16, color: "#F97316" }}
-                    />
-                    Customize Widgets
-                  </h3>
-                  <button
-                    onClick={() => setShowConfig(false)}
-                    style={{
-                      background: "none",
-                      border: "none",
-                      cursor: "pointer",
-                      color: "#94A3B8",
-                      padding: 4,
-                    }}
-                  >
-                    <X style={{ width: 20, height: 20 }} />
-                  </button>
-                </div>
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: 4,
-                    padding: "20px 28px",
-                  }}
-                >
-                  {[
-                    { key: "medicinesRegistered", label: "Medicines Stat" },
-                    { key: "activeBatches", label: "Active Batches" },
-                    { key: "pendingOrders", label: "Pending Orders" },
-                    { key: "inTransitDeliveries", label: "In-Transit" },
-                    { key: "nearExpiryAlerts", label: "Near-Expiry Alerts" },
-                    { key: "financialLedger", label: "Revenue & Profits" },
-                    { key: "recentActivity", label: "Activity Logs" },
-                    { key: "terminalStatus", label: "Terminal Status" },
-                    { key: "quickActions", label: "Quick Actions" },
-                  ].map((w) => {
-                    const isActive = widgets[w.key as keyof typeof widgets];
-                    return (
-                      <button
-                        key={w.key}
-                        type="button"
-                        onClick={() =>
-                          toggleWidget(w.key as keyof typeof widgets)
-                        }
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 12,
-                          padding: "10px 12px",
-                          borderRadius: 10,
-                          border: "none",
-                          background: isActive
-                            ? "rgba(14,165,233,0.06)"
-                            : "transparent",
-                          cursor: "pointer",
-                          textAlign: "left",
-                          color: isActive ? "#1E293B" : "#94A3B8",
-                          fontFamily: "inherit",
-                          transition: "all 0.15s",
-                        }}
-                      >
-                        {isActive ? (
-                          <CheckSquare
-                            style={{
-                              width: 16,
-                              height: 16,
-                              color: "#0EA5E9",
-                              flexShrink: 0,
-                            }}
-                          />
-                        ) : (
-                          <Square
-                            style={{
-                              width: 16,
-                              height: 16,
-                              color: "#CBD5E1",
-                              flexShrink: 0,
-                            }}
-                          />
-                        )}
-                        <span
-                          style={{
-                            fontSize: 13,
-                            fontWeight: 600,
-                            textDecoration: isActive ? "none" : "line-through",
-                          }}
-                        >
-                          {w.label}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-                <div style={{ padding: "0 28px 22px" }}>
-                  <button
-                    type="button"
-                    onClick={() => setShowConfig(false)}
-                    className="btn-primary"
-                    style={{
-                      width: "100%",
-                      background: "linear-gradient(135deg, #0EA5E9, #38BDF8)",
-                      border: "none",
-                      padding: "12px",
-                      justifyContent: "center",
-                    }}
-                  >
-                    Apply Selection
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
+        <div style={{ display: "flex", gap: 8 }}>
+          <Link href="/wholesaler/pos" style={{
+            display: "inline-flex", alignItems: "center", gap: 6,
+            padding: "8px 16px", borderRadius: 6, fontSize: 13, fontWeight: 600,
+            background: "#2563EB", color: "#fff", textDecoration: "none",
+            border: "none", cursor: "pointer",
+          }}>
+            <Zap style={{ width: 13, height: 13 }} /> Launch POS
+          </Link>
         </div>
       </div>
 
-      {/* ── Rejected Settlement Alerts Panel ── */}
+      {/* ── Rejected Settlement Alert ── */}
       {rejectedSettlements.length > 0 && (
-        <div
-          style={{
-            background: 'linear-gradient(135deg, rgba(239,68,68,0.07), rgba(244,63,94,0.04))',
-            border: '1.5px solid rgba(239,68,68,0.4)',
-            borderRadius: 16,
-            overflow: 'hidden',
-            marginBottom: 20,
-          }}
-        >
-          {/* Header */}
-          <div style={{ padding: '14px 20px', background: 'rgba(239,68,68,0.1)', borderBottom: '1px solid rgba(239,68,68,0.15)', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(239,68,68,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <AlertTriangle style={{ width: 16, height: 16, color: '#DC2626' }} />
-            </div>
+        <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 8, padding: "14px 18px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+            <AlertTriangle style={{ width: 16, height: 16, color: "#DC2626", flexShrink: 0 }} />
             <div>
-              <div style={{ fontSize: 12, fontWeight: 900, color: '#991B1B' }}>
-                Rejected Payment Settlements (Action Required)
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#991B1B" }}>
+                Rejected Payment Settlements ({rejectedSettlements.length})
               </div>
-              <div style={{ fontSize: 11, color: '#DC2626', marginTop: 1 }}>
-                {rejectedSettlements.length} transaction{rejectedSettlements.length !== 1 ? 's' : ''} rejected and awaiting manual settlement or retailer action
+              <div style={{ fontSize: 12, color: "#B91C1C", marginTop: 1 }}>
+                Awaiting manual settlement or retailer action
               </div>
-            </div>
-            <div style={{ marginLeft: 'auto', background: '#DC2626', color: 'white', fontSize: 11, fontWeight: 900, borderRadius: 20, padding: '2px 10px' }}>
-              {rejectedSettlements.length} rejected
             </div>
           </div>
-
-          {/* Settlement Items */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-            {rejectedSettlements.map((s: any, idx: number) => (
-              <div
-                key={s.id}
-                style={{
-                  padding: '16px 20px',
-                  borderBottom: idx < rejectedSettlements.length - 1 ? '1px solid rgba(239,68,68,0.1)' : 'none',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 16,
-                  flexWrap: 'wrap',
-                }}
-              >
-                {/* Retailer Info */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 180 }}>
-                  <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(239,68,68,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <Users style={{ width: 16, height: 16, color: '#DC2626' }} />
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 12, fontWeight: 800, color: '#1E293B' }}>
-                      {s.retailer?.pharmacyName || 'Retailer'}
-                    </div>
-                    <div style={{ fontSize: 10, color: '#94A3B8', marginTop: 1 }}>
-                      Order #{s.id.substring(0, 8).toUpperCase()}
-                    </div>
-                  </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {rejectedSettlements.map((s: any) => (
+              <div key={s.id} style={{
+                display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12,
+                background: "#fff", border: "1px solid #FECACA", borderRadius: 6, padding: "10px 14px",
+              }}>
+                <div style={{ flex: 1, minWidth: 140 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>{s.retailer?.pharmacyName || "Retailer"}</div>
+                  <div style={{ fontSize: 11, color: "#6B7280" }}>Order #{s.id.substring(0, 8).toUpperCase()}</div>
                 </div>
-
-                {/* Amount & Method */}
-                <div style={{ display: 'flex', gap: 16, alignItems: 'center', flex: 1 }}>
-                  <div>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase' }}>Rejected Settle Amount</div>
-                    <div style={{ fontSize: 16, fontWeight: 900, color: '#DC2626', fontFamily: 'monospace', marginTop: 2 }}>
-                      Rs. {s.settleAmount?.toLocaleString()}
-                    </div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase' }}>Method</div>
-                    <div style={{ marginTop: 3 }}>
-                      <span style={{ fontSize: 11, fontWeight: 800, color: '#E11D48', background: 'rgba(225,29,72,0.1)', padding: '3px 10px', borderRadius: 20, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                        <CreditCard style={{ width: 10, height: 10 }} />
-                        {s.settleMethod || 'CASH'}
-                      </span>
-                    </div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase' }}>Remaining Due</div>
-                    <div style={{ fontSize: 13, fontWeight: 800, color: '#991B1B', marginTop: 2 }}>Rs. {s.netAmount?.toLocaleString()}</div>
-                  </div>
-                </div>
-
-                {/* Settle manually button */}
-                <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-                  <button
-                    onClick={() => handleVerifySettlement(s.id, true)}
-                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg, #10B981, #059669)', color: 'white', fontSize: 11, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}
-                  >
-                    <CheckCircle2 style={{ width: 13, height: 13 }} /> Mark Settled Manually
-                  </button>
-                </div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "#DC2626" }}>Rs. {s.settleAmount?.toLocaleString()}</div>
+                <span style={{ fontSize: 11, color: "#6B7280" }}>{s.settleMethod || "CASH"}</span>
+                <button
+                  onClick={() => handleVerifySettlement(s.id, true)}
+                  style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 12px", borderRadius: 5, border: "1px solid #D1FAE5", background: "#ECFDF5", color: "#059669", fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+                >
+                  <CheckCircle2 style={{ width: 13, height: 13 }} /> Mark Settled
+                </button>
               </div>
             ))}
           </div>
         </div>
       )}
 
-      {/* ── Settlement Verification Panel ── */}
+      {/* ── Pending Settlement Verification ── */}
       {pendingSettlements.length > 0 && (
-        <div
-          style={{
-            background: 'linear-gradient(135deg, rgba(139,92,246,0.07), rgba(99,102,241,0.04))',
-            border: '1.5px solid rgba(139,92,246,0.3)',
-            borderRadius: 16,
-            overflow: 'hidden',
-          }}
-        >
-          {/* Header */}
-          <div style={{ padding: '14px 20px', background: 'rgba(139,92,246,0.1)', borderBottom: '1px solid rgba(139,92,246,0.15)', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(139,92,246,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Bell style={{ width: 16, height: 16, color: '#8B5CF6' }} />
-            </div>
+        <div style={{ background: "#F5F3FF", border: "1px solid #DDD6FE", borderRadius: 8, padding: "14px 18px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+            <Bell style={{ width: 16, height: 16, color: "#7C3AED", flexShrink: 0 }} />
             <div>
-              <div style={{ fontSize: 12, fontWeight: 900, color: '#5B21B6' }}>
-                Payment Settlement Verification Requests
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#5B21B6" }}>
+                Settlement Verification Required ({pendingSettlements.length})
               </div>
-              <div style={{ fontSize: 11, color: '#7C3AED', marginTop: 1 }}>
-                {pendingSettlements.length} retailer{pendingSettlements.length !== 1 ? 's' : ''} awaiting your approval to confirm payment
+              <div style={{ fontSize: 12, color: "#7C3AED", marginTop: 1 }}>
+                Retailers awaiting your payment confirmation
               </div>
-            </div>
-            <div style={{ marginLeft: 'auto', background: '#8B5CF6', color: 'white', fontSize: 11, fontWeight: 900, borderRadius: 20, padding: '2px 10px' }}>
-              {pendingSettlements.length} pending
             </div>
           </div>
-
-          {/* Settlement Items */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-            {pendingSettlements.map((s: any, idx: number) => (
-              <div
-                key={s.id}
-                style={{
-                  padding: '16px 20px',
-                  borderBottom: idx < pendingSettlements.length - 1 ? '1px solid rgba(139,92,246,0.1)' : 'none',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 16,
-                  flexWrap: 'wrap',
-                }}
-              >
-                {/* Retailer Info */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 180 }}>
-                  <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(139,92,246,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <Users style={{ width: 16, height: 16, color: '#8B5CF6' }} />
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 12, fontWeight: 800, color: '#1E293B' }}>
-                      {s.retailer?.pharmacyName || 'Retailer'}
-                    </div>
-                    <div style={{ fontSize: 10, color: '#94A3B8', marginTop: 1 }}>
-                      Order #{s.id.substring(0, 8).toUpperCase()}
-                    </div>
-                  </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {pendingSettlements.map((s: any) => (
+              <div key={s.id} style={{
+                display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12,
+                background: "#fff", border: "1px solid #DDD6FE", borderRadius: 6, padding: "10px 14px",
+              }}>
+                <div style={{ flex: 1, minWidth: 140 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>{s.retailer?.pharmacyName || "Retailer"}</div>
+                  <div style={{ fontSize: 11, color: "#6B7280" }}>Order #{s.id.substring(0, 8).toUpperCase()} · {s.items?.length || 0} medicines</div>
                 </div>
-
-                {/* Amount & Method */}
-                <div style={{ display: 'flex', gap: 16, alignItems: 'center', flex: 1 }}>
-                  <div>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase' }}>Settlement Amount</div>
-                    <div style={{ fontSize: 16, fontWeight: 900, color: '#7C3AED', fontFamily: 'monospace', marginTop: 2 }}>
-                      Rs. {s.settleAmount?.toLocaleString()}
-                    </div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase' }}>Method</div>
-                    <div style={{ marginTop: 3 }}>
-                      <span style={{ fontSize: 11, fontWeight: 800, color: '#059669', background: 'rgba(5,150,105,0.1)', padding: '3px 10px', borderRadius: 20, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                        <CreditCard style={{ width: 10, height: 10 }} />
-                        {s.settleMethod || 'CASH'}
-                      </span>
-                    </div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase' }}>Order Total</div>
-                    <div style={{ fontSize: 13, fontWeight: 800, color: '#475569', marginTop: 2 }}>Rs. {s.netAmount?.toLocaleString()}</div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase' }}>Items</div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: '#475569', marginTop: 2 }}>{s.items?.length || 0} medicines</div>
-                  </div>
-                </div>
-
-                {/* Action Buttons */}
-                <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "#7C3AED" }}>Rs. {s.settleAmount?.toLocaleString()}</div>
+                <span style={{ fontSize: 11, color: "#6B7280" }}>{s.settleMethod || "CASH"}</span>
+                <div style={{ display: "flex", gap: 6 }}>
                   <button
                     onClick={() => handleVerifySettlement(s.id, false)}
-                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: '1.5px solid rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.07)', color: '#DC2626', fontSize: 11, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}
+                    style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 12px", borderRadius: 5, border: "1px solid #FECACA", background: "#FEF2F2", color: "#DC2626", fontSize: 12, fontWeight: 600, cursor: "pointer" }}
                   >
                     <XCircle style={{ width: 13, height: 13 }} /> Reject
                   </button>
                   <button
                     onClick={() => handleVerifySettlement(s.id, true)}
-                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg, #7C3AED, #8B5CF6)', color: 'white', fontSize: 11, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}
+                    style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 12px", borderRadius: 5, border: "none", background: "#7C3AED", color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer" }}
                   >
-                    <CheckCircle2 style={{ width: 13, height: 13 }} /> Verify & Approve
+                    <CheckCircle2 style={{ width: 13, height: 13 }} /> Approve
                   </button>
                 </div>
               </div>
@@ -757,198 +320,80 @@ export default function DashboardClient({
         </div>
       )}
 
-      {/* Near-Expiry & Low-Stock Alerts Section */}
-      {widgets.nearExpiryAlerts && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {/* Low Stock Alerts */}
+      {/* ── Alerts ── */}
+      {(lowStockItems.length > 0 || expiringBatches.length > 0) && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {lowStockItems.length > 0 && (
-            <div
-              className="alert alert-error animate-scaleIn"
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <div
-                  style={{
-                    padding: 8,
-                    background: "rgba(220,38,38,0.15)",
-                    borderRadius: 10,
-                    flexShrink: 0,
-                  }}
-                >
-                  <AlertTriangle
-                    style={{ width: 18, height: 18, color: "#DC2626" }}
-                  />
-                </div>
+            <div style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              gap: 12, background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 8, padding: "12px 16px",
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <AlertTriangle style={{ width: 15, height: 15, color: "#DC2626", flexShrink: 0 }} />
                 <div>
-                  <div
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 800,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.06em",
-                      color: "#991B1B",
-                    }}
-                  >
-                    Low Stock Alert
-                  </div>
-                  <p style={{ fontSize: 12, marginTop: 2, color: "#7F1D1D" }}>
-                    The following items are below your low stock threshold ({lowStockBoxes} boxes, {lowStockStrips} strips, {lowStockTablets} tablets):{" "}
-                    {lowStockItems.map((item, idx) => (
-                      <span key={item.sku}>
-                        {idx > 0 && ", "}
-                        <strong>{item.name}</strong> ({item.units} units left)
-                      </span>
-                    ))}
-                  </p>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: "#991B1B" }}>Low Stock Alert — </span>
+                  <span style={{ fontSize: 12, color: "#B91C1C" }}>
+                    {lowStockItems.slice(0, 3).map(i => i.name).join(", ")}
+                    {lowStockItems.length > 3 && ` +${lowStockItems.length - 3} more`}
+                  </span>
                 </div>
               </div>
-              <Link
-                href="/wholesaler/inventory"
-                className="btn-ghost"
-                style={{
-                  whiteSpace: "nowrap",
-                  fontSize: 11,
-                  padding: "6px 14px",
-                  color: "#DC2626",
-                  background: "rgba(220,38,38,0.08)",
-                }}
-              >
-                Restock Now
+              <Link href="/wholesaler/inventory" style={{ fontSize: 12, fontWeight: 600, color: "#DC2626", textDecoration: "none", whiteSpace: "nowrap" }}>
+                Restock →
               </Link>
             </div>
           )}
-
-          {/* Expiry Alerts */}
           {expiringBatches.length > 0 && (
-            <div
-              className="alert alert-warning animate-scaleIn"
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <div
-                  style={{
-                    padding: 8,
-                    background: "rgba(245,158,11,0.15)",
-                    borderRadius: 10,
-                    flexShrink: 0,
-                  }}
-                >
-                  <Clock style={{ width: 18, height: 18, color: "#D97706" }} />
-                </div>
+            <div style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              gap: 12, background: "#FFFBEB", border: "1px solid #FDE68A", borderRadius: 8, padding: "12px 16px",
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <Clock style={{ width: 15, height: 15, color: "#D97706", flexShrink: 0 }} />
                 <div>
-                  <div
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 800,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.06em",
-                      color: "#92400E",
-                    }}
-                  >
-                    Batch Expiration Warnings
-                  </div>
-                  <p style={{ fontSize: 12, marginTop: 2, color: "#78350F" }}>
-                    <strong style={{ fontFamily: "monospace" }}>
-                      {expiringBatches.length}
-                    </strong>{" "}
-                    batches expiring within your alert range of{" "}
-                    <strong>{expiryDays}</strong> days:{" "}
-                    {expiringBatches.slice(0, 3).map((b, idx) => (
-                      <span key={b.id}>
-                        {idx > 0 && ", "}
-                        <strong>{b.product.name}</strong> (Batch:{" "}
-                        {b.batchNumber}, Expiry:{" "}
-                        {new Date(b.expiryDate).toLocaleDateString()})
-                      </span>
-                    ))}
-                    {expiringBatches.length > 3 &&
-                      ` and ${expiringBatches.length - 3} more.`}
-                  </p>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: "#92400E" }}>Expiry Warning — </span>
+                  <span style={{ fontSize: 12, color: "#B45309" }}>
+                    {expiringBatches.length} batch{expiringBatches.length !== 1 ? "es" : ""} expiring within {expiryDays} days
+                  </span>
                 </div>
               </div>
-              <Link
-                href="/wholesaler/inventory"
-                className="btn-ghost"
-                style={{
-                  whiteSpace: "nowrap",
-                  fontSize: 11,
-                  padding: "6px 14px",
-                  color: "#D97706",
-                  background: "rgba(245,158,11,0.08)",
-                }}
-              >
-                View Batches
+              <Link href="/wholesaler/inventory" style={{ fontSize: 12, fontWeight: 600, color: "#D97706", textDecoration: "none", whiteSpace: "nowrap" }}>
+                View →
               </Link>
             </div>
           )}
         </div>
       )}
 
-      <SectionBreaker title="Operational Telemetry" desc="High level catalog and dispatch counters" icon={Activity} />
-
-      {/* Stat Cards Grid */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-          gap: 24,
-        }}
-      >
+      {/* ── Stat Cards ── */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 16 }}>
         {statCards.map((card) => {
           const Icon = card.icon;
-          if (!widgets[card.key as keyof typeof widgets]) return null;
-
-          // Generate a vibrant colorful shadow based on the card color
-          const shadowColor =
-            card.color === "#0EA5E9"
-              ? "rgba(14,165,233,0.18)"
-                : card.color === "#10B981"
-                  ? "rgba(16,185,129,0.18)"
-                  : card.color === "#DC2626"
-                    ? "rgba(220,38,38,0.18)"
-                    : "rgba(148,163,184,0.15)";
-
           return (
-            <Link
-              key={card.key}
-              href={card.href}
-              className="stat-card hover:-translate-y-1 transition-all duration-300"
-              style={{
-                textDecoration: "none",
-                boxShadow: `0 10px 25px ${shadowColor}, 0 1px 3px rgba(0,0,0,0.02)`,
-                border: `1.5px solid ${card.bg}`,
+            <Link key={card.label} href={card.href} style={{ textDecoration: "none" }}>
+              <div style={{
+                background: "#fff", border: "1px solid #E5E7EB", borderRadius: 8,
+                padding: "18px 20px", display: "flex", flexDirection: "column", gap: 14,
+                transition: "border-color 0.15s",
+                cursor: "pointer",
               }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                }}
+                onMouseEnter={e => (e.currentTarget.style.borderColor = card.accent)}
+                onMouseLeave={e => (e.currentTarget.style.borderColor = "#E5E7EB")}
               >
-                <div
-                  className="stat-card-icon shadow-inner"
-                  style={{ background: card.bg, color: card.color }}
-                >
-                  <Icon style={{ width: 20, height: 20 }} />
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 8, background: card.lightBg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <Icon style={{ width: 18, height: 18, color: card.accent }} />
+                  </div>
+                  <ArrowRight style={{ width: 14, height: 14, color: "#D1D5DB" }} />
                 </div>
-                <ArrowRight
-                  style={{ width: 14, height: 14, color: "#CBD5E1" }}
-                />
-              </div>
-              <div>
-                <div className="stat-card-label">{card.label}</div>
-                <div className="stat-card-value" style={{ color: card.color }}>
-                  {card.value}
-                  <span className="stat-card-unit">{card.unit}</span>
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#9CA3AF", marginBottom: 4 }}>
+                    {card.label}
+                  </div>
+                  <div style={{ fontSize: 24, fontWeight: 700, color: card.accent, lineHeight: 1.1 }}>
+                    {card.value}
+                    <span style={{ fontSize: 12, fontWeight: 500, color: "#9CA3AF", marginLeft: 4 }}>{card.unit}</span>
+                  </div>
                 </div>
               </div>
             </Link>
@@ -956,641 +401,204 @@ export default function DashboardClient({
         })}
       </div>
 
-      <SectionBreaker title="Financial Analysis" desc="Revenue and profitability insights" icon={TrendingUp} />
-
-      {/* Financial Ledger Card & Recharts Bar Graph */}
-      {widgets.financialLedger && (
-        <div
-          className="card"
-          style={{ background: "rgba(255,255,255,0.85)", padding: 24 }}
-        >
-          {/* Header with selector */}
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              flexWrap: "wrap",
-              gap: 12,
-              borderBottom: "1px solid #F1F5F9",
-              paddingBottom: 16,
-              marginBottom: 20,
-            }}
-          >
-            <div>
-              <h3
-                style={{
-                  fontSize: 11,
-                  fontWeight: 800,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.07em",
-                  color: "#1E293B",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                }}
-              >
-                <TrendingUp
-                  style={{ width: 14, height: 14, color: "#0EA5E9" }}
-                />
-                Revenue & Profit Analysis
-              </h3>
-              <p style={{ fontSize: 12, color: "#64748B", marginTop: 2 }}>
-                Interactive sales & margin ledger
-              </p>
-            </div>
-
-            <div
-              style={{
-                display: "flex",
-                gap: 6,
-                background: "#F1F5F9",
-                padding: 3,
-                borderRadius: 10,
-              }}
-            >
-              {(["daily", "weekly", "monthly", "yearly"] as const).map((p) => (
-                <button
-                  key={p}
-                  onClick={() => setPeriod(p)}
-                  style={{
-                    padding: "6px 14px",
-                    borderRadius: 8,
-                    fontSize: 11,
-                    fontWeight: 700,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.04em",
-                    border: "none",
-                    cursor: "pointer",
-                    fontFamily: "inherit",
-                    transition: "all 0.2s",
-                    background: period === p ? "white" : "transparent",
-                    color: period === p ? "#0EA5E9" : "#64748B",
-                    boxShadow:
-                      period === p ? "0 1px 4px rgba(0,0,0,0.05)" : "none",
-                  }}
-                >
-                  {p}
-                </button>
-              ))}
-            </div>
+      {/* ── Financial Analysis ── */}
+      <div style={{ background: "#fff", border: "1px solid #E5E7EB", borderRadius: 8, padding: 20 }}>
+        {/* Header */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: 20 }}>
+          <div>
+            <h2 style={{ fontSize: 14, fontWeight: 700, color: "#111827", display: "flex", alignItems: "center", gap: 6 }}>
+              <TrendingUp style={{ width: 15, height: 15, color: "#2563EB" }} />
+              Revenue & Profit Analysis
+            </h2>
+            <p style={{ fontSize: 12, color: "#6B7280", marginTop: 2 }}>Interactive sales and margin ledger</p>
           </div>
-
-          {/* Stats grids */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-              gap: 24,
-              marginBottom: 24,
-            }}
-          >
-            <div
-              style={{
-                background: "linear-gradient(135deg, #FFF7ED, #FFEDD5)",
-                border: "1px solid #FED7AA",
-                borderRadius: 16,
-                padding: "16px 20px",
-              }}
-            >
-              <div
+          {/* Period Tabs */}
+          <div style={{ display: "flex", gap: 4, background: "#F3F4F6", borderRadius: 6, padding: 3 }}>
+            {(["daily", "weekly", "monthly", "yearly"] as const).map((p) => (
+              <button
+                key={p}
+                onClick={() => setPeriod(p)}
                 style={{
-                  fontSize: 10,
-                  fontWeight: 800,
-                  color: "#C2410C",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.06em",
+                  padding: "5px 12px", borderRadius: 5, fontSize: 11, fontWeight: 600,
+                  textTransform: "capitalize", border: "none", cursor: "pointer",
+                  background: period === p ? "#fff" : "transparent",
+                  color: period === p ? "#2563EB" : "#6B7280",
+                  boxShadow: period === p ? "0 1px 3px rgba(0,0,0,0.08)" : "none",
+                  transition: "all 0.15s",
                 }}
               >
-                Period Revenue
-              </div>
-              <div
-                style={{
-                  fontSize: 24,
-                  fontWeight: 900,
-                  color: "#EA580C",
-                  fontFamily: "monospace",
-                  marginTop: 4,
-                }}
-              >
-                Rs. {totalPeriodRevenue.toLocaleString()}
-              </div>
-              <p style={{ fontSize: 10, color: "#9A3412", marginTop: 4 }}>
-                Sales in selected range
-              </p>
-            </div>
-
-            <div
-              style={{
-                background: "linear-gradient(135deg, #F0F9FF, #E0F2FE)",
-                border: "1px solid #BAE6FD",
-                borderRadius: 16,
-                padding: "16px 20px",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: 10,
-                  fontWeight: 800,
-                  color: "#0369A1",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.06em",
-                }}
-              >
-                Period Profit
-              </div>
-              <div
-                style={{
-                  fontSize: 24,
-                  fontWeight: 900,
-                  color: "#0284C7",
-                  fontFamily: "monospace",
-                  marginTop: 4,
-                }}
-              >
-                Rs. {totalPeriodProfit.toLocaleString()}
-              </div>
-              <p style={{ fontSize: 10, color: "#075985", marginTop: 4 }}>
-                Estimated margin
-              </p>
-            </div>
-
-            <div
-              style={{
-                background: "linear-gradient(135deg, #ECFDF5, #D1FAE5)",
-                border: "1px solid #A7F3D0",
-                borderRadius: 16,
-                padding: "16px 20px",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: 10,
-                  fontWeight: 800,
-                  color: "#047857",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.06em",
-                }}
-              >
-                Transactions
-              </div>
-              <div
-                style={{
-                  fontSize: 24,
-                  fontWeight: 900,
-                  color: "#059669",
-                  fontFamily: "monospace",
-                  marginTop: 4,
-                }}
-              >
-                {totalPeriodOrders}
-                <span
-                  style={{
-                    fontSize: 11,
-                    color: "#065F46",
-                    fontWeight: 600,
-                    marginLeft: 6,
-                  }}
-                >
-                  orders
-                </span>
-              </div>
-              <p style={{ fontSize: 10, color: "#065F46", marginTop: 4 }}>
-                Order count
-              </p>
-            </div>
-          </div>
-
-          {/* Chart visualization */}
-          <div style={{ height: 280, width: "100%" }}>
-            {analyticsData?.chartData ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={analyticsData.chartData}
-                  margin={{ top: 10, right: 10, left: -10, bottom: 0 }}
-                >
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    vertical={false}
-                    stroke="#E2E8F0"
-                  />
-                  <XAxis
-                    dataKey="label"
-                    tickLine={false}
-                    axisLine={false}
-                    tick={{ fontSize: 10, fill: "#64748B", fontWeight: 600 }}
-                  />
-                  <YAxis
-                    tickLine={false}
-                    axisLine={false}
-                    tick={{ fontSize: 10, fill: "#64748B", fontWeight: 600 }}
-                  />
-                  <Tooltip
-                    content={<CustomTooltip />}
-                    cursor={{ fill: "rgba(14,165,233,0.04)" }}
-                  />
-                  <Legend
-                    iconType="circle"
-                    iconSize={8}
-                    wrapperStyle={{
-                      fontSize: 11,
-                      fontWeight: 700,
-                      paddingTop: 10,
-                    }}
-                  />
-                  <Bar
-                    name="Revenue"
-                    dataKey="revenue"
-                    fill="#0EA5E9"
-                    radius={[4, 4, 0, 0]}
-                  />
-                  <Bar
-                    name="Profit"
-                    dataKey="profit"
-                    fill="#38BDF8"
-                    radius={[4, 4, 0, 0]}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  height: "100%",
-                  color: "#94A3B8",
-                  fontSize: 12,
-                  fontStyle: "italic",
-                }}
-              >
-                Loading ledger analytics...
-              </div>
-            )}
+                {p}
+              </button>
+            ))}
           </div>
         </div>
-      )}
 
-      <SectionBreaker title="Activity & Terminal Telemetry" desc="Audit trails and hardware terminal connections" icon={Clock} />
+        {/* Summary numbers */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 20 }}>
+          {[
+            { label: "Period Revenue", value: `Rs. ${totalPeriodRevenue.toLocaleString()}`, icon: DollarSign, color: "#2563EB" },
+            { label: "Period Profit", value: `Rs. ${totalPeriodProfit.toLocaleString()}`, icon: TrendingUp, color: "#059669" },
+            { label: "Transactions", value: `${totalPeriodOrders} orders`, icon: ShoppingCart, color: "#7C3AED" },
+          ].map((item) => {
+            const Icon = item.icon;
+            return (
+              <div key={item.label} style={{ background: "#F9FAFB", border: "1px solid #E5E7EB", borderRadius: 6, padding: "14px 16px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                  <Icon style={{ width: 13, height: 13, color: item.color }} />
+                  <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#9CA3AF" }}>{item.label}</span>
+                </div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: item.color }}>{item.value}</div>
+              </div>
+            );
+          })}
+        </div>
 
-      {/* Activity Logs + Sidebar */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 320px",
-          gap: 16,
-        }}
-      >
-        {/* Activity Log Table */}
-        {widgets.recentActivity && (
-          <div
-            className="card"
-            style={{ background: "rgba(255,255,255,0.85)", padding: 24 }}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                borderBottom: "1px solid #F1F5F9",
-                paddingBottom: 12,
-                marginBottom: 16,
-              }}
-            >
-              <h3
-                style={{
-                  fontSize: 11,
-                  fontWeight: 800,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.07em",
-                  color: "#1E293B",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                }}
-              >
-                <span
-                  style={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: "50%",
-                    background: "#0EA5E9",
-                    display: "inline-block",
-                  }}
-                />
-                Recent Operations Log
-              </h3>
-              <Link
-                href="/wholesaler/logs"
-                className="btn-ghost"
-                style={{
-                  padding: "4px 12px",
-                  fontSize: 11,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 4,
-                }}
-              >
-                View All <ArrowRight style={{ width: 11, height: 11 }} />
-              </Link>
+        {/* Chart */}
+        <div style={{ height: 260 }}>
+          {analyticsData?.chartData ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={analyticsData.chartData} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F3F4F6" />
+                <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: "#9CA3AF" }} />
+                <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: "#9CA3AF" }} />
+                <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(37,99,235,0.04)" }} />
+                <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
+                <Bar name="Revenue" dataKey="revenue" fill="#2563EB" radius={[3, 3, 0, 0]} maxBarSize={36} />
+                <Bar name="Profit" dataKey="profit" fill="#93C5FD" radius={[3, 3, 0, 0]} maxBarSize={36} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "#9CA3AF", fontSize: 13 }}>
+              Loading analytics...
             </div>
-            <div className="table-wrapper">
-              <table className="data-table">
-                <thead>
+          )}
+        </div>
+      </div>
+
+      {/* ── Activity Logs + Quick Actions + Terminal ── */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: 16, alignItems: "start" }}>
+
+        {/* Activity Log */}
+        <div style={{ background: "#fff", border: "1px solid #E5E7EB", borderRadius: 8, overflow: "hidden" }}>
+          <div style={{ padding: "14px 18px", borderBottom: "1px solid #F3F4F6", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <h2 style={{ fontSize: 13, fontWeight: 700, color: "#111827", display: "flex", alignItems: "center", gap: 6 }}>
+              <Activity style={{ width: 14, height: 14, color: "#2563EB" }} />
+              Recent Operations Log
+            </h2>
+            <Link href="/wholesaler/logs" style={{ fontSize: 12, fontWeight: 600, color: "#2563EB", textDecoration: "none", display: "flex", alignItems: "center", gap: 3 }}>
+              View all <ArrowRight style={{ width: 11, height: 11 }} />
+            </Link>
+          </div>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+              <thead>
+                <tr style={{ background: "#F9FAFB" }}>
+                  <th style={{ padding: "9px 16px", textAlign: "left", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "#9CA3AF", borderBottom: "1px solid #F3F4F6" }}>Time</th>
+                  <th style={{ padding: "9px 16px", textAlign: "left", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "#9CA3AF", borderBottom: "1px solid #F3F4F6" }}>Action</th>
+                  <th style={{ padding: "9px 16px", textAlign: "left", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "#9CA3AF", borderBottom: "1px solid #F3F4F6" }}>Details</th>
+                  <th style={{ padding: "9px 16px", textAlign: "left", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "#9CA3AF", borderBottom: "1px solid #F3F4F6" }}>User</th>
+                </tr>
+              </thead>
+              <tbody>
+                {auditLogs.length === 0 ? (
                   <tr>
-                    <th>Timestamp</th>
-                    <th>Action</th>
-                    <th>Details</th>
-                    <th>Operator</th>
+                    <td colSpan={4} style={{ padding: "32px", textAlign: "center", color: "#9CA3AF", fontSize: 13 }}>
+                      No recent activity recorded.
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {auditLogs.length === 0 ? (
-                    <tr>
-                      <td
-                        colSpan={4}
-                        style={{
-                          padding: "32px",
-                          textAlign: "center",
-                          color: "#94A3B8",
-                          fontStyle: "italic",
-                          fontSize: 12,
-                        }}
-                      >
-                        No recent activity recorded.
+                ) : (
+                  auditLogs.map((log) => (
+                    <tr key={log.id} style={{ borderBottom: "1px solid #F9FAFB" }}>
+                      <td style={{ padding: "11px 16px", fontFamily: "monospace", color: "#6B7280", whiteSpace: "nowrap" }}>
+                        {new Date(log.timestamp).toLocaleTimeString()}
+                      </td>
+                      <td style={{ padding: "11px 16px" }}>
+                        <span style={{
+                          fontSize: 10, fontWeight: 700, fontFamily: "monospace",
+                          color: "#1D4ED8", background: "#EFF6FF", border: "1px solid #BFDBFE",
+                          padding: "2px 7px", borderRadius: 4, textTransform: "uppercase",
+                        }}>
+                          {log.action}
+                        </span>
+                      </td>
+                      <td style={{ padding: "11px 16px", color: "#374151", maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={log.details}>
+                        {log.details}
+                      </td>
+                      <td style={{ padding: "11px 16px", color: "#6B7280", fontFamily: "monospace" }}>
+                        {log.user ? log.user.fullName || log.user.email.split("@")[0] : "System"}
                       </td>
                     </tr>
-                  ) : (
-                    auditLogs.map((log) => (
-                      <tr key={log.id}>
-                        <td
-                          style={{
-                            fontFamily: "monospace",
-                            fontSize: 10,
-                            color: "#64748B",
-                            whiteSpace: "nowrap",
-                          }}
-                        >
-                          {new Date(log.timestamp).toLocaleTimeString()}
-                        </td>
-                        <td>
-                          <span
-                            style={{
-                              fontSize: 9,
-                              fontWeight: 700,
-                              textTransform: "uppercase",
-                              fontFamily: "monospace",
-                              color: "#0284C7",
-                              background: "#F0F9FF",
-                              border: "1px solid #BAE6FD",
-                              padding: "2px 8px",
-                              borderRadius: 6,
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            {log.action}
-                          </span>
-                        </td>
-                        <td
-                          style={{
-                            fontSize: 11,
-                            maxWidth: 240,
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "nowrap",
-                          }}
-                          title={log.details}
-                        >
-                          {log.details}
-                        </td>
-                        <td
-                          style={{
-                            fontSize: 10,
-                            color: "#64748B",
-                            fontFamily: "monospace",
-                          }}
-                        >
-                          {log.user
-                            ? log.user.fullName || log.user.email.split("@")[0]
-                            : "System"}
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
-        )}
+        </div>
 
         {/* Right Panel */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          {/* Terminal Status */}
-          {widgets.terminalStatus && (
-            <div
-              className="card"
-              style={{ background: "rgba(255,255,255,0.85)", padding: 20 }}
-            >
-              <div
-                style={{
-                  borderBottom: "1px solid #F1F5F9",
-                  paddingBottom: 12,
-                  marginBottom: 16,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                }}
-              >
-                <Activity style={{ width: 14, height: 14, color: "#0EA5E9" }} />
-                <h3
-                  style={{
-                    fontSize: 11,
-                    fontWeight: 800,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.07em",
-                    color: "#1E293B",
-                  }}
-                >
-                  Terminal Node Info
-                </h3>
-              </div>
-              <div
-                style={{
-                  padding: "12px 14px",
-                  background: "#F8FAFC",
-                  border: "1px solid #E2E8F0",
-                  borderRadius: 12,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 10,
-                  marginBottom: 14,
-                }}
-              >
-                <MapPin
-                  style={{
-                    width: 16,
-                    height: 16,
-                    color: "#0EA5E9",
-                    flexShrink: 0,
-                  }}
-                />
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+
+          {/* Terminal Info */}
+          <div style={{ background: "#fff", border: "1px solid #E5E7EB", borderRadius: 8, padding: 16 }}>
+            <h3 style={{ fontSize: 12, fontWeight: 700, color: "#374151", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 12, display: "flex", alignItems: "center", gap: 5 }}>
+              <Activity style={{ width: 12, height: 12, color: "#2563EB" }} /> Terminal Node
+            </h3>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <div style={{ background: "#F9FAFB", border: "1px solid #E5E7EB", borderRadius: 6, padding: "10px 12px", display: "flex", alignItems: "center", gap: 8 }}>
+                <MapPin style={{ width: 13, height: 13, color: "#2563EB", flexShrink: 0 }} />
                 <div>
-                  <div
-                    style={{
-                      fontSize: 9,
-                      fontWeight: 800,
-                      textTransform: "uppercase",
-                      color: "#94A3B8",
-                      letterSpacing: "0.06em",
-                    }}
-                  >
-                    GPS Node Location
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 700,
-                      fontFamily: "monospace",
-                      color: "#1E293B",
-                      marginTop: 2,
-                    }}
-                  >
+                  <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#9CA3AF" }}>GPS Location</div>
+                  <div style={{ fontSize: 11, fontWeight: 600, fontFamily: "monospace", color: "#111827", marginTop: 1 }}>
                     {metrics.latitude && metrics.longitude
                       ? `${metrics.latitude.toFixed(4)}N, ${metrics.longitude.toFixed(4)}E`
                       : "UNCONFIGURED"}
                   </div>
                 </div>
               </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {[
-                  {
-                    label: "System Monitor",
-                    value: (
-                      <span className="status-pill status-pill-active">
-                        Stable
-                      </span>
-                    ),
-                  },
-                  {
-                    label: "Dispatch Queue",
-                    value: (
-                      <span
-                        style={{
-                          fontSize: 10,
-                          fontWeight: 700,
-                          fontFamily: "monospace",
-                          color: "#1E293B",
-                        }}
-                      >
-                        FIFO ALGO
-                      </span>
-                    ),
-                  },
-                  {
-                    label: "Company Node",
-                    value: (
-                      <span
-                        style={{
-                          fontSize: 11,
-                          fontWeight: 700,
-                          color: "#1E293B",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                          maxWidth: 130,
-                        }}
-                        title={metrics.companyName}
-                      >
-                        {metrics.companyName}
-                      </span>
-                    ),
-                  },
-                ].map((row, i) => (
-                  <div
-                    key={i}
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      paddingBottom: i < 2 ? 8 : 0,
-                      borderBottom: i < 2 ? "1px solid #F8FAFC" : "none",
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontSize: 11,
-                        fontWeight: 600,
-                        color: "#64748B",
-                      }}
-                    >
-                      {row.label}
-                    </span>
-                    {row.value}
-                  </div>
-                ))}
-              </div>
+              {[
+                { label: "System Monitor", value: <span style={{ fontSize: 11, fontWeight: 600, color: "#059669", background: "#ECFDF5", border: "1px solid #A7F3D0", padding: "1px 8px", borderRadius: 4 }}>Stable</span> },
+                { label: "Dispatch Queue", value: <span style={{ fontSize: 11, fontWeight: 600, color: "#374151", fontFamily: "monospace" }}>FIFO</span> },
+                { label: "Company Node", value: <span style={{ fontSize: 11, fontWeight: 600, color: "#374151", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 110, display: "block" }} title={metrics.companyName}>{metrics.companyName}</span> },
+              ].map((row, i) => (
+                <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: i < 2 ? 8 : 0, borderBottom: i < 2 ? "1px solid #F3F4F6" : "none" }}>
+                  <span style={{ fontSize: 11, color: "#6B7280" }}>{row.label}</span>
+                  {row.value}
+                </div>
+              ))}
             </div>
-          )}
+          </div>
 
           {/* Quick Actions */}
-          {widgets.quickActions && (
-            <div
-              className="card"
-              style={{ background: "rgba(255,255,255,0.85)", padding: 20 }}
-            >
-              <div
-                style={{
-                  fontSize: 10,
-                  fontWeight: 800,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.08em",
-                  color: "#94A3B8",
-                  marginBottom: 14,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                }}
-              >
-                <Zap style={{ width: 12, height: 12, color: "#0EA5E9" }} />
-                Quick Actions
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                <Link
-                  href="/wholesaler/pos"
-                  className="btn-primary"
-                  style={{
-                    justifyContent: "center",
-                    width: "100%",
-                    textAlign: "center",
-                  }}
-                >
-                  Launch POS Terminal
-                </Link>
-                <Link
-                  href="/wholesaler/inventory"
-                  className="btn-ghost"
-                  style={{
-                    justifyContent: "center",
-                    width: "100%",
-                    textAlign: "center",
-                  }}
-                >
-                  Manage Stock Registry
-                </Link>
-                <Link
-                  href="/wholesaler/orders"
-                  className="btn-ghost"
-                  style={{
-                    justifyContent: "center",
-                    width: "100%",
-                    textAlign: "center",
-                  }}
-                >
-                  View Pending Orders
-                </Link>
-              </div>
+          <div style={{ background: "#fff", border: "1px solid #E5E7EB", borderRadius: 8, padding: 16 }}>
+            <h3 style={{ fontSize: 12, fontWeight: 700, color: "#374151", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 12, display: "flex", alignItems: "center", gap: 5 }}>
+              <Zap style={{ width: 12, height: 12, color: "#2563EB" }} /> Quick Actions
+            </h3>
+            <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+              <Link href="/wholesaler/pos" style={{
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                padding: "9px 14px", borderRadius: 6, fontSize: 13, fontWeight: 600,
+                background: "#2563EB", color: "#fff", textDecoration: "none", textAlign: "center",
+              }}>
+                Launch POS Terminal
+              </Link>
+              <Link href="/wholesaler/inventory" style={{
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                padding: "9px 14px", borderRadius: 6, fontSize: 13, fontWeight: 600,
+                background: "#F9FAFB", color: "#374151", textDecoration: "none", textAlign: "center",
+                border: "1px solid #E5E7EB",
+              }}>
+                Manage Stock Registry
+              </Link>
+              <Link href="/wholesaler/orders" style={{
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                padding: "9px 14px", borderRadius: 6, fontSize: 13, fontWeight: 600,
+                background: "#F9FAFB", color: "#374151", textDecoration: "none", textAlign: "center",
+                border: "1px solid #E5E7EB",
+              }}>
+                View Pending Orders
+              </Link>
             </div>
-          )}
+          </div>
         </div>
       </div>
     </div>

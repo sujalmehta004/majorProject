@@ -212,9 +212,9 @@ export default function StaffClient({
         <div>
           <h1
             style={{
-              fontSize: 20,
+              fontSize: 22,
               fontWeight: 800,
-              color: "#1E293B",
+              color: "var(--text-primary)",
               letterSpacing: "-0.02em",
               display: "flex",
               alignItems: "center",
@@ -224,7 +224,7 @@ export default function StaffClient({
             <Users style={{ width: 22, height: 22, color: "#F97316" }} />
             Employee Directory &amp; Access Control
           </h1>
-          <p style={{ fontSize: 13, color: "#64748B", marginTop: 4 }}>
+          <p style={{ fontSize: 14, color: "var(--text-secondary)", marginTop: 4 }}>
             Manage staff login details, configure feature permissions, and
             review credentials.
           </p>
@@ -286,7 +286,7 @@ export default function StaffClient({
                 fontWeight: 800,
                 textTransform: "uppercase",
                 letterSpacing: "0.07em",
-                color: "#1E293B",
+                color: "var(--text-primary)",
               }}
             >
               Add New Employee
@@ -301,9 +301,9 @@ export default function StaffClient({
               <label
                 style={{
                   display: "block",
-                  fontSize: 10,
+                  fontSize: 12,
                   fontWeight: 700,
-                  color: "#64748B",
+                  color: "var(--text-secondary)",
                   textTransform: "uppercase",
                   letterSpacing: "0.05em",
                   marginBottom: 6,
@@ -324,9 +324,9 @@ export default function StaffClient({
               <label
                 style={{
                   display: "block",
-                  fontSize: 10,
+                  fontSize: 12,
                   fontWeight: 700,
-                  color: "#64748B",
+                  color: "var(--text-secondary)",
                   textTransform: "uppercase",
                   letterSpacing: "0.05em",
                   marginBottom: 6,
@@ -347,9 +347,9 @@ export default function StaffClient({
               <label
                 style={{
                   display: "block",
-                  fontSize: 10,
+                  fontSize: 12,
                   fontWeight: 700,
-                  color: "#64748B",
+                  color: "var(--text-secondary)",
                   textTransform: "uppercase",
                   letterSpacing: "0.05em",
                   marginBottom: 6,
@@ -373,9 +373,9 @@ export default function StaffClient({
               <label
                 style={{
                   display: "block",
-                  fontSize: 10,
+                  fontSize: 12,
                   fontWeight: 700,
-                  color: "#64748B",
+                  color: "var(--text-secondary)",
                   textTransform: "uppercase",
                   letterSpacing: "0.05em",
                   marginBottom: 10,
@@ -388,7 +388,7 @@ export default function StaffClient({
                   display: "flex",
                   flexDirection: "column",
                   gap: 4,
-                  background: "#F8FAFC",
+                  background: "var(--table-header-bg)",
                   border: "1.5px solid #E0F2FE",
                   borderRadius: 10,
                   padding: "8px 10px",
@@ -445,7 +445,7 @@ export default function StaffClient({
                       </span>
                       <span
                         style={{
-                          fontSize: 12,
+                          fontSize: 14,
                           fontWeight: 600,
                           color: isChecked ? "#1E293B" : "#64748B",
                         }}
@@ -502,7 +502,7 @@ export default function StaffClient({
                 fontWeight: 800,
                 textTransform: "uppercase",
                 letterSpacing: "0.07em",
-                color: "#1E293B",
+                color: "var(--text-primary)",
               }}
             >
               Distributor Staff Roster — {staff.length} accounts
@@ -514,9 +514,9 @@ export default function StaffClient({
               style={{
                 padding: "32px",
                 textAlign: "center",
-                color: "#94A3B8",
+                color: "var(--text-muted)",
                 fontStyle: "italic",
-                fontSize: 12,
+                fontSize: 14,
               }}
             >
               No staff accounts registered yet.
@@ -556,15 +556,15 @@ export default function StaffClient({
                         style={{
                           fontWeight: 800,
                           fontSize: 14,
-                          color: "#1E293B",
+                          color: "var(--text-primary)",
                         }}
                       >
                         {emp.fullName || "—"}
                       </div>
                       <div
                         style={{
-                          fontSize: 10,
-                          color: "#64748B",
+                          fontSize: 12,
+                          color: "var(--text-secondary)",
                           fontFamily: "monospace",
                           marginTop: 2,
                         }}
@@ -592,14 +592,14 @@ export default function StaffClient({
                       display: "flex",
                       alignItems: "center",
                       gap: 6,
-                      background: "white",
-                      border: "1px solid #E2E8F0",
+                      background: "var(--card-bg)",
+                      border: "1px solid var(--card-border)",
                       borderRadius: 10,
                       padding: "6px 12px",
                       fontFamily: "monospace",
                       fontSize: 11,
                       fontWeight: 700,
-                      color: "#1E293B",
+                      color: "var(--text-primary)",
                     }}
                   >
                     <Key
@@ -610,7 +610,7 @@ export default function StaffClient({
                         flexShrink: 0,
                       }}
                     />
-                    <span style={{ color: "#64748B", marginRight: 4 }}>
+                    <span style={{ color: "var(--text-secondary)", marginRight: 4 }}>
                       Passcode:
                     </span>{" "}
                     {emp.plainPassword || "N/A"}
@@ -622,7 +622,7 @@ export default function StaffClient({
                         fontSize: 9,
                         fontWeight: 800,
                         textTransform: "uppercase",
-                        color: "#94A3B8",
+                        color: "var(--text-muted)",
                         letterSpacing: "0.06em",
                         marginBottom: 6,
                       }}
@@ -652,8 +652,8 @@ export default function StaffClient({
                       ) : (
                         <span
                           style={{
-                            fontSize: 10,
-                            color: "#94A3B8",
+                            fontSize: 12,
+                            color: "var(--text-muted)",
                             fontStyle: "italic",
                           }}
                         >
@@ -732,7 +732,7 @@ export default function StaffClient({
                 style={{
                   fontSize: 14,
                   fontWeight: 800,
-                  color: "#1E293B",
+                  color: "var(--text-primary)",
                   display: "flex",
                   alignItems: "center",
                   gap: 8,
@@ -747,7 +747,7 @@ export default function StaffClient({
                   background: "none",
                   border: "none",
                   cursor: "pointer",
-                  color: "#94A3B8",
+                  color: "var(--text-muted)",
                   padding: 4,
                 }}
               >
@@ -763,9 +763,9 @@ export default function StaffClient({
                 <label
                   style={{
                     display: "block",
-                    fontSize: 10,
+                    fontSize: 12,
                     fontWeight: 700,
-                    color: "#64748B",
+                    color: "var(--text-secondary)",
                     textTransform: "uppercase",
                     letterSpacing: "0.05em",
                     marginBottom: 6,
@@ -785,9 +785,9 @@ export default function StaffClient({
                 <label
                   style={{
                     display: "block",
-                    fontSize: 10,
+                    fontSize: 12,
                     fontWeight: 700,
-                    color: "#64748B",
+                    color: "var(--text-secondary)",
                     textTransform: "uppercase",
                     letterSpacing: "0.05em",
                     marginBottom: 6,
@@ -807,9 +807,9 @@ export default function StaffClient({
                 <label
                   style={{
                     display: "block",
-                    fontSize: 10,
+                    fontSize: 12,
                     fontWeight: 700,
-                    color: "#64748B",
+                    color: "var(--text-secondary)",
                     textTransform: "uppercase",
                     letterSpacing: "0.05em",
                     marginBottom: 6,
@@ -833,7 +833,7 @@ export default function StaffClient({
                   display: "flex",
                   justifyContent: "space-between",
                   alignItems: "center",
-                  background: "#F8FAFC",
+                  background: "var(--table-header-bg)",
                   border: "1.5px solid #E0F2FE",
                   borderRadius: 10,
                   padding: "10px 14px",
@@ -841,9 +841,9 @@ export default function StaffClient({
               >
                 <span
                   style={{
-                    fontSize: 12,
+                    fontSize: 14,
                     fontWeight: 700,
-                    color: "#64748B",
+                    color: "var(--text-secondary)",
                     textTransform: "uppercase",
                     letterSpacing: "0.05em",
                   }}
@@ -881,13 +881,13 @@ export default function StaffClient({
                   ) : (
                     <>
                       <ToggleLeft
-                        style={{ width: 32, height: 32, color: "#94A3B8" }}
+                        style={{ width: 32, height: 32, color: "var(--text-muted)" }}
                       />
                       <span
                         style={{
                           fontSize: 11,
                           fontWeight: 800,
-                          color: "#94A3B8",
+                          color: "var(--text-muted)",
                         }}
                       >
                         DISABLED
@@ -902,9 +902,9 @@ export default function StaffClient({
                 <label
                   style={{
                     display: "block",
-                    fontSize: 10,
+                    fontSize: 12,
                     fontWeight: 700,
-                    color: "#64748B",
+                    color: "var(--text-secondary)",
                     textTransform: "uppercase",
                     letterSpacing: "0.05em",
                     marginBottom: 8,
@@ -917,7 +917,7 @@ export default function StaffClient({
                     display: "grid",
                     gridTemplateColumns: "1fr 1fr",
                     gap: 4,
-                    background: "#F8FAFC",
+                    background: "var(--table-header-bg)",
                     border: "1.5px solid #E0F2FE",
                     borderRadius: 10,
                     padding: "8px 10px",

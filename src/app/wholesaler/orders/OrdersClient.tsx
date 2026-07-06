@@ -55,6 +55,8 @@ interface Order {
   overrideJustification?: string;
   createdAt: string;
   items: OrderItem[];
+  settleAmount?: number | null;
+  b2bSettlements?: Array<{ id: string; amount: number; status: string; method?: string | null; createdAt?: string }>;
 }
 
 interface OrdersClientProps {
@@ -136,6 +138,20 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
   const [settleAmount, setSettleAmount] = useState('');
   const [settlingOrderId, setSettlingOrderId] = useState<string | null>(null);
   const [settleLogs, setSettleLogs] = useState<Record<string, any[]>>({});
+
+  // Helper: get total verified paid amount for an order from DB settlements
+  const getOrderPaid = (order: Order): number => {
+    let dbPaid = 0;
+    if (order.b2bSettlements && Array.isArray(order.b2bSettlements)) {
+      dbPaid = order.b2bSettlements
+        .filter((s: any) => s.status === 'VERIFIED')
+        .reduce((sum: number, s: any) => sum + (s.amount || 0), 0);
+    } else {
+      dbPaid = order.settleAmount || 0;
+    }
+    const sessionPaid = settlements[order.id] || 0;
+    return Math.max(dbPaid, sessionPaid);
+  };
 
   // Retailer barcode scan simulations
   const [scannedOrders, setScannedOrders] = useState<Record<string, boolean>>({});
@@ -363,7 +379,11 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
         throw new Error(data.error || 'Failed to submit B2B order.');
       }
       setSuccessMsg(`B2B Order submitted. Transaction ID: ${data.order.id}`);
-      logActivity('SUBMIT_ORDER', `Created sales bill. Transaction ID: ${data.order.id}`);
+      // Find customer info
+      const custObj = retailers.find(r => r.id === selectedRetailerId);
+      const custName = custObj ? custObj.pharmacyName : 'Unknown Retailer';
+      const orderSummaryText = `Order ID: ORD-${data.order.id.substring(0, 8).toUpperCase()}, Net Payable: Rs. ${netAmount.toLocaleString()}, Customer: ${custName}, Total Items: ${basket.length}`;
+      logActivity('SUBMIT_ORDER', `Created sales bill. ${orderSummaryText}`);
       setBasket([]); setOverrideJustification(''); setShowOverrideInput(false); setCreditBlockMessage('');
       fetchOrdersAndProducts();
     } catch (err: any) {
@@ -378,7 +398,9 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to dispatch shipment');
       setSuccessMsg(`Order ${orderId.substring(0, 8)} dispatched for transport.`);
-      logActivity('DISPATCH_SHIPMENT', `Dispatched sales order shipment: ${orderId}`);
+      const orderObj = orders.find(o => o.id === orderId);
+      const retailerText = orderObj ? ` for Customer: ${orderObj.retailer.pharmacyName}` : '';
+      logActivity('DISPATCH_SHIPMENT', `Dispatched sales order shipment: ORD-${orderId.substring(0, 8).toUpperCase()}${retailerText} [Time: ${new Date().toLocaleTimeString()}]`);
       fetchOrdersAndProducts();
     } catch (err: any) {
       setError(err.message || 'Failed to dispatch order.');
@@ -392,7 +414,9 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to confirm delivery');
       setSuccessMsg(`Delivery confirmed for Order ${orderId.substring(0, 8)}.`);
-      logActivity('SIMULATE_DELIVERY', `Delivery confirmation for order: ${orderId}`);
+      const orderObj = orders.find(o => o.id === orderId);
+      const retailerText = orderObj ? ` (Retailer: ${orderObj.retailer.pharmacyName})` : '';
+      logActivity('SIMULATE_DELIVERY', `Delivery confirmation for Order ORD-${orderId.substring(0, 8).toUpperCase()}${retailerText} received by customer/staff. Status: DELIVERED.`);
       fetchOrdersAndProducts();
     } catch (err: any) {
       setError(err.message || 'Failed to confirm delivery.');
@@ -455,7 +479,9 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
     setSettleAmount('');
     setSettlingOrderId(null);
     setSuccessMsg(`Payment recorded. Rs. ${inputPaid.toLocaleString()} paid for Order ${orderId.substring(0, 8)}.`);
-    logActivity('SETTLE_PAYMENT', `Recorded payment of Rs.${inputPaid} for Order ${orderId}`);
+    const orderObj = orders.find(o => o.id === orderId);
+    const retailerName = orderObj ? orderObj.retailer.pharmacyName : 'Walk-in';
+    logActivity('SETTLE_PAYMENT', `Recorded payment of Rs.${inputPaid.toLocaleString()} for Order ORD-${orderId.substring(0, 8).toUpperCase()} (Customer: ${retailerName}). Settle Time: ${new Date().toLocaleTimeString()}`);
     setTimeout(() => setSuccessMsg(''), 3000);
   };
 
@@ -590,35 +616,33 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
   };
 
   return (
-    <div className="space-y-6 animate-fadeIn">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       {/* Page Header */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 16, background: 'rgba(255,255,255,0.82)', backdropFilter: 'blur(16px)', border: '1.5px solid rgba(14,165,233,0.2)', borderRadius: 20, padding: '20px 24px', boxShadow: '0 2px 12px rgba(14,165,233,0.06)' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-end', gap: 12, background: '#fff', border: '1px solid #E5E7EB', borderRadius: 8, padding: '16px 20px' }}>
         <div>
-          <h1 style={{ fontSize: 20, fontWeight: 800, color: '#1E293B', letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-            <Truck style={{ width: 22, height: 22, color: '#0EA5E9' }} />
-            B2B Sales &amp; Order Management
+          <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+            <Truck style={{ width: 20, height: 20, color: '#2563EB' }} />
+            B2B Sales &amp; Orders
           </h1>
-          <p style={{ fontSize: 12, color: '#64748B' }}>Create, dispatch, and track B2B pharmacy orders with credit limit enforcement.</p>
+          <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Create, dispatch, and track B2B pharmacy orders with credit limit enforcement.</p>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
           <button
             onClick={() => setShowB2BOrderCreator(prev => !prev)}
-            className="btn-ghost"
-            style={{ padding: '6px 14px', background: showB2BOrderCreator ? '#0EA5E9' : 'white', border: '1.5px solid #0EA5E9', color: showB2BOrderCreator ? 'white' : '#0EA5E9', borderRadius: 10, fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}
+            style={{ padding: '8px 14px', background: showB2BOrderCreator ? '#2563EB' : '#fff', border: '1px solid #2563EB', color: showB2BOrderCreator ? '#white' : '#2563EB', borderRadius: 6, fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}
           >
             <ShoppingCart style={{ width: 13, height: 13 }} />
             {showB2BOrderCreator ? 'Hide Order Box' : 'Show Order Box'}
           </button>
           <button
             onClick={() => setShowAddCustomerModal(true)}
-            className="btn-ghost"
-            style={{ padding: '6px 14px', background: 'white', border: '1.5px solid #0EA5E9', color: '#0EA5E9', borderRadius: 10, fontSize: 11, fontWeight: 700 }}
+            style={{ padding: '8px 14px', background: '#fff', border: '1px solid #E5E7EB', color: '#374151', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
           >
-            <Plus style={{ width: 13, height: 13, marginRight: 4 }} />
+            <Plus style={{ width: 13, height: 13, display: 'inline', marginRight: 4 }} />
             Add Customer
           </button>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.25)', borderRadius: 10, fontSize: 11, fontWeight: 700, color: '#059669' }}>
-            <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#10B981', display: 'inline-block', animation: 'pulse 2s infinite', boxShadow: '0 0 0 2px rgba(16,185,129,0.25)' }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 6, fontSize: 11, fontWeight: 700, color: '#059669' }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#10B981', display: 'inline-block' }} />
             LIVE
           </div>
         </div>
@@ -628,56 +652,56 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
       {successMsg && <div className="alert alert-success"><CheckCircle style={{ width: 14, height: 14, flexShrink: 0 }} /><span>{successMsg}</span></div>}
 
       {/* Main 2-col layout */}
-      <div style={{ display: 'grid', gridTemplateColumns: showB2BOrderCreator ? '1fr 380px' : '1fr', gap: 20, alignItems: 'start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: showB2BOrderCreator ? '1fr 380px' : '1fr', gap: 16, alignItems: 'start' }}>
 
         {/* LEFT — Orders Table */}
-        <div style={{ background: 'rgba(255,255,255,0.9)', border: '1.5px solid #E2E8F0', borderRadius: 18, overflow: 'hidden', boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}>
+        <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 8, overflow: 'hidden' }}>
           {/* Table header + filters */}
-          <div style={{ padding: '14px 20px', borderBottom: '1px solid #F1F5F9', display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', justifyContent: 'space-between' }}>
-            <h2 style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#1E293B', display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Clock style={{ width: 13, height: 13, color: '#0EA5E9' }} /> Orders Log
-              <span style={{ fontSize: 10, fontWeight: 700, fontFamily: 'monospace', color: '#94A3B8', textTransform: 'uppercase', marginLeft: 4 }}>({filteredOrders.length})</span>
+          <div style={{ padding: '12px 16px', borderBottom: '1px solid #F3F4F6', display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', justifyContent: 'space-between', background: '#F9FAFB' }}>
+            <h2 style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Clock style={{ width: 13, height: 13, color: '#2563EB' }} /> Orders Log
+              <span style={{ fontSize: 11, fontWeight: 600, color: '#9CA3AF', marginLeft: 4 }}>({filteredOrders.length})</span>
             </h2>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
               {/* Simple / Detail view selector */}
-              <div style={{ display: 'flex', gap: 4, background: '#F1F5F9', padding: 3, borderRadius: 10, marginRight: 8 }}>
+              <div style={{ display: 'flex', gap: 3, background: '#E5E7EB', padding: 2, borderRadius: 6, marginRight: 4 }}>
                 <button
                   onClick={() => setViewMode('simple')}
                   style={{
-                    padding: '4px 10px', border: 'none', borderRadius: 8, fontSize: 10, fontWeight: 700, cursor: 'pointer',
+                    padding: '4px 8px', border: 'none', borderRadius: 4, fontSize: 11, fontWeight: 600, cursor: 'pointer',
                     background: viewMode === 'simple' ? 'white' : 'transparent',
-                    color: viewMode === 'simple' ? '#0EA5E9' : '#64748B',
-                    boxShadow: viewMode === 'simple' ? '0 1px 3px rgba(0,0,0,0.06)' : 'none'
+                    color: viewMode === 'simple' ? '#2563EB' : '#6B7280',
+                    boxShadow: viewMode === 'simple' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none'
                   }}
                 >
-                  Simple View
+                  Simple
                 </button>
                 <button
                   onClick={() => setViewMode('detail')}
                   style={{
-                    padding: '4px 10px', border: 'none', borderRadius: 8, fontSize: 10, fontWeight: 700, cursor: 'pointer',
+                    padding: '4px 8px', border: 'none', borderRadius: 4, fontSize: 11, fontWeight: 600, cursor: 'pointer',
                     background: viewMode === 'detail' ? 'white' : 'transparent',
-                    color: viewMode === 'detail' ? '#0EA5E9' : '#64748B',
-                    boxShadow: viewMode === 'detail' ? '0 1px 3px rgba(0,0,0,0.06)' : 'none'
+                    color: viewMode === 'detail' ? '#2563EB' : '#6B7280',
+                    boxShadow: viewMode === 'detail' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none'
                   }}
                 >
-                  Detail View
+                  Detail
                 </button>
               </div>
 
               {/* Search */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'white', border: '1.5px solid #E2E8F0', borderRadius: 8, padding: '4px 10px' }}>
-                <Search style={{ width: 12, height: 12, color: '#94A3B8' }} />
-                <input type="text" placeholder="Search order / pharmacy..." value={filterSearch} onChange={e => setFilterSearch(e.target.value)}
-                  style={{ border: 'none', outline: 'none', fontSize: 11, width: 150, color: '#1E293B' }} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#fff', border: '1px solid #D1D5DB', borderRadius: 6, padding: '3px 8px' }}>
+                <Search style={{ width: 11, height: 11, color: '#9CA3AF' }} />
+                <input type="text" placeholder="Search order..." value={filterSearch} onChange={e => setFilterSearch(e.target.value)}
+                  style={{ border: 'none', outline: 'none', fontSize: 11, width: 130, color: 'var(--text-primary)' }} />
               </div>
               {/* Status pills */}
               {(['all','PENDING','DISPATCHED','DELIVERED','RETURNED'] as const).map(s => (
                 <button key={s} onClick={() => setFilterStatus(s)}
-                  style={{ padding: '4px 10px', fontSize: 10, fontWeight: 700, border: '1.5px solid', borderRadius: 20, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s',
-                    background: filterStatus === s ? '#0EA5E9' : 'white',
-                    color: filterStatus === s ? 'white' : '#64748B',
-                    borderColor: filterStatus === s ? '#0EA5E9' : '#E2E8F0',
+                  style={{ padding: '4px 8px', fontSize: 11, fontWeight: 650, border: '1px solid', borderRadius: 4, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s',
+                    background: filterStatus === s ? '#2563EB' : '#fff',
+                    color: filterStatus === s ? '#fff' : '#4B5563',
+                    borderColor: filterStatus === s ? '#2563EB' : '#D1D5DB',
                   }}>
                   {s === 'all' ? 'All' : s}
                 </button>
@@ -686,11 +710,11 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
           </div>
 
           {loading ? (
-            <div style={{ padding: '48px', textAlign: 'center' }}><span style={{ fontSize: 12, color: '#64748B' }}>Loading sales log...</span></div>
+            <div style={{ padding: '48px', textAlign: 'center' }}><span style={{ fontSize: 14, color: 'var(--text-secondary)' }}>Loading sales log...</span></div>
           ) : filteredOrders.length === 0 ? (
             <div style={{ padding: '48px', textAlign: 'center' }}>
               <Package style={{ width: 28, height: 28, color: '#CBD5E1', margin: '0 auto 10px' }} />
-              <p style={{ fontSize: 12, color: '#94A3B8', fontFamily: 'monospace' }}>NO ORDERS MATCH FILTERS</p>
+              <p style={{ fontSize: 14, color: 'var(--text-muted)', fontFamily: 'monospace' }}>NO ORDERS MATCH FILTERS</p>
             </div>
           ) : (
             <div style={{ overflowX: 'auto' }}>
@@ -726,9 +750,9 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
                 </thead>
                 <tbody>
                   {filteredOrders.map((order) => {
-                    const s = statusStyles[order.status] || { bg: '#F8FAFC', color: '#64748B', border: '#E2E8F0' };
+                    const s = statusStyles[order.status] || { bg: '#F8FAFC', color: 'var(--text-secondary)', border: '#E2E8F0' };
                     const isScanned = scannedOrders[order.id] || order.status === 'DELIVERED';
-                    const paid = settlements[order.id] || 0;
+                    const paid = getOrderPaid(order);
                     const due = Math.max(order.netAmount - paid, 0);
                     
                     if (viewMode === 'simple') {
@@ -743,12 +767,12 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
                               style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'monospace', fontWeight: 800, color: '#0EA5E9', fontSize: 11, padding: 0, textDecoration: 'underline dotted' }}>
                               ORD-{order.id.substring(0, 8).toUpperCase()}
                             </button>
-                            <span style={{ fontSize: 10, color: '#94A3B8', fontFamily: 'monospace', display: 'block', marginTop: 2 }}>{new Date(order.createdAt).toLocaleString()}</span>
+                            <span style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'monospace', display: 'block', marginTop: 2 }}>{new Date(order.createdAt).toLocaleString()}</span>
                           </td>
                           <td>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                               <User style={{ width: 12, height: 12, color: '#0EA5E9', flexShrink: 0 }} />
-                              <span style={{ fontWeight: 700, fontSize: 12, color: '#1E293B' }}>{order.retailer.pharmacyName}</span>
+                              <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-primary)' }}>{order.retailer.pharmacyName}</span>
                             </div>
                           </td>
                           <td onClick={(e) => e.stopPropagation()}>
@@ -762,7 +786,7 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
                           </td>
                           <td style={{ maxWidth: 160 }}>
                             {order.items.map((item) => (
-                              <div key={item.id} style={{ fontSize: 10, color: '#64748B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              <div key={item.id} style={{ fontSize: 12, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                 {item.product.name} ×{item.quantity}
                               </div>
                             ))}
@@ -779,20 +803,20 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
                                 style={{
                                   border: 'none', background: isScanned ? '#ECFDF5' : '#FFF7ED',
                                   color: isScanned ? '#059669' : '#D97706',
-                                  fontSize: 10, fontWeight: 700, padding: '4px 8px', borderRadius: 8, cursor: 'pointer'
+                                  fontSize: 12, fontWeight: 700, padding: '4px 8px', borderRadius: 8, cursor: 'pointer'
                                 }}
                               >
                                 {isScanned ? '✓ Scanned' : '⚡ Simulate Scan'}
                               </button>
                             ) : (
-                              <span style={{ fontSize: 10, color: '#64748B' }}>
+                              <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
                                 {order.status === 'DELIVERED' ? '✓ Received' : '—'}
                               </span>
                             )}
                           </td>
                           <td style={{ fontFamily: 'monospace' }}>
-                            <div style={{ fontWeight: 800, color: '#1E293B', fontSize: 12 }}>Rs. {order.netAmount.toFixed(2)}</div>
-                            {due > 0 && <div style={{ fontSize: 10, color: '#DC2626', marginTop: 2 }}>Due: Rs. {due.toLocaleString()}</div>}
+                            <div style={{ fontWeight: 800, color: 'var(--text-primary)', fontSize: 14 }}>Rs. {order.netAmount.toFixed(2)}</div>
+                            {due > 0 && <div style={{ fontSize: 12, color: '#DC2626', marginTop: 2 }}>Due: Rs. {due.toLocaleString()}</div>}
                             {order.overrideJustification && (
                               <span style={{ fontSize: 9, color: '#DC2626', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 3, marginTop: 2 }}>
                                 <ShieldAlert style={{ width: 10, height: 10 }} /> Hold Bypassed
@@ -802,31 +826,31 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
                           <td style={{ textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
                             <div style={{ display: 'flex', gap: 5, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
                               {(order.status === 'PENDING' || order.status === 'DISPATCHED') && (
-                                <button onClick={() => printDispatchLabel(order)} className="btn-ghost" style={{ padding: '4px 8px', fontSize: 10, gap: 3 }} title="Print Dispatch Label">
+                                <button onClick={() => printDispatchLabel(order)} className="btn-ghost" style={{ padding: '4px 8px', fontSize: 12, gap: 3 }} title="Print Dispatch Label">
                                   <Tag style={{ width: 10, height: 10 }} /> Label
                                 </button>
                               )}
                               {order.status === 'PENDING' && (
-                                <button onClick={() => handleDispatchOrder(order.id)} className="btn-primary" style={{ padding: '5px 12px', fontSize: 10, gap: 4 }}>
+                                <button onClick={() => handleDispatchOrder(order.id)} className="btn-primary" style={{ padding: '5px 12px', fontSize: 12, gap: 4 }}>
                                   <Truck style={{ width: 11, height: 11 }} /> Ship
                                 </button>
                               )}
                               {order.status === 'DISPATCHED' && (
                                 <div style={{ display: 'flex', gap: 4 }}>
-                                  <button onClick={() => handleConfirmOrder(order.id)} style={{ padding: '5px 12px', fontSize: 10, fontWeight: 700, borderRadius: 8, border: '1.5px solid #A7F3D0', background: '#ECFDF5', color: '#059669', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontFamily: 'inherit' }}>
+                                  <button onClick={() => handleConfirmOrder(order.id)} style={{ padding: '5px 12px', fontSize: 12, fontWeight: 700, borderRadius: 8, border: '1.5px solid #A7F3D0', background: '#ECFDF5', color: '#059669', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontFamily: 'inherit' }}>
                                     Fulfill
                                   </button>
-                                  <button onClick={() => handleUnsuccessfulDispatch(order.id)} style={{ padding: '5px 8px', fontSize: 10, fontWeight: 700, borderRadius: 8, border: '1.5px solid #FCA5A5', background: '#FEF2F2', color: '#DC2626', cursor: 'pointer' }}>
+                                  <button onClick={() => handleUnsuccessfulDispatch(order.id)} style={{ padding: '5px 8px', fontSize: 12, fontWeight: 700, borderRadius: 8, border: '1.5px solid #FCA5A5', background: '#FEF2F2', color: '#DC2626', cursor: 'pointer' }}>
                                     Fail
                                   </button>
                                 </div>
                               )}
                               {order.status === 'DELIVERED' && (
                                 <>
-                                  <span style={{ fontSize: 10, color: '#059669', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                  <span style={{ fontSize: 12, color: '#059669', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
                                     <CheckCircle style={{ width: 13, height: 13 }} /> Fulfilled
                                   </span>
-                                  <button onClick={() => openReturnModal(order)} className="btn-ghost" style={{ padding: '4px 8px', fontSize: 10, gap: 3, color: '#DC2626', borderColor: '#FECACA' }} title="Process Return">
+                                  <button onClick={() => openReturnModal(order)} className="btn-ghost" style={{ padding: '4px 8px', fontSize: 12, gap: 3, color: '#DC2626', borderColor: '#FECACA' }} title="Process Return">
                                     <RotateCcw style={{ width: 10, height: 10 }} /> Return
                                   </button>
                                 </>
@@ -848,14 +872,14 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
                               style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'monospace', fontWeight: 800, color: '#0EA5E9', fontSize: 11, padding: 0, textDecoration: 'underline dotted' }}>
                               ORD-{order.id.substring(0, 8).toUpperCase()}
                             </button>
-                            <span style={{ fontSize: 10, color: '#94A3B8', fontFamily: 'monospace', display: 'block', marginTop: 2 }}>{new Date(order.createdAt).toLocaleString()}</span>
+                            <span style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'monospace', display: 'block', marginTop: 2 }}>{new Date(order.createdAt).toLocaleString()}</span>
                           </td>
                           <td>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                               <User style={{ width: 12, height: 12, color: '#0EA5E9', flexShrink: 0 }} />
-                              <span style={{ fontWeight: 700, fontSize: 12, color: '#1E293B' }}>{order.retailer.pharmacyName}</span>
+                              <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-primary)' }}>{order.retailer.pharmacyName}</span>
                             </div>
-                            <span style={{ fontSize: 9, color: '#64748B', display: 'block' }}>Reg: {order.retailer.registrationNumber}</span>
+                            <span style={{ fontSize: 9, color: 'var(--text-secondary)', display: 'block' }}>Reg: {order.retailer.registrationNumber}</span>
                           </td>
                           <td onClick={(e) => e.stopPropagation()}>
                             <a 
@@ -868,10 +892,10 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
                           </td>
                           <td>
                             {order.items.map((item) => (
-                              <div key={item.id} style={{ fontSize: 10, color: '#334155' }}>
+                              <div key={item.id} style={{ fontSize: 12, color: '#334155' }}>
                                 <strong>{item.product.name}</strong> ({item.product.sku})
                                 <br />
-                                <span style={{ color: '#64748B' }}>Qty: {item.quantity} boxes @ Rs. {item.pricePerUnit}/box</span>
+                                <span style={{ color: 'var(--text-secondary)' }}>Qty: {item.quantity} boxes @ Rs. {item.pricePerUnit}/box</span>
                               </div>
                             ))}
                           </td>
@@ -884,19 +908,19 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
                           <td style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 800 }}>
                             Rs. {order.netAmount.toFixed(2)}
                           </td>
-                          <td style={{ fontFamily: 'monospace', fontSize: 10 }}>
+                          <td style={{ fontFamily: 'monospace', fontSize: 12 }}>
                             <div style={{ color: '#10B981' }}>Paid: Rs. {paid.toLocaleString()}</div>
                             <div style={{ color: due > 0 ? '#EF4444' : '#64748B' }}>Due: Rs. {due.toLocaleString()}</div>
                           </td>
-                          <td style={{ fontSize: 10, color: '#DC2626', maxWidth: 120 }}>
-                            {order.overrideJustification || <span style={{ color: '#94A3B8' }}>None</span>}
+                          <td style={{ fontSize: 12, color: '#DC2626', maxWidth: 120 }}>
+                            {order.overrideJustification || <span style={{ color: 'var(--text-muted)' }}>None</span>}
                           </td>
-                          <td style={{ fontSize: 9, color: '#475569', maxWidth: 150 }}>
+                          <td style={{ fontSize: 9, color: 'var(--text-secondary)', maxWidth: 150 }}>
                             {order.items.flatMap(i => i.allocations || []).map((alloc, aidx) => (
                               <div key={aidx}>
                                 Batch: {alloc.batchId.substring(0, 8)} (Qty: {alloc.quantity})
                               </div>
-                            )) || <span style={{ color: '#94A3B8' }}>—</span>}
+                            )) || <span style={{ color: 'var(--text-muted)' }}>—</span>}
                           </td>
                           <td>
                             <span style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: 'monospace', background: s.bg, color: s.color, border: `1px solid ${s.border}`, padding: '3px 10px', borderRadius: 20 }}>
@@ -906,31 +930,31 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
                           <td style={{ textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
                             <div style={{ display: 'flex', gap: 5, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
                               {(order.status === 'PENDING' || order.status === 'DISPATCHED') && (
-                                <button onClick={() => printDispatchLabel(order)} className="btn-ghost" style={{ padding: '4px 8px', fontSize: 10, gap: 3 }} title="Print Dispatch Label">
+                                <button onClick={() => printDispatchLabel(order)} className="btn-ghost" style={{ padding: '4px 8px', fontSize: 12, gap: 3 }} title="Print Dispatch Label">
                                   <Tag style={{ width: 10, height: 10 }} /> Label
                                 </button>
                               )}
                               {order.status === 'PENDING' && (
-                                <button onClick={() => handleDispatchOrder(order.id)} className="btn-primary" style={{ padding: '5px 12px', fontSize: 10, gap: 4 }}>
+                                <button onClick={() => handleDispatchOrder(order.id)} className="btn-primary" style={{ padding: '5px 12px', fontSize: 12, gap: 4 }}>
                                   <Truck style={{ width: 11, height: 11 }} /> Ship
                                 </button>
                               )}
                               {order.status === 'DISPATCHED' && (
                                 <div style={{ display: 'flex', gap: 4 }}>
-                                  <button onClick={() => handleConfirmOrder(order.id)} style={{ padding: '5px 12px', fontSize: 10, fontWeight: 700, borderRadius: 8, border: '1.5px solid #A7F3D0', background: '#ECFDF5', color: '#059669', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontFamily: 'inherit' }}>
+                                  <button onClick={() => handleConfirmOrder(order.id)} style={{ padding: '5px 12px', fontSize: 12, fontWeight: 700, borderRadius: 8, border: '1.5px solid #A7F3D0', background: '#ECFDF5', color: '#059669', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontFamily: 'inherit' }}>
                                     Fulfill
                                   </button>
-                                  <button onClick={() => handleUnsuccessfulDispatch(order.id)} style={{ padding: '5px 8px', fontSize: 10, fontWeight: 700, borderRadius: 8, border: '1.5px solid #FCA5A5', background: '#FEF2F2', color: '#DC2626', cursor: 'pointer' }}>
+                                  <button onClick={() => handleUnsuccessfulDispatch(order.id)} style={{ padding: '5px 8px', fontSize: 12, fontWeight: 700, borderRadius: 8, border: '1.5px solid #FCA5A5', background: '#FEF2F2', color: '#DC2626', cursor: 'pointer' }}>
                                     Fail
                                   </button>
                                 </div>
                               )}
                               {order.status === 'DELIVERED' && (
                                 <>
-                                  <span style={{ fontSize: 10, color: '#059669', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                  <span style={{ fontSize: 12, color: '#059669', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
                                     <CheckCircle style={{ width: 13, height: 13 }} /> Fulfilled
                                   </span>
-                                  <button onClick={() => openReturnModal(order)} className="btn-ghost" style={{ padding: '4px 8px', fontSize: 10, gap: 3, color: '#DC2626', borderColor: '#FECACA' }} title="Process Return">
+                                  <button onClick={() => openReturnModal(order)} className="btn-ghost" style={{ padding: '4px 8px', fontSize: 12, gap: 3, color: '#DC2626', borderColor: '#FECACA' }} title="Process Return">
                                     <RotateCcw style={{ width: 10, height: 10 }} /> Return
                                   </button>
                                 </>
@@ -949,42 +973,42 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
         
         {/* RIGHT — Order Creator Panel */}
         {showB2BOrderCreator && (
-          <div style={{ background: 'rgba(255,255,255,0.95)', border: '1.5px solid rgba(14,165,233,0.25)', borderRadius: 18, padding: 20, boxShadow: '0 4px 20px rgba(14,165,233,0.08)', display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div style={{ borderBottom: '1px solid #F1F5F9', paddingBottom: 12 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h2 style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#1E293B', display: 'flex', alignItems: 'center', gap: 6 }}>
-                <ShoppingCart style={{ width: 14, height: 14, color: '#0EA5E9' }} /> B2B Order Creator
-              </h2>
-              {/* Pricing Mode Toggle */}
-              <div style={{ display: 'flex', gap: 4, background: '#F1F5F9', padding: 3, borderRadius: 10 }}>
-                <button
-                  type="button"
-                  onClick={() => setUseTierPricing(false)}
-                  style={{
-                    padding: '3px 8px', border: 'none', borderRadius: 7, fontSize: 9, fontWeight: 700, cursor: 'pointer',
-                    background: !useTierPricing ? 'white' : 'transparent',
-                    color: !useTierPricing ? '#0EA5E9' : '#94A3B8',
-                    boxShadow: !useTierPricing ? '0 1px 3px rgba(0,0,0,0.08)' : 'none'
-                  }}
-                >
-                  Flat Price
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setUseTierPricing(true)}
-                  style={{
-                    padding: '3px 8px', border: 'none', borderRadius: 7, fontSize: 9, fontWeight: 700, cursor: 'pointer',
-                    background: useTierPricing ? 'white' : 'transparent',
-                    color: useTierPricing ? '#0EA5E9' : '#94A3B8',
-                    boxShadow: useTierPricing ? '0 1px 3px rgba(0,0,0,0.08)' : 'none'
-                  }}
-                >
-                  Tier Pricing
-                </button>
+          <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 8, padding: 18, display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ borderBottom: '1px solid #F3F4F6', paddingBottom: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h2 style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <ShoppingCart style={{ width: 14, height: 14, color: '#2563EB' }} /> B2B Order Box
+                </h2>
+                {/* Pricing Mode Toggle */}
+                <div style={{ display: 'flex', gap: 3, background: '#F3F4F6', padding: 2, borderRadius: 6 }}>
+                  <button
+                    type="button"
+                    onClick={() => setUseTierPricing(false)}
+                    style={{
+                      padding: '3px 8px', border: 'none', borderRadius: 4, fontSize: 10, fontWeight: 600, cursor: 'pointer',
+                      background: !useTierPricing ? 'white' : 'transparent',
+                      color: !useTierPricing ? '#2563EB' : '#6B7280',
+                      boxShadow: !useTierPricing ? '0 1px 2px rgba(0,0,0,0.06)' : 'none'
+                    }}
+                  >
+                    Flat
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setUseTierPricing(true)}
+                    style={{
+                      padding: '3px 8px', border: 'none', borderRadius: 4, fontSize: 10, fontWeight: 600, cursor: 'pointer',
+                      background: useTierPricing ? 'white' : 'transparent',
+                      color: useTierPricing ? '#2563EB' : '#6B7280',
+                      boxShadow: useTierPricing ? '0 1px 2px rgba(0,0,0,0.06)' : 'none'
+                    }}
+                  >
+                    Tier
+                  </button>
+                </div>
               </div>
+              <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4 }}>Select products and quantities to draft B2B order.</p>
             </div>
-            <p style={{ fontSize: 11, color: '#64748B', marginTop: 4 }}>Scan barcodes or select medicines to create a pharmacy order.</p>
-          </div>
 
           {retailers.length === 0 ? (
             <div style={{ padding: 16, background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: 10, fontSize: 11, color: '#DC2626', fontWeight: 600 }}>
@@ -994,44 +1018,44 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
             <>
               {/* Customer Search Combobox */}
               <div ref={customerSearchRef} style={{ position: 'relative' }}>
-                <label style={{ display: 'block', fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#64748B', marginBottom: 6 }}>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-secondary)', marginBottom: 6 }}>
                   Customer Pharmacy
                 </label>
                 {selectedRetailer ? (
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#F0F9FF', border: '1.5px solid #BAE6FD', borderRadius: 10, padding: '8px 12px' }}>
                     <div>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: '#0284C7' }}>{selectedRetailer.pharmacyName}</div>
-                      <div style={{ fontSize: 10, color: '#64748B', marginTop: 2 }}>Limit: Rs. {selectedRetailer.creditLimit.toLocaleString()}</div>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: '#0284C7' }}>{selectedRetailer.pharmacyName}</div>
+                      <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>Limit: Rs. {selectedRetailer.creditLimit.toLocaleString()}</div>
                     </div>
-                    <button onClick={() => { setSelectedRetailerId(''); setCustomerSearch(''); setBasket([]); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8' }}>
+                    <button onClick={() => { setSelectedRetailerId(''); setCustomerSearch(''); setBasket([]); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
                       <X style={{ width: 14, height: 14 }} />
                     </button>
                   </div>
                 ) : (
                   <>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'white', border: '1.5px solid #E2E8F0', borderRadius: 10, padding: '8px 12px' }}>
-                      <Search style={{ width: 13, height: 13, color: '#94A3B8', flexShrink: 0 }} />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--card-bg)', border: '1px solid var(--card-border)', borderRadius: 10, padding: '8px 12px' }}>
+                      <Search style={{ width: 13, height: 13, color: 'var(--text-muted)', flexShrink: 0 }} />
                       <input
                         type="text"
                         placeholder="Search pharmacy name..."
                         value={customerSearch}
                         onChange={e => { setCustomerSearch(e.target.value); setShowCustomerDropdown(true); }}
                         onFocus={() => setShowCustomerDropdown(true)}
-                        style={{ border: 'none', outline: 'none', fontSize: 12, width: '100%', color: '#1E293B' }}
+                        style={{ border: 'none', outline: 'none', fontSize: 14, width: '100%', color: 'var(--text-primary)' }}
                       />
                     </div>
                     {showCustomerDropdown && (
-                      <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, background: 'white', border: '1.5px solid #BAE6FD', borderRadius: 10, boxShadow: '0 8px 24px rgba(14,165,233,0.15)', zIndex: 20, maxHeight: 200, overflowY: 'auto' }}>
+                      <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, background: 'var(--card-bg)', border: '1.5px solid #BAE6FD', borderRadius: 10, boxShadow: '0 8px 24px rgba(14,165,233,0.15)', zIndex: 20, maxHeight: 200, overflowY: 'auto' }}>
                         {filteredRetailers.length === 0 ? (
-                          <div style={{ padding: '12px 14px', fontSize: 11, color: '#94A3B8', textAlign: 'center' }}>No matching pharmacy found</div>
+                          <div style={{ padding: '12px 14px', fontSize: 11, color: 'var(--text-muted)', textAlign: 'center' }}>No matching pharmacy found</div>
                         ) : (
                           filteredRetailers.map(r => (
                             <button key={r.id} onClick={() => { setSelectedRetailerId(r.id); setCustomerSearch(''); setShowCustomerDropdown(false); setBasket([]); logActivity('CHANGE_ORDER_CUSTOMER', `Selected: ${r.pharmacyName}`); }}
                               style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 14px', border: 'none', background: 'none', cursor: 'pointer', fontFamily: 'inherit' }}
                               onMouseEnter={e => (e.currentTarget.style.background = '#F0F9FF')}
                               onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
-                              <div style={{ fontSize: 12, fontWeight: 700, color: '#1E293B' }}>{r.pharmacyName}</div>
-                              <div style={{ fontSize: 10, color: '#64748B' }}>Credit: Rs. {r.creditLimit.toLocaleString()}</div>
+                              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>{r.pharmacyName}</div>
+                              <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Credit: Rs. {r.creditLimit.toLocaleString()}</div>
                             </button>
                           ))
                         )}
@@ -1043,24 +1067,24 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
 
               {/* Barcode Scanner */}
               <div>
-                <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#64748B', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
+                <div style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-secondary)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
                   <Barcode style={{ width: 12, height: 12, color: '#0EA5E9' }} /> Barcode Scanner
                 </div>
                 <form onSubmit={handleBarcodeSubmit} style={{ display: 'flex', gap: 6 }}>
                   <input ref={scannerInputRef} type="text" placeholder="Scan SKU or barcode..." value={barcodeInput} onChange={(e) => setBarcodeInput(e.target.value)}
                     className="input-crisp" style={{ fontFamily: 'monospace', fontSize: 11, flex: 1 }} />
-                  <button type="submit" className="btn-primary" style={{ padding: '8px 14px', fontSize: 10, whiteSpace: 'nowrap' }}>Scan</button>
+                  <button type="submit" className="btn-primary" style={{ padding: '8px 14px', fontSize: 12, whiteSpace: 'nowrap' }}>Scan</button>
                 </form>
               </div>
 
               {/* Searchable Medicine Combobox */}
-              <div style={{ background: '#F8FAFC', border: '1.5px solid #E2E8F0', borderRadius: 12, padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#94A3B8' }}>Select Medicine</div>
+              <div style={{ background: 'var(--table-header-bg)', border: '1px solid var(--card-border)', borderRadius: 12, padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)' }}>Select Medicine</div>
                 <div ref={medicineSearchRef} style={{ position: 'relative' }}>
                   {selectedProduct ? (
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#FFF7ED', border: '1.5px solid #FED7AA', borderRadius: 8, padding: '6px 12px' }}>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: '#C2410C' }}>{selectedProduct.name} ({selectedProduct.sku})</div>
-                      <button onClick={() => { setSelectedProductId(''); setMedicineSearch(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8' }}>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: '#C2410C' }}>{selectedProduct.name} ({selectedProduct.sku})</div>
+                      <button onClick={() => { setSelectedProductId(''); setMedicineSearch(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
                         <X style={{ width: 12, height: 12 }} />
                       </button>
                     </div>
@@ -1073,12 +1097,12 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
                         onChange={e => { setMedicineSearch(e.target.value); setShowMedicineDropdown(true); }}
                         onFocus={() => setShowMedicineDropdown(true)}
                         className="input-crisp"
-                        style={{ width: '100%', fontSize: 12 }}
+                        style={{ width: '100%', fontSize: 14 }}
                       />
                       {showMedicineDropdown && (
-                        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, background: 'white', border: '1.5px solid #BAE6FD', borderRadius: 8, boxShadow: '0 8px 24px rgba(14,165,233,0.15)', zIndex: 20, maxHeight: 160, overflowY: 'auto' }}>
+                        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, background: 'var(--card-bg)', border: '1.5px solid #BAE6FD', borderRadius: 8, boxShadow: '0 8px 24px rgba(14,165,233,0.15)', zIndex: 20, maxHeight: 160, overflowY: 'auto' }}>
                           {filteredProducts.length === 0 ? (
-                            <div style={{ padding: '8px 12px', fontSize: 11, color: '#94A3B8', textAlign: 'center' }}>No medicines found</div>
+                            <div style={{ padding: '8px 12px', fontSize: 11, color: 'var(--text-muted)', textAlign: 'center' }}>No medicines found</div>
                           ) : (
                             filteredProducts.map(p => {
                               const tabletsPerBox = p.tabletsPerStrip * p.stripsPerBox;
@@ -1087,8 +1111,8 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
                                   style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px', border: 'none', background: 'none', borderBottom: '1px solid #F1F5F9', cursor: 'pointer', fontFamily: 'inherit' }}
                                   onMouseEnter={e => (e.currentTarget.style.background = '#FFF7ED')}
                                   onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
-                                  <div style={{ fontSize: 12, fontWeight: 700, color: '#1E293B' }}>{p.name}</div>
-                                  <div style={{ fontSize: 10, color: '#64748B', display: 'flex', flexDirection: 'column', gap: 2, marginTop: 2 }}>
+                                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>{p.name}</div>
+                                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: 2, marginTop: 2 }}>
                                     <div>SKU: {p.sku}</div>
                                     {p.batches && p.batches.length > 0 ? (
                                       <div style={{ display: 'flex', flexDirection: 'column', gap: 1, paddingLeft: 4, borderLeft: '2px solid #E2E8F0', marginTop: 2 }}>
@@ -1099,7 +1123,7 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
                                           const tb = remaining % p.tabletsPerStrip;
                                           const expStr = new Date(b.expiryDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
                                           return (
-                                            <span key={b.id} style={{ fontSize: 9, color: '#475569' }}>
+                                            <span key={b.id} style={{ fontSize: 9, color: 'var(--text-secondary)' }}>
                                               Batch: <strong>{b.batchNumber}</strong> | Stock: {bx} Bx, {st} St, {tb} Tb | Exp: {expStr}
                                             </span>
                                           );
@@ -1140,7 +1164,7 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
                       {/* Batch Selector */}
                       {sortedBatches.length > 0 && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                          <div style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', color: '#64748B', letterSpacing: '0.06em' }}>Select Batch</div>
+                          <div style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-secondary)', letterSpacing: '0.06em' }}>Select Batch</div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 140, overflowY: 'auto' }}>
                             {sortedBatches.map((b: any) => {
                               const tbx = prodObj.tabletsPerStrip * prodObj.stripsPerBox;
@@ -1168,7 +1192,7 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
                                 >
                                   <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                                      <span style={{ fontWeight: 700, fontSize: 11, color: '#1E293B', fontFamily: 'monospace' }}>{b.batchNumber}</span>
+                                      <span style={{ fontWeight: 700, fontSize: 11, color: 'var(--text-primary)', fontFamily: 'monospace' }}>{b.batchNumber}</span>
                                       {isRecommended && (
                                         <span style={{ fontSize: 8, fontWeight: 800, background: '#0EA5E9', color: 'white', padding: '1px 5px', borderRadius: 4 }}>⭐ RECOMMENDED</span>
                                       )}
@@ -1176,12 +1200,12 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
                                         <span style={{ fontSize: 8, fontWeight: 800, background: '#FEE2E2', color: '#DC2626', padding: '1px 5px', borderRadius: 4 }}>OUT OF STOCK</span>
                                       )}
                                     </div>
-                                    <div style={{ fontSize: 9, color: '#64748B' }}>
+                                    <div style={{ fontSize: 9, color: 'var(--text-secondary)' }}>
                                       Exp: <strong>{expStr}</strong> &nbsp;|&nbsp; Stock: {bx} Bx, {st} St, {tb} Tb
                                     </div>
                                   </div>
-                                  <div style={{ textAlign: 'right', flexShrink: 0, fontSize: 10 }}>
-                                    <div style={{ color: '#64748B' }}>Buy: Rs.{b.purchasePricePerBox}</div>
+                                  <div style={{ textAlign: 'right', flexShrink: 0, fontSize: 12 }}>
+                                    <div style={{ color: 'var(--text-secondary)' }}>Buy: Rs.{b.purchasePricePerBox}</div>
                                     <div style={{ fontWeight: 700, color: '#0EA5E9' }}>Sell: Rs.{b.sellingPricePerBox}</div>
                                   </div>
                                 </button>
@@ -1210,7 +1234,7 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
                           <div style={{ marginTop: 4 }}>
                             <div style={{ fontWeight: 700, color: '#0284C7', marginBottom: 2 }}>Volume Tiers:</div>
                             {tiers.map((t: any, idx: number) => (
-                              <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', paddingLeft: 6, color: '#0369A1', fontSize: 10 }}>
+                              <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', paddingLeft: 6, color: '#0369A1', fontSize: 12 }}>
                                 <span>{t.minQty}–{t.maxQty || '∞'} boxes:</span>
                                 <span style={{ fontWeight: 700 }}>Rs. {t.pricePerBox}</span>
                               </div>
@@ -1254,9 +1278,9 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
                   </div>
                   {basketItems.map((item, idx) => (
                     <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: 11, fontWeight: 600, color: '#1E293B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 140 }}>{item.name}</span>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 140 }}>{item.name}</span>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ fontFamily: 'monospace', fontSize: 10, color: '#64748B' }}>{item.qty} × Rs.{item.pricePerBox}</span>
+                        <span style={{ fontFamily: 'monospace', fontSize: 12, color: 'var(--text-secondary)' }}>{item.qty} × Rs.{item.pricePerBox}</span>
                         <button type="button" onClick={() => { logActivity('REMOVE_BASKET_ITEM', 'Removed item from basket'); removeFromBasket(basket[idx].productId, basket[idx].batchId); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#EF4444', padding: 2 }}>
                           <Trash2 style={{ width: 13, height: 13 }} />
                         </button>
@@ -1265,7 +1289,7 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
                   ))}
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, borderTop: '1px solid #BAE6FD', paddingTop: 10 }}>
                     <div>
-                      <label style={{ display: 'block', fontSize: 9, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', marginBottom: 4 }}>Discount %</label>
+                      <label style={{ display: 'block', fontSize: 9, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 4 }}>Discount %</label>
                       <input 
                         type="number" min="0" max="100" value={orderDiscountPercent} 
                         onChange={e => setOrderDiscountPercent(e.target.value)} 
@@ -1274,7 +1298,7 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
                       />
                     </div>
                     <div>
-                      <label style={{ display: 'block', fontSize: 9, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', marginBottom: 4 }}>VAT / Tax %</label>
+                      <label style={{ display: 'block', fontSize: 9, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 4 }}>VAT / Tax %</label>
                       <input 
                         type="number" min="0" max="100" value={orderTaxPercent} 
                         onChange={e => setOrderTaxPercent(e.target.value)} 
@@ -1298,7 +1322,7 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#10B981', fontFamily: 'monospace', marginBottom: 6 }}>
                     <span>VAT / Tax Amount:</span><span>+ Rs. {taxAmount.toFixed(2)}</span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15, fontWeight: 900, color: 'white', fontFamily: 'monospace', paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 18, fontWeight: 900, color: 'white', fontFamily: 'monospace', paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.1)' }}>
                     <span>NET DUE:</span><span style={{ color: '#FB923C' }}>Rs. {netAmount.toFixed(2)}</span>
                   </div>
                 </div>
@@ -1310,13 +1334,13 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
                   <div style={{ display: 'flex', gap: 8 }}>
                     <ShieldAlert style={{ width: 16, height: 16, color: '#DC2626', flexShrink: 0, marginTop: 2 }} />
                     <div>
-                      <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: '#DC2626', marginBottom: 4 }}>Credit Block Active</div>
+                      <div style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', color: '#DC2626', marginBottom: 4 }}>Credit Block Active</div>
                       <p style={{ fontSize: 11, color: '#7F1D1D', lineHeight: 1.6 }}>{creditBlockMessage}</p>
                     </div>
                   </div>
                   {showOverrideInput && (
                     <div style={{ marginTop: 10 }}>
-                      <label style={{ display: 'block', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#64748B', marginBottom: 4 }}>Manager Override Reason</label>
+                      <label style={{ display: 'block', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-secondary)', marginBottom: 4 }}>Manager Override Reason</label>
                       <textarea rows={2} value={overrideJustification} onChange={(e) => setOverrideJustification(e.target.value)}
                         placeholder="e.g. Approved by manager — partial cash payment received" className="input-crisp" style={{ lineHeight: 1.5, width: '100%' }} />
                     </div>
@@ -1327,7 +1351,7 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
               {/* Submit */}
               <form onSubmit={handlePlaceOrder}>
                 <button type="submit" disabled={basket.length === 0 || !selectedRetailerId} className="btn-primary"
-                  style={{ width: '100%', justifyContent: 'center', padding: '13px', fontSize: 12, opacity: (basket.length === 0 || !selectedRetailerId) ? 0.5 : 1, cursor: (basket.length === 0 || !selectedRetailerId) ? 'not-allowed' : 'pointer' }}>
+                  style={{ width: '100%', justifyContent: 'center', padding: '13px', fontSize: 14, opacity: (basket.length === 0 || !selectedRetailerId) ? 0.5 : 1, cursor: (basket.length === 0 || !selectedRetailerId) ? 'not-allowed' : 'pointer' }}>
                   {showOverrideInput && overrideJustification ? 'Bypass Hold & Create Invoice' : 'Confirm Order & Create Invoice'}
                   <ArrowRight style={{ width: 14, height: 14 }} />
                 </button>
@@ -1344,15 +1368,15 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
           <div className="modal-card animate-scaleIn" style={{ '--modal-max-width': '680px' } as React.CSSProperties} onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <div>
-                <h3 style={{ fontSize: 15, fontWeight: 900, color: '#1E293B', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <h3 style={{ fontSize: 18, fontWeight: 900, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
                   <Package style={{ width: 18, height: 18, color: '#0EA5E9' }} />
                   Order: ORD-{detailOrder.id.substring(0, 12).toUpperCase()}
                 </h3>
-                <p style={{ fontSize: 11, color: '#94A3B8', marginTop: 3 }}>{detailOrder.retailer.pharmacyName} · {new Date(detailOrder.createdAt).toLocaleString()}</p>
+                <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>{detailOrder.retailer.pharmacyName} · {new Date(detailOrder.createdAt).toLocaleString()}</p>
               </div>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 <span style={{ ...statusStyles[detailOrder.status] && { background: statusStyles[detailOrder.status].bg, color: statusStyles[detailOrder.status].color, border: `1px solid ${statusStyles[detailOrder.status].border}` }, fontSize: 9, fontWeight: 800, padding: '3px 10px', borderRadius: 20, textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: 'monospace' }}>{detailOrder.status}</span>
-                <button onClick={() => setDetailOrder(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8', display: 'flex' }}><X style={{ width: 20, height: 20 }} /></button>
+                <button onClick={() => setDetailOrder(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex' }}><X style={{ width: 20, height: 20 }} /></button>
               </div>
             </div>
             <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
@@ -1360,41 +1384,41 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10 }}>
                 {[
                   { label: 'Net Payable', val: `Rs. ${detailOrder.netAmount.toFixed(2)}`, color: '#0EA5E9' },
-                  { label: 'Total Paid', val: `Rs. ${(settlements[detailOrder.id] || 0).toLocaleString()}`, color: '#059669' },
-                  { label: 'Remaining', val: `Rs. ${Math.max(detailOrder.netAmount - (settlements[detailOrder.id] || 0), 0).toLocaleString()}`, color: '#DC2626' },
+                  { label: 'Total Paid', val: `Rs. ${getOrderPaid(detailOrder).toLocaleString()}`, color: '#059669' },
+                  { label: 'Remaining', val: `Rs. ${Math.max(detailOrder.netAmount - getOrderPaid(detailOrder), 0).toLocaleString()}`, color: '#DC2626' },
                   { label: 'Discount', val: `- Rs. ${detailOrder.discountAmount.toFixed(2)}`, color: '#EA580C' },
                 ].map(({ label, val, color }) => (
-                  <div key={label} style={{ background: '#F8FAFC', borderRadius: 10, padding: '10px 12px', border: '1px solid #E2E8F0' }}>
-                    <div style={{ fontSize: 9, fontWeight: 800, color: '#94A3B8', textTransform: 'uppercase', marginBottom: 4 }}>{label}</div>
-                    <div style={{ fontSize: 13, fontWeight: 800, color, fontFamily: 'monospace' }}>{val}</div>
+                  <div key={label} style={{ background: 'var(--table-header-bg)', borderRadius: 10, padding: '10px 12px', border: '1px solid var(--card-border)' }}>
+                    <div style={{ fontSize: 9, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 4 }}>{label}</div>
+                    <div style={{ fontSize: 14, fontWeight: 800, color, fontFamily: 'monospace' }}>{val}</div>
                   </div>
                 ))}
               </div>
               {/* Customer */}
               <div style={{ background: '#F0F9FF', border: '1.5px solid #BAE6FD', borderRadius: 14, padding: 16 }}>
-                <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: '#0369A1', marginBottom: 10 }}>Customer Profile</div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, fontSize: 12 }}>
+                <div style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', color: '#0369A1', marginBottom: 10 }}>Customer Profile</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, fontSize: 14 }}>
                   <div><strong>Pharmacy:</strong> {detailOrder.retailer.pharmacyName}</div>
                   <div><strong>Phone:</strong> {detailOrder.retailer.phone || 'N/A'}</div>
                   <div><strong>Credit Limit:</strong> Rs. {detailOrder.retailer.creditLimit.toLocaleString()}</div>
                   <div><strong>Address:</strong> {detailOrder.retailer.address || 'N/A'}</div>
                 </div>
                 <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-                  <button onClick={() => { setSelectedCustomerHistory(detailOrder.retailer); setEditingCreditLimit(detailOrder.retailer.creditLimit.toString()); setEditingLifetimeSpend(detailOrder.retailer.lifetimeSpend.toString()); setDetailOrder(null); }} className="btn-ghost" style={{ fontSize: 10, gap: 4 }}>
+                  <button onClick={() => { setSelectedCustomerHistory(detailOrder.retailer); setEditingCreditLimit(detailOrder.retailer.creditLimit.toString()); setEditingLifetimeSpend(detailOrder.retailer.lifetimeSpend.toString()); setDetailOrder(null); }} className="btn-ghost" style={{ fontSize: 12, gap: 4 }}>
                     <User style={{ width: 12, height: 12 }} /> Full Profile
                   </button>
-                  <a href={`https://www.google.com/maps?q=${detailOrder.retailer.latitude || 27.7172},${detailOrder.retailer.longitude || 85.3240}`} target="_blank" rel="noopener noreferrer" className="btn-ghost" style={{ fontSize: 10, gap: 4, textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>
+                  <a href={`https://www.google.com/maps?q=${detailOrder.retailer.latitude || 27.7172},${detailOrder.retailer.longitude || 85.3240}`} target="_blank" rel="noopener noreferrer" className="btn-ghost" style={{ fontSize: 12, gap: 4, textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>
                     <MapPin style={{ width: 12, height: 12 }} /> View Map
                   </a>
                 </div>
               </div>
               {/* Items */}
               <div>
-                <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: '#475569', marginBottom: 8 }}>Order Items</div>
-                <div style={{ border: '1px solid #E2E8F0', borderRadius: 10, overflow: 'hidden' }}>
+                <div style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-secondary)', marginBottom: 8 }}>Order Items</div>
+                <div style={{ border: '1px solid var(--card-border)', borderRadius: 10, overflow: 'hidden' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
-                    <thead style={{ background: '#F8FAFC' }}>
-                      <tr>{['Medicine','SKU','Qty','Price','Subtotal'].map(h => <th key={h} style={{ padding: '8px 12px', textAlign: h === 'Medicine' || h === 'SKU' ? 'left' : 'right', fontWeight: 700, color: '#475569', fontSize: 10 }}>{h}</th>)}</tr>
+                    <thead style={{ background: 'var(--table-header-bg)' }}>
+                      <tr>{['Medicine','SKU','Qty','Price','Subtotal'].map(h => <th key={h} style={{ padding: '8px 12px', textAlign: h === 'Medicine' || h === 'SKU' ? 'left' : 'right', fontWeight: 700, color: 'var(--text-secondary)', fontSize: 12 }}>{h}</th>)}</tr>
                     </thead>
                     <tbody>
                       {detailOrder.items.map(item => {
@@ -1403,7 +1427,7 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
                         return (
                           <tr key={item.id} style={{ borderTop: '1px solid #E2E8F0' }}>
                             <td style={{ padding: '8px 12px', fontWeight: 700 }}>{item.product.name}</td>
-                            <td style={{ padding: '8px 12px', fontFamily: 'monospace', fontSize: 10, color: '#64748B' }}>{item.product.sku}</td>
+                            <td style={{ padding: '8px 12px', fontFamily: 'monospace', fontSize: 12, color: 'var(--text-secondary)' }}>{item.product.sku}</td>
                             <td style={{ padding: '8px 12px', textAlign: 'right', fontFamily: 'monospace' }}>{boxes} boxes</td>
                             <td style={{ padding: '8px 12px', textAlign: 'right', fontFamily: 'monospace' }}>Rs. {(item.pricePerUnit * tbx).toFixed(2)}</td>
                             <td style={{ padding: '8px 12px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 800 }}>Rs. {(item.quantity * item.pricePerUnit).toFixed(2)}</td>
@@ -1435,18 +1459,18 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
             <div className="modal-card animate-scaleIn" style={{ '--modal-max-width': '520px', border: '1.5px solid rgba(252,165,165,0.5)' } as React.CSSProperties} onClick={e => e.stopPropagation()}>
               <div className="modal-header">
                 <div>
-                  <h3 style={{ fontSize: 15, fontWeight: 900, color: '#DC2626', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <h3 style={{ fontSize: 18, fontWeight: 900, color: '#DC2626', display: 'flex', alignItems: 'center', gap: 8 }}>
                     <RotateCcw style={{ width: 18, height: 18 }} /> Process Product Return
                   </h3>
-                  <p style={{ fontSize: 11, color: '#94A3B8', marginTop: 4 }}>Returned stock will be restored to original batches</p>
+                  <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>Returned stock will be restored to original batches</p>
                 </div>
-                <button onClick={() => { setReturnOrderId(null); setReturnOrder(null); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8' }}>
+                <button onClick={() => { setReturnOrderId(null); setReturnOrder(null); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
                   <X style={{ width: 18, height: 18 }} />
                 </button>
               </div>
 
               <div style={{ marginBottom: 16 }}>
-                <label style={{ display: 'block', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#64748B', letterSpacing: '0.05em', marginBottom: 6 }}>Return Reason</label>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-secondary)', letterSpacing: '0.05em', marginBottom: 6 }}>Return Reason</label>
                 <select value={returnReason} onChange={e => setReturnReason(e.target.value)} className="input-crisp" style={{ width: '100%' }}>
                   <option>Wrong item delivered</option>
                   <option>Delivery failed / returned to sender</option>
@@ -1457,14 +1481,14 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
               </div>
 
               <div style={{ marginBottom: 20 }}>
-                <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: '#64748B', marginBottom: 10 }}>Return Quantities (in Boxes)</div>
+                <div style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-secondary)', marginBottom: 10 }}>Return Quantities (in Boxes)</div>
                 {returnItems.map((item, idx) => {
                   const maxBoxes = item.tabletsPerBox > 0 ? Math.floor(item.maxQty / item.tabletsPerBox) : item.maxQty;
                   return (
                     <div key={item.orderItemId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #F1F5F9' }}>
                       <div>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: '#1E293B' }}>{item.name}</div>
-                        <div style={{ fontSize: 10, color: '#94A3B8' }}>Max: {maxBoxes} boxes | Rs. {(item.pricePerUnit * item.tabletsPerBox).toFixed(2)}/box</div>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>{item.name}</div>
+                        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Max: {maxBoxes} boxes | Rs. {(item.pricePerUnit * item.tabletsPerBox).toFixed(2)}/box</div>
                       </div>
                       <input type="number" min={0} max={maxBoxes} value={item.quantity}
                         onChange={e => setReturnItems(returnItems.map((r, i) => i === idx ? { ...r, quantity: parseInt(e.target.value) || 0 } : r))}
@@ -1478,10 +1502,10 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
               <div style={{ background: refundPreview > 0 ? '#FFF7ED' : '#F8FAFC', border: `1.5px solid ${refundPreview > 0 ? '#FED7AA' : '#E2E8F0'}`, borderRadius: 12, padding: '14px 16px', marginBottom: 16, transition: 'all 0.2s' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: refundPreview > 0 ? 12 : 0 }}>
                   <div>
-                    <div style={{ fontSize: 12, fontWeight: 800, color: '#1E293B', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
                       <DollarSign style={{ width: 14, height: 14, color: '#0EA5E9' }} /> Adjust Billing
                     </div>
-                    <div style={{ fontSize: 10, color: '#64748B', marginTop: 2 }}>Credit refund value as advance balance for next order</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>Credit refund value as advance balance for next order</div>
                   </div>
                   {/* Toggle switch */}
                   <button
@@ -1495,7 +1519,7 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
                   >
                     <span style={{
                       position: 'absolute', top: 3, left: adjustBilling ? 22 : 3,
-                      width: 20, height: 20, borderRadius: '50%', background: 'white',
+                      width: 20, height: 20, borderRadius: '50%', background: 'var(--card-bg)',
                       transition: 'left 0.2s', boxShadow: '0 1px 4px rgba(0,0,0,0.2)'
                     }} />
                   </button>
@@ -1503,8 +1527,8 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
                 {adjustBilling && refundPreview > 0 && (
                   <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 8, padding: '10px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
-                      <div style={{ fontSize: 10, fontWeight: 700, color: '#065F46', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Advance Balance to Credit</div>
-                      <div style={{ fontSize: 10, color: '#059669', marginTop: 2 }}>Will be auto-applied on customer's next order</div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: '#065F46', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Advance Balance to Credit</div>
+                      <div style={{ fontSize: 12, color: '#059669', marginTop: 2 }}>Will be auto-applied on customer's next order</div>
                     </div>
                     <div style={{ fontSize: 18, fontWeight: 900, color: '#059669', fontFamily: 'monospace' }}>
                       Rs. {refundPreview.toFixed(2)}
@@ -1512,11 +1536,11 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
                   </div>
                 )}
                 {adjustBilling && refundPreview === 0 && (
-                  <div style={{ fontSize: 10, color: '#94A3B8', marginTop: 8 }}>Enter return quantities above to calculate refund amount.</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>Enter return quantities above to calculate refund amount.</div>
                 )}
               </div>
 
-              <button onClick={handleReturn} disabled={returnLoading} className="btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '13px', background: 'linear-gradient(135deg, #EF4444, #DC2626)', fontSize: 12, opacity: returnLoading ? 0.7 : 1 }}>
+              <button onClick={handleReturn} disabled={returnLoading} className="btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '13px', background: 'linear-gradient(135deg, #EF4444, #DC2626)', fontSize: 14, opacity: returnLoading ? 0.7 : 1 }}>
                 {returnLoading ? 'Processing...' : `Confirm Return & Restore Stock${adjustBilling && refundPreview > 0 ? ` + Credit Rs.${refundPreview.toFixed(2)}` : ''}`}
               </button>
             </div>
@@ -1531,40 +1555,40 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
           <div className="modal-card animate-scaleIn" style={{ '--modal-max-width': '500px', border: '1.5px solid rgba(186,230,253,0.6)' } as React.CSSProperties} onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <div>
-                <h3 style={{ fontSize: 15, fontWeight: 900, color: '#1E293B', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <h3 style={{ fontSize: 18, fontWeight: 900, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
                   <User style={{ width: 18, height: 18, color: '#0EA5E9' }} />
                   Register Customer Pharmacy
                 </h3>
-                <p style={{ fontSize: 11, color: '#94A3B8', marginTop: 4 }}>Add a new pharmacy account to your retailer directory</p>
+                <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>Add a new pharmacy account to your retailer directory</p>
               </div>
-              <button onClick={() => setShowAddCustomerModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8' }}>
+              <button onClick={() => setShowAddCustomerModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
                 <X style={{ width: 18, height: 18 }} />
               </button>
             </div>
             <form onSubmit={handleAddCustomer} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', marginBottom: 6 }}>Pharmacy Name *</label>
-                  <input required value={addPharmacy} onChange={e => setAddPharmacy(e.target.value)} placeholder="Sunrise Pharmacy" className="input-crisp" style={{ width: '100%', fontSize: 12 }} />
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 6 }}>Pharmacy Name *</label>
+                  <input required value={addPharmacy} onChange={e => setAddPharmacy(e.target.value)} placeholder="Sunrise Pharmacy" className="input-crisp" style={{ width: '100%', fontSize: 14 }} />
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', marginBottom: 6 }}>Contact Person *</label>
-                  <input required value={addContact} onChange={e => setAddContact(e.target.value)} placeholder="Ram Shrestha" className="input-crisp" style={{ width: '100%', fontSize: 12 }} />
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 6 }}>Contact Person *</label>
+                  <input required value={addContact} onChange={e => setAddContact(e.target.value)} placeholder="Ram Shrestha" className="input-crisp" style={{ width: '100%', fontSize: 14 }} />
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', marginBottom: 6 }}>Phone Number *</label>
-                  <input required value={addPhone} onChange={e => setAddPhone(e.target.value)} placeholder="98XXXXXXXX" className="input-crisp" style={{ width: '100%', fontSize: 12 }} />
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 6 }}>Phone Number *</label>
+                  <input required value={addPhone} onChange={e => setAddPhone(e.target.value)} placeholder="98XXXXXXXX" className="input-crisp" style={{ width: '100%', fontSize: 14 }} />
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', marginBottom: 6 }}>Email Address *</label>
-                  <input required type="email" value={addEmail} onChange={e => setAddEmail(e.target.value)} placeholder="pharmacy@email.com" className="input-crisp" style={{ width: '100%', fontSize: 12 }} />
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 6 }}>Email Address *</label>
+                  <input required type="email" value={addEmail} onChange={e => setAddEmail(e.target.value)} placeholder="pharmacy@email.com" className="input-crisp" style={{ width: '100%', fontSize: 14 }} />
                 </div>
               </div>
               <div>
-                <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', marginBottom: 6 }}>Address</label>
-                <input value={addAddress} onChange={e => setAddAddress(e.target.value)} placeholder="Street, City, District" className="input-crisp" style={{ width: '100%', fontSize: 12 }} />
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 6 }}>Address</label>
+                <input value={addAddress} onChange={e => setAddAddress(e.target.value)} placeholder="Street, City, District" className="input-crisp" style={{ width: '100%', fontSize: 14 }} />
               </div>
-              <button type="submit" disabled={addLoading} className="btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '13px', background: 'linear-gradient(135deg, #0EA5E9, #38BDF8)', fontSize: 12 }}>
+              <button type="submit" disabled={addLoading} className="btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '13px', background: 'linear-gradient(135deg, #0EA5E9, #38BDF8)', fontSize: 14 }}>
                 {addLoading ? 'Registering...' : 'Register Customer Account'}
               </button>
             </form>
@@ -1585,12 +1609,12 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
             {/* Header */}
             <div className="modal-header">
               <div>
-                <h3 style={{ fontSize: 16, fontWeight: 900, color: '#1E293B', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <h3 style={{ fontSize: 16, fontWeight: 900, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
                   <User style={{ width: 18, height: 18, color: '#0EA5E9' }} /> Customer Profile Details
                 </h3>
-                <p style={{ fontSize: 11, color: '#64748B', marginTop: 4 }}>B2B retailer information, limits control, statements, and settle accounts</p>
+                <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4 }}>B2B retailer information, limits control, statements, and settle accounts</p>
               </div>
-              <button onClick={() => setSelectedCustomerHistory(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8' }}>
+              <button onClick={() => setSelectedCustomerHistory(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
                 <X className="w-6 h-6" />
               </button>
             </div>
@@ -1598,9 +1622,9 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
             {/* Body */}
             <div className="modal-body space-y-6">
               {/* Profile details */}
-              <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 16, padding: 18, display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <div style={{ fontSize: 15, fontWeight: 900, color: '#1E293B' }}>{selectedCustomerHistory.pharmacyName}</div>
-                <div style={{ fontSize: 12, color: '#64748B', display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <div style={{ background: 'var(--table-header-bg)', border: '1px solid var(--card-border)', borderRadius: 16, padding: 18, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ fontSize: 18, fontWeight: 900, color: 'var(--text-primary)' }}>{selectedCustomerHistory.pharmacyName}</div>
+                <div style={{ fontSize: 14, color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: 4 }}>
                   <div><strong>Reg Number:</strong> {selectedCustomerHistory.registrationNumber}</div>
                   <div><strong>Email:</strong> {selectedCustomerHistory.user?.email || 'N/A'}</div>
                   <div><strong>Phone:</strong> {selectedCustomerHistory.phone || 'N/A'}</div>
@@ -1610,13 +1634,13 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
                   <a 
                     href={`https://www.google.com/maps?q=${selectedCustomerHistory.latitude || 27.7172},${selectedCustomerHistory.longitude || 85.3240}`}
                     target="_blank" rel="noopener noreferrer"
-                    className="btn-ghost" style={{ padding: '6px 12px', fontSize: 10, display: 'flex', alignItems: 'center', gap: 4, background: 'white' }}
+                    className="btn-ghost" style={{ padding: '6px 12px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4, background: 'var(--card-bg)' }}
                   >
                     <MapPin style={{ width: 12, height: 12 }} /> View on Google Maps
                   </a>
                   <button 
                     onClick={() => alertRetailer(selectedCustomerHistory.pharmacyName)}
-                    className="btn-ghost" style={{ padding: '6px 12px', fontSize: 10, display: 'flex', alignItems: 'center', gap: 4, background: 'white', color: '#EA580C', borderColor: '#FED7AA' }}
+                    className="btn-ghost" style={{ padding: '6px 12px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4, background: 'var(--card-bg)', color: '#EA580C', borderColor: '#FED7AA' }}
                   >
                     <AlertTriangle style={{ width: 12, height: 12 }} /> Alert Retailer
                   </button>
@@ -1632,7 +1656,7 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
                     <input 
                       type="number" value={editingCreditLimit} 
                       onChange={e => setEditingCreditLimit(e.target.value)} 
-                      className="input-crisp" style={{ fontSize: 12, padding: '6px 10px', background: 'white', border: '1.5px solid #BAE6FD', width: '100%' }} 
+                      className="input-crisp" style={{ fontSize: 14, padding: '6px 10px', background: 'var(--card-bg)', border: '1.5px solid #BAE6FD', width: '100%' }} 
                     />
                   </div>
                   <div>
@@ -1640,14 +1664,14 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
                     <input 
                       type="number" value={editingLifetimeSpend} 
                       onChange={e => setEditingLifetimeSpend(e.target.value)} 
-                      className="input-crisp" style={{ fontSize: 12, padding: '6px 10px', background: 'white', border: '1.5px solid #BAE6FD', width: '100%' }} 
+                      className="input-crisp" style={{ fontSize: 14, padding: '6px 10px', background: 'var(--card-bg)', border: '1.5px solid #BAE6FD', width: '100%' }} 
                     />
                   </div>
                 </div>
                 <button 
                   onClick={saveCustomerProfileChanges} 
                   disabled={savingCustomerInfo}
-                  className="btn-primary" style={{ alignSelf: 'flex-end', padding: '6px 12px', fontSize: 10, background: '#0EA5E9' }}
+                  className="btn-primary" style={{ alignSelf: 'flex-end', padding: '6px 12px', fontSize: 12, background: '#0EA5E9' }}
                 >
                   {savingCustomerInfo ? 'Saving...' : 'Save B2B Limits'}
                 </button>
@@ -1655,20 +1679,20 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
 
               {/* Statement Ledger & Settle Invoice */}
               <div>
-                <h4 style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: '#475569', letterSpacing: '0.05em', marginBottom: 10 }}>Transaction Statement</h4>
+                <h4 style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-secondary)', letterSpacing: '0.05em', marginBottom: 10 }}>Transaction Statement</h4>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {orders.filter(o => o.retailerId === selectedCustomerHistory.id).length === 0 ? (
-                    <div style={{ padding: 24, textAlign: 'center', color: '#94A3B8', fontSize: 12, fontStyle: 'italic' }}>No orders found for this customer.</div>
+                    <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)', fontSize: 14, fontStyle: 'italic' }}>No orders found for this customer.</div>
                   ) : (
                     orders.filter(o => o.retailerId === selectedCustomerHistory.id).map(o => {
                       const totalAmt = o.netAmount;
-                      const paidAmt = settlements[o.id] || 0;
+                      const paidAmt = getOrderPaid(o);
                       const isFullyPaid = paidAmt >= totalAmt;
                       return (
-                        <div key={o.id} style={{ border: '1px solid #E2E8F0', borderRadius: 12, padding: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div key={o.id} style={{ border: '1px solid var(--card-border)', borderRadius: 12, padding: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                           <div>
-                            <div style={{ fontSize: 11, fontWeight: 700, color: '#1E293B' }}>ORD-{o.id.substring(0, 8).toUpperCase()}</div>
-                            <div style={{ fontSize: 10, color: '#64748B', marginTop: 2 }}>Net: Rs. {totalAmt.toLocaleString()} | Paid: Rs. {paidAmt.toLocaleString()}</div>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-primary)' }}>ORD-{o.id.substring(0, 8).toUpperCase()}</div>
+                            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>Net: Rs. {totalAmt.toLocaleString()} | Paid: Rs. {paidAmt.toLocaleString()}</div>
                           </div>
                           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
                             <span style={{ fontSize: 9, fontWeight: 800, padding: '2px 8px', borderRadius: 12, background: isFullyPaid ? '#ECFDF5' : '#FFF7ED', color: isFullyPaid ? '#059669' : '#D97706' }}>
@@ -1681,7 +1705,7 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
                                     <input 
                                       type="number" placeholder="Amt" value={settleAmount} 
                                       onChange={e => setSettleAmount(e.target.value)} 
-                                      className="input-crisp" style={{ width: 60, fontSize: 10, padding: 4 }} 
+                                      className="input-crisp" style={{ width: 60, fontSize: 12, padding: 4 }} 
                                     />
                                     <button 
                                       onClick={() => handleSettleSubmit(o.id, totalAmt)}
@@ -1727,10 +1751,10 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
             onClick={(e) => e.stopPropagation()}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #F1F5F9', paddingBottom: 10 }}>
-              <h3 style={{ fontSize: 13, fontWeight: 900, color: '#1E293B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              <h3 style={{ fontSize: 14, fontWeight: 900, color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                 Print Dispatch Shipment Label
               </h3>
-              <button onClick={() => setPrintPreviewOrder(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8' }}>
+              <button onClick={() => setPrintPreviewOrder(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
                 <X style={{ width: 20, height: 20 }} />
               </button>
             </div>
@@ -1739,13 +1763,13 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
             <div 
               id="print-area" 
               style={{ 
-                background: 'white', 
+                background: 'var(--card-bg)', 
                 border: '1.5px solid #000', 
                 padding: '20px', 
                 borderRadius: 12, 
                 color: 'black', 
                 fontFamily: 'monospace',
-                fontSize: 12,
+                fontSize: 14,
                 boxShadow: '0 4px 12px rgba(0,0,0,0.05)'
               }}
             >
@@ -1753,23 +1777,23 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
                 Dispatch Shipment Label
               </div>
               <div style={{ marginBottom: 8 }}>
-                <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', color: '#64748B' }}>Order ID</div>
-                <strong style={{ fontSize: 13 }}>ORD-{printPreviewOrder.id.substring(0, 12).toUpperCase()}</strong>
+                <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Order ID</div>
+                <strong style={{ fontSize: 14 }}>ORD-{printPreviewOrder.id.substring(0, 12).toUpperCase()}</strong>
               </div>
               <div style={{ marginBottom: 8 }}>
-                <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', color: '#64748B' }}>Deliver To</div>
-                <strong style={{ fontSize: 13 }}>{printPreviewOrder.retailer.pharmacyName}</strong>
+                <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Deliver To</div>
+                <strong style={{ fontSize: 14 }}>{printPreviewOrder.retailer.pharmacyName}</strong>
                 <div>{printPreviewOrder.retailer.address || 'N/A'}</div>
               </div>
               <div style={{ marginBottom: 12 }}>
-                <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', color: '#64748B' }}>Dispatch Date</div>
+                <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Dispatch Date</div>
                 <div>{new Date(printPreviewOrder.createdAt).toLocaleDateString()}</div>
               </div>
 
               {/* Barcode section */}
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '14px 0', gap: 6 }}>
                 {/* Visual Barcode rendering using pure HTML & CSS */}
-                <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'center', height: 48, background: 'white', padding: '4px 8px', border: '1px solid #000', borderRadius: 4, width: '100%' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'center', height: 48, background: 'var(--card-bg)', padding: '4px 8px', border: '1px solid #000', borderRadius: 4, width: '100%' }}>
                   {[1,0,1,1,0,1,0,0,2,0,1,0,2,0,0,1,0,2,0,1,0,0,2,0,1,0,1,0,0,1,0,2,0,0,2,0,1,0,2,0,0,1,0,1,1,0,1,0,0].map((width, idx) => {
                     if (width === 0) return <div key={idx} style={{ width: 2, height: '100%', background: 'transparent' }} />;
                     return <div key={idx} style={{ width: width * 2, height: '100%', background: 'black' }} />;
@@ -1782,7 +1806,7 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
 
               {/* Items included section */}
               <div style={{ border: '1.5px solid #000', padding: '10px', borderRadius: 8, marginTop: 10 }}>
-                <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', color: '#64748B', marginBottom: 4 }}>Items List</div>
+                <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-secondary)', marginBottom: 4 }}>Items List</div>
                 {printPreviewOrder.items.map(item => {
                   const tbx = (item.product.tabletsPerStrip || 10) * (item.product.stripsPerBox || 10);
                   const boxes = Math.floor(item.quantity / tbx);
@@ -1795,14 +1819,14 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
                 })}
               </div>
 
-              <div style={{ marginTop: 14, fontSize: 8.5, textAlign: 'center', color: '#64748B', borderTop: '1px dashed #ccc', paddingTop: 6 }}>
+              <div style={{ marginTop: 14, fontSize: 8.5, textAlign: 'center', color: 'var(--text-secondary)', borderTop: '1px dashed #ccc', paddingTop: 6 }}>
                 Scan this label on delivery — MedHub Wholesaler Distribution
               </div>
             </div>
 
             {/* Editable Barcode Text Option */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }} className="no-print">
-              <label style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#64748B', letterSpacing: '0.05em' }}>
+              <label style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-secondary)', letterSpacing: '0.05em' }}>
                 Barcode Text Override (Manual Input)
               </label>
               <input 
@@ -1810,7 +1834,7 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
                 value={manualBarcodeText} 
                 onChange={e => setManualBarcodeText(e.target.value)} 
                 className="input-crisp" 
-                style={{ fontSize: 12, padding: '8px 12px' }} 
+                style={{ fontSize: 14, padding: '8px 12px' }} 
               />
             </div>
 

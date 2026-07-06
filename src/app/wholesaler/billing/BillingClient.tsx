@@ -97,7 +97,8 @@ interface BillingClientProps {
   };
 }
 
-type TabType = 'transactions' | 'supplier_bills' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'fiscal';
+type TabType = 'transactions' | 'supplier_bills' | 'analytics' | 'fiscal';
+type AnalyticsPeriod = 'daily' | 'weekly' | 'monthly' | 'yearly';
 
 const COLUMN_LABELS: Record<string, string> = {
   date: 'Billing Date',
@@ -113,10 +114,10 @@ const COLUMN_LABELS: Record<string, string> = {
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
     return (
-      <div style={{ background: 'rgba(255,255,255,0.97)', border: '1.5px solid #E0F2FE', padding: '12px 16px', borderRadius: 12, boxShadow: '0 10px 25px rgba(14,165,233,0.1)' }}>
-        <p style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: '#64748B', marginBottom: 6 }}>{label}</p>
+      <div style={{ background: 'var(--card-bg)', border: '1px solid var(--card-border)', padding: '10px 14px', borderRadius: 8 }}>
+        <p style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-secondary)', marginBottom: 6 }}>{label}</p>
         {payload.map((p: any) => (
-          <p key={p.name} style={{ fontSize: 12, fontWeight: 700, color: p.color }}>
+          <p key={p.name} style={{ fontSize: 14, fontWeight: 700, color: p.color }}>
             {p.name}: Rs. {Number(p.value).toLocaleString()}
           </p>
         ))}
@@ -165,6 +166,7 @@ export default function BillingClient({ profileId, initialOrders, initialSupplie
   // Period chart data
   const [analyticsData, setAnalyticsData] = useState<any[]>([]);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  const [analyticsPeriod, setAnalyticsPeriod] = useState<AnalyticsPeriod>('monthly');
 
   // Side panel selected row
   const [detailOrder, setDetailOrder] = useState<Order | null>(null);
@@ -206,6 +208,21 @@ export default function BillingClient({ profileId, initialOrders, initialSupplie
       })
       .catch(err => console.error('Error fetching products for supplier bills:', err));
   }, []);
+
+  // Check URL Search Params to automatically open transaction modal
+  useEffect(() => {
+    if (typeof window !== 'undefined' && orders.length > 0) {
+      const params = new URLSearchParams(window.location.search);
+      const invoiceIdParam = params.get('invoiceId');
+      if (invoiceIdParam) {
+        const found = orders.find(o => o.id.toLowerCase() === invoiceIdParam.toLowerCase() || o.id.toLowerCase().substring(0, 8) === invoiceIdParam.toLowerCase());
+        if (found) {
+          setInvoiceModalOrder(found);
+          setActiveTab('transactions');
+        }
+      }
+    }
+  }, [orders]);
 
   // Helper: get total verified paid amount for an order from DB settlements
   const getOrderPaid = (order: any): number => {
@@ -501,7 +518,9 @@ export default function BillingClient({ profileId, initialOrders, initialSupplie
       setSettlingOrderId(null);
       setSuccessMsg(`Payment of Rs. ${inputPaid.toLocaleString()} recorded.`);
       setTimeout(() => setSuccessMsg(''), 3000);
-      logActivity('SETTLE_PAYMENT', `Recorded payment of Rs.${inputPaid} for Order ${orderId}`);
+      const targetOrder = orders.find(o => o.id === orderId);
+      const retailerName = targetOrder ? targetOrder.retailer.pharmacyName : 'Walk-in';
+      logActivity('SETTLE_PAYMENT', `Settle Order INV-${orderId.substring(0, 8).toUpperCase()} for Rs. ${inputPaid.toLocaleString()} (Customer: ${retailerName}). Verified at: ${new Date().toLocaleString()}`);
     } catch (err: any) {
       alert(err.message || 'Error recording payment settlement in database');
     }
@@ -530,6 +549,9 @@ export default function BillingClient({ profileId, initialOrders, initialSupplie
       setSupplierBillSettleMethod('CASH');
       fetchSupplierBills();
       setSuccessMsg(`Supplier payment of Rs. ${amt.toLocaleString()} recorded successfully.`);
+      const targetBill = supplierBills.find(b => b.id === billId);
+      const supplierName = targetBill ? targetBill.supplier.name : 'Unknown';
+      logActivity('SETTLE_SUPPLIER_BILL', `Settle Supplier Bill #${targetBill?.billNumber} with Rs. ${amt.toLocaleString()} for ${supplierName} via ${method}. Time: ${new Date().toLocaleString()}`);
       setTimeout(() => setSuccessMsg(''), 3000);
     } catch (err: any) {
       setError(err.message || 'An error occurred.');
@@ -609,10 +631,10 @@ export default function BillingClient({ profileId, initialOrders, initialSupplie
   };
 
   useEffect(() => {
-    if (['daily', 'weekly', 'monthly', 'yearly'].includes(activeTab)) {
-      fetchAnalytics(activeTab);
+    if (activeTab === 'analytics') {
+      fetchAnalytics(analyticsPeriod);
     }
-  }, [activeTab]);
+  }, [activeTab, analyticsPeriod]);
 
   useSSEListener(profileId, (type) => {
     if (
@@ -924,97 +946,75 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
   });
 
   const TABS: { key: TabType; label: string; icon: React.ReactNode }[] = [
-    { key: 'transactions', label: 'Transactions', icon: <FileText style={{ width: 12, height: 12 }} /> },
-    { key: 'supplier_bills', label: 'Supplier Bills', icon: <Receipt style={{ width: 12, height: 12 }} /> },
-    { key: 'daily', label: 'Daily', icon: <BarChart2 style={{ width: 12, height: 12 }} /> },
-    { key: 'weekly', label: 'Weekly', icon: <BarChart2 style={{ width: 12, height: 12 }} /> },
-    { key: 'monthly', label: 'Monthly', icon: <BarChart2 style={{ width: 12, height: 12 }} /> },
-    { key: 'yearly', label: 'Yearly', icon: <BarChart2 style={{ width: 12, height: 12 }} /> },
-    { key: 'fiscal', label: 'Fiscal Audit', icon: <Calendar style={{ width: 12, height: 12 }} /> },
+    { key: 'transactions', label: 'Transactions', icon: <FileText style={{ width: 13, height: 13 }} /> },
+    { key: 'supplier_bills', label: 'Supplier Bills', icon: <Receipt style={{ width: 13, height: 13 }} /> },
+    { key: 'analytics', label: 'Analytics', icon: <BarChart2 style={{ width: 13, height: 13 }} /> },
+    { key: 'fiscal', label: 'Fiscal Audit', icon: <Calendar style={{ width: 13, height: 13 }} /> },
   ];
 
   const statusPillStyle = (status: string): React.CSSProperties => {
     const map: Record<string, React.CSSProperties> = {
       DELIVERED: { background: '#ECFDF5', color: '#059669', border: '1px solid #A7F3D0' },
-      DISPATCHED: { background: '#EFF6FF', color: '#2563EB', border: '1px solid #BFDBFE' },
+      DISPATCHED: { background: 'var(--table-header-bg)', color: '#2563EB', border: '1px solid #BFDBFE' },
       PENDING:    { background: '#FFF7ED', color: '#C2410C', border: '1px solid #FED7AA' },
       RETURNED:   { background: '#FEF2F2', color: '#DC2626', border: '1px solid #FECACA' },
       PICKING:    { background: '#F5F3FF', color: '#7C3AED', border: '1px solid #DDD6FE' },
     };
-    return { fontSize: 9, fontWeight: 800, padding: '2px 8px', borderRadius: 20, textTransform: 'uppercase', letterSpacing: '0.05em', fontFamily: 'monospace', ...(map[status] || { background: '#F8FAFC', color: '#64748B', border: '1px solid #E2E8F0' }) };
+    return { fontSize: 9, fontWeight: 800, padding: '2px 8px', borderRadius: 20, textTransform: 'uppercase', letterSpacing: '0.05em', fontFamily: 'monospace', ...(map[status] || { background: 'var(--table-header-bg)', color: 'var(--text-secondary)', border: '1px solid var(--card-border)' }) };
   };
 
   return (
     <div className="space-y-6 animate-fadeIn">
-      {/* Page Header */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 16, background: 'rgba(255,255,255,0.80)', backdropFilter: 'blur(16px)', border: '1.5px solid rgba(14,165,233,0.18)', borderRadius: 20, padding: '20px 24px', boxShadow: '0 2px 16px rgba(14,165,233,0.07)' }}>
+      {/* ── Page Header ── */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 16, background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: 12, padding: '18px 24px' }}>
         <div>
-          <h1 style={{ fontSize: 20, fontWeight: 800, color: '#1E293B', letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Receipt style={{ width: 22, height: 22, color: '#0EA5E9' }} />
-            Billing &amp; Profit Analyzer
+          <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Receipt style={{ width: 20, height: 20, color: '#0EA5E9' }} />
+            Billing & Profit Analyzer
           </h1>
-          <p style={{ fontSize: 13, color: '#64748B', marginTop: 4 }}>Track distributor revenue, gross profits, margins, and print custom tax invoices.</p>
+          <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 4 }}>Track revenue, profits, margins and print custom tax invoices.</p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.25)', borderRadius: 10, fontSize: 11, fontWeight: 700, color: '#059669' }}>
-            <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#10B981', display: 'inline-block', animation: 'pulse 2s infinite' }} />
+          <span style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 8, fontSize: 11, fontWeight: 700, color: '#059669' }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#10B981', display: 'inline-block' }} />
             LIVE
-          </div>
+          </span>
         </div>
       </div>
 
       {error && <div className="alert alert-error"><AlertCircle style={{ width: 16, height: 16, flexShrink: 0 }} /><span>{error}</span></div>}
       {successMsg && <div className="alert alert-success animate-scaleIn"><CheckCircle style={{ width: 16, height: 16, flexShrink: 0 }} /><span>{successMsg}</span></div>}
 
-      {/* KPI Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 20 }}>
-        {[
-          { label: 'Completed Sales', value: `Rs. ${totalSales.toLocaleString()}`, badge: 'PAID', icon: <DollarSign style={{ width: 20, height: 20 }} />, badgeBg: '#ECFDF5', badgeColor: '#059669', badgeBorder: '#A7F3D0', iconBg: '#ECFDF5', shadow: '0 4px 20px rgba(16,185,129,0.12)' },
-          { label: 'Unpaid Due', value: `Rs. ${pendingSales.toLocaleString()}`, badge: 'UNPAID', icon: <Clock style={{ width: 20, height: 20 }} />, badgeBg: '#F0F9FF', badgeColor: '#0EA5E9', badgeBorder: '#BAE6FD', iconBg: '#F0F9FF', shadow: '0 4px 20px rgba(14,165,233,0.1)' },
-          { label: 'Profit Margin', value: `${profitMargin.toFixed(1)}%`, badge: 'MARGIN', icon: <TrendingUp style={{ width: 20, height: 20 }} />, badgeBg: '#F0F9FF', badgeColor: '#0284C7', badgeBorder: '#BAE6FD', iconBg: '#F0F9FF', shadow: '0 4px 20px rgba(14,165,233,0.1)' },
-          { label: 'Gross Profit', value: `Rs. ${grossProfit.toLocaleString()}`, badge: 'PROFIT', icon: <ArrowUpRight style={{ width: 20, height: 20 }} />, badgeBg: '#F0F9FF', badgeColor: '#0EA5E9', badgeBorder: '#BAE6FD', iconBg: '#F0F9FF', shadow: '0 4px 20px rgba(14,165,233,0.1)' },
+      {/* ── KPI Cards ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
+      {[
+          { label: 'Completed Sales', value: `Rs. ${totalSales.toLocaleString()}`, badge: 'PAID', color: '#059669', border: '#059669' },
+          { label: 'Unpaid Due', value: `Rs. ${pendingSales.toLocaleString()}`, badge: 'OUTSTANDING', color: '#DC2626', border: '#DC2626' },
+          { label: 'Gross Profit', value: `Rs. ${grossProfit.toLocaleString()}`, badge: 'PROFIT', color: '#2563EB', border: '#2563EB' },
+          { label: 'Profit Margin', value: `${profitMargin.toFixed(1)}%`, badge: 'MARGIN', color: '#7C3AED', border: '#7C3AED' },
+          { label: 'Cost of Goods', value: `Rs. ${totalCogs.toLocaleString()}`, badge: 'COGS', color: '#B45309', border: '#B45309' },
         ].map((card) => (
-          <div key={card.label} className="stat-card" style={{ boxShadow: card.shadow, gap: 14 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div className="stat-card-icon" style={{ background: card.iconBg }}>{card.icon}</div>
-              <span style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', fontFamily: 'monospace', background: card.badgeBg, color: card.badgeColor, border: `1px solid ${card.badgeBorder}`, padding: '3px 10px', borderRadius: 20 }}>{card.badge}</span>
-            </div>
-            <div><div className="stat-card-label">{card.label}</div><div className="stat-card-value" style={{ color: card.badgeColor }}>{card.value}</div></div>
+          <div key={card.label} style={{ background: 'var(--card-bg)', border: '1px solid var(--card-border)', borderLeft: `3px solid ${card.border}`, borderRadius: 10, padding: '16px 18px' }}>
+            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', marginBottom: 4 }}>{card.label}</div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: card.color, lineHeight: 1 }}>{card.value}</div>
+            <div style={{ marginTop: 6 }}><span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', background: 'var(--table-header-bg)', color: card.color, border: `1px solid var(--card-border)`, padding: '2px 7px', borderRadius: 4 }}>{card.badge}</span></div>
           </div>
         ))}
       </div>
 
-      {/* Finance Card */}
-      <div className="finance-card">
-        <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 24 }}>
-          <div style={{ flex: 1 }}>
-            <h3 style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'rgba(255,255,255,0.7)', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 20 }}>
-              <TrendingUp style={{ width: 14, height: 14, color: '#38BDF8' }} /> Profitability Ledger
-            </h3>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 24 }}>
-              <div><div style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Gross Profits</div><div style={{ fontSize: 24, fontWeight: 900, color: 'white', fontFamily: 'monospace', marginTop: 4 }}>Rs. {grossProfit.toLocaleString()}</div></div>
-              <div><div style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Profit Margin</div><div style={{ fontSize: 24, fontWeight: 900, color: '#38BDF8', fontFamily: 'monospace', marginTop: 4 }}>{profitMargin.toFixed(1)}%</div></div>
-              <div><div style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Cost of Goods</div><div style={{ fontSize: 24, fontWeight: 900, color: '#FCD34D', fontFamily: 'monospace', marginTop: 4 }}>Rs. {totalCogs.toLocaleString()}</div></div>
-            </div>
-          </div>
-          <span style={{ padding: '6px 14px', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 10, color: '#FCA5A5', fontFamily: 'monospace', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Verifier Active</span>
-        </div>
-      </div>
-
-      {/* Tab Navigation Bar */}
-      <div style={{ display: 'flex', gap: 4, background: 'rgba(255,255,255,0.85)', border: '1.5px solid rgba(14,165,233,0.15)', borderRadius: 14, padding: '6px 8px', boxShadow: '0 2px 8px rgba(14,165,233,0.06)', flexWrap: 'wrap' }}>
+      {/* ── Tab Navigation ── */}
+      <div style={{ display: 'flex', gap: 4, background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: 10, padding: '5px 6px', flexWrap: 'wrap' }}>
         {TABS.map(tab => (
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
             style={{
-              display: 'flex', alignItems: 'center', gap: 5,
-              padding: '7px 14px', borderRadius: 10, border: 'none', cursor: 'pointer',
-              fontSize: 11, fontWeight: 700, fontFamily: 'inherit',
-              transition: 'all 0.18s ease',
-              background: activeTab === tab.key ? 'linear-gradient(135deg, #0EA5E9, #38BDF8)' : 'transparent',
-              color: activeTab === tab.key ? 'white' : '#64748B',
-              boxShadow: activeTab === tab.key ? '0 2px 10px rgba(14,165,233,0.3)' : 'none',
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: '7px 16px', borderRadius: 8, border: 'none', cursor: 'pointer',
+              fontSize: 12, fontWeight: 700, fontFamily: 'inherit',
+              transition: 'all 0.15s ease',
+              background: activeTab === tab.key ? '#0EA5E9' : 'transparent',
+              color: activeTab === tab.key ? 'white' : '#6B7280',
             }}
           >
             {tab.icon} {tab.label}
@@ -1034,36 +1034,36 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             {/* Pending Settlements Verification Section */}
             {pendingSettlementOrders.length > 0 && (
-              <div style={{ background: 'linear-gradient(135deg, rgba(30,64,175,0.06), rgba(59,130,246,0.03))', border: '1.5px dashed #3B82F6', borderRadius: 16, padding: '20px 24px', boxShadow: '0 4px 20px rgba(59,130,246,0.05)' }}>
+              <div style={{ background: 'var(--table-header-bg)', border: '1px solid #BFDBFE', borderRadius: 10, padding: '16px 20px' }}>
                 <h3 style={{ margin: 0, fontSize: 14, fontWeight: 900, color: '#1E40AF', display: 'flex', alignItems: 'center', gap: 8 }}>
                   <DollarSign style={{ width: 18, height: 18, color: '#3B82F6' }} /> B2B Payment Verification Requests
                 </h3>
-                <p style={{ margin: '4px 0 16px', fontSize: 12, color: '#475569' }}>
+                <p style={{ margin: '4px 0 16px', fontSize: 14, color: 'var(--text-secondary)' }}>
                   The following retailers have submitted payments that require your confirmation.
                 </p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {pendingSettlementOrders.map(order => {
                     const pendings = (order.b2bSettlements || []).filter((s: any) => s.status === 'PENDING');
                     return pendings.map((settle: any) => (
-                      <div key={settle.id} style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', background: '#FFFFFF', padding: '14px 18px', borderRadius: 12, border: '1.5px solid #E2E8F0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
+                      <div key={settle.id} style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', background: 'var(--card-bg)', padding: '12px 16px', borderRadius: 8, border: '1px solid var(--card-border)' }}>
                         <div>
-                          <div style={{ fontSize: 13, fontWeight: 800, color: '#1E293B' }}>
+                          <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)' }}>
                             {order.retailer.pharmacyName}
                           </div>
-                          <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>
+                          <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
                             Invoice: <span style={{ fontFamily: 'monospace', fontWeight: 700 }}>#{order.id.substring(0, 8).toUpperCase()}</span> · Amount: <strong style={{ color: '#10B981' }}>Rs. {settle.amount.toLocaleString()}</strong> via {settle.method}
                           </div>
                         </div>
                         <div style={{ display: 'flex', gap: 8 }}>
                           <button
                             onClick={() => handleVerifySettlementRequest(settle.id, order.id, false)}
-                            style={{ padding: '8px 14px', borderRadius: 8, border: '1.5px solid #EF4444', fontSize: 12, fontWeight: 700, background: '#FFFFFF', color: '#EF4444', cursor: 'pointer', transition: 'all 0.2s' }}
+                            style={{ padding: '8px 14px', borderRadius: 8, border: '1.5px solid #EF4444', fontSize: 14, fontWeight: 700, background: 'var(--card-bg)', color: '#EF4444', cursor: 'pointer', transition: 'all 0.2s' }}
                           >
                             Reject
                           </button>
                           <button
                             onClick={() => handleVerifySettlementRequest(settle.id, order.id, true)}
-                            style={{ padding: '8px 14px', borderRadius: 8, border: 'none', fontSize: 12, fontWeight: 800, background: 'linear-gradient(135deg, #10B981, #059669)', color: '#FFFFFF', cursor: 'pointer', transition: 'all 0.2s' }}
+                            style={{ padding: '8px 14px', borderRadius: 6, border: 'none', fontSize: 13, fontWeight: 700, background: '#059669', color: '#FFFFFF', cursor: 'pointer' }}
                           >
                             Approve & Settle
                           </button>
@@ -1076,25 +1076,25 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
             )}
 
             {/* Main Transaction List (Full Width) */}
-            <div className="card" style={{ background: '#FFFFFF', padding: 24, border: '1.5px solid #E2E8F0', borderRadius: 18, boxShadow: '0 4px 20px rgba(0,0,0,0.03)' }}>
+            <div className="card" style={{ background: 'var(--card-bg)', padding: 24, border: '1px solid var(--card-border)', borderRadius: 12 }}>
               {/* Header with filters */}
               <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 12, borderBottom: '1px solid #F1F5F9', paddingBottom: 16, marginBottom: 20 }}>
                 <div>
-                  <h3 style={{ margin: 0, fontSize: 15, fontWeight: 900, color: '#1E293B', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <h3 style={{ margin: 0, fontSize: 18, fontWeight: 900, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
                     <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#3B82F6', display: 'inline-block' }} /> Sales Ledger Invoices
                   </h3>
-                  <p style={{ margin: '4px 0 0', fontSize: 11, color: '#94A3B8' }}>Click any invoice row to view details, settle balance, or send digital copy.</p>
+                  <p style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--text-muted)' }}>Click any invoice row to view details, settle balance, or send digital copy.</p>
                 </div>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                   {/* Search filter */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#F8FAFC', border: '1.5px solid #E2E8F0', borderRadius: 10, padding: '6px 12px' }}>
-                    <FileText style={{ width: 14, height: 14, color: '#94A3B8' }} />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--table-header-bg)', border: '1px solid var(--card-border)', borderRadius: 10, padding: '6px 12px' }}>
+                    <FileText style={{ width: 14, height: 14, color: 'var(--text-muted)' }} />
                     <input type="text" placeholder="Search invoices..." value={filterSearch} onChange={e => setFilterSearch(e.target.value)}
-                      style={{ border: 'none', background: 'transparent', outline: 'none', fontSize: 12, width: 140, color: '#1E293B' }} />
+                      style={{ border: 'none', background: 'transparent', outline: 'none', fontSize: 14, width: 140, color: 'var(--text-primary)' }} />
                   </div>
                   {/* Status filter */}
                   <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
-                    style={{ border: '1.5px solid #E2E8F0', borderRadius: 10, padding: '7px 12px', fontSize: 12, fontWeight: 600, color: '#475569', background: '#FFFFFF', outline: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
+                    style={{ border: '1px solid var(--card-border)', borderRadius: 10, padding: '7px 12px', fontSize: 14, fontWeight: 600, color: 'var(--text-secondary)', background: 'var(--card-bg)', outline: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
                     <option value="all">All Status</option>
                     <option value="PENDING">Pending</option>
                     <option value="DISPATCHED">Dispatched</option>
@@ -1107,21 +1107,21 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
               <div style={{ overflowX: 'auto' }}>
                 <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
-                    <tr style={{ background: '#F8FAFC', borderBottom: '2px solid #F1F5F9' }}>
-                      <th style={{ padding: '12px 16px', color: '#64748B', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', textAlign: 'left' }}>Date</th>
-                      <th style={{ padding: '12px 16px', color: '#64748B', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', textAlign: 'left' }}>Invoice ID</th>
-                      <th style={{ padding: '12px 16px', color: '#64748B', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', textAlign: 'left' }}>Customer</th>
-                      <th style={{ padding: '12px 16px', color: '#64748B', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', textAlign: 'left' }}>Status</th>
-                      <th style={{ padding: '12px 16px', color: '#64748B', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', textAlign: 'right' }}>Advance Applied</th>
-                      <th style={{ padding: '12px 16px', color: '#64748B', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', textAlign: 'right' }}>Net Payable</th>
-                      <th style={{ padding: '12px 16px', color: '#64748B', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', textAlign: 'right' }}>Total Paid</th>
-                      <th style={{ padding: '12px 16px', color: '#64748B', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', textAlign: 'right' }}>Outstanding Due</th>
-                      <th style={{ padding: '12px 16px', color: '#64748B', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', textAlign: 'center' }}>Actions</th>
+                    <tr style={{ background: 'var(--table-header-bg)', borderBottom: '2px solid #F1F5F9' }}>
+                      <th style={{ padding: '12px 16px', color: 'var(--text-secondary)', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', textAlign: 'left' }}>Date</th>
+                      <th style={{ padding: '12px 16px', color: 'var(--text-secondary)', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', textAlign: 'left' }}>Invoice ID</th>
+                      <th style={{ padding: '12px 16px', color: 'var(--text-secondary)', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', textAlign: 'left' }}>Customer</th>
+                      <th style={{ padding: '12px 16px', color: 'var(--text-secondary)', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', textAlign: 'left' }}>Status</th>
+                      <th style={{ padding: '12px 16px', color: 'var(--text-secondary)', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', textAlign: 'right' }}>Advance Applied</th>
+                      <th style={{ padding: '12px 16px', color: 'var(--text-secondary)', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', textAlign: 'right' }}>Net Payable</th>
+                      <th style={{ padding: '12px 16px', color: 'var(--text-secondary)', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', textAlign: 'right' }}>Total Paid</th>
+                      <th style={{ padding: '12px 16px', color: 'var(--text-secondary)', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', textAlign: 'right' }}>Outstanding Due</th>
+                      <th style={{ padding: '12px 16px', color: 'var(--text-secondary)', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', textAlign: 'center' }}>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredOrders.length === 0 ? (
-                      <tr><td colSpan={9} style={{ padding: '32px', textAlign: 'center', color: '#94A3B8', fontStyle: 'italic', fontSize: 13 }}>No bills found matching filters.</td></tr>
+                      <tr><td colSpan={9} style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)', fontStyle: 'italic', fontSize: 14 }}>No bills found matching filters.</td></tr>
                     ) : (
                       filteredOrders.map((order: any) => {
                         const paid = getOrderPaid(order);
@@ -1133,11 +1133,11 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
                             onMouseEnter={e => e.currentTarget.style.background = '#F8FAFC'}
                             onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                           >
-                            <td style={{ padding: '14px 16px', fontSize: 12, color: '#64748B' }}>{new Date(order.createdAt).toLocaleDateString()}</td>
-                            <td style={{ padding: '14px 16px', fontFamily: 'monospace', fontWeight: 700, color: '#3B82F6', fontSize: 12 }}>
+                            <td style={{ padding: '14px 16px', fontSize: 14, color: 'var(--text-secondary)' }}>{new Date(order.createdAt).toLocaleDateString()}</td>
+                            <td style={{ padding: '14px 16px', fontFamily: 'monospace', fontWeight: 700, color: '#3B82F6', fontSize: 14 }}>
                               INV-{order.id.substring(0, 8).toUpperCase()}
                             </td>
-                            <td style={{ padding: '14px 16px', fontWeight: 700, color: '#1E293B', fontSize: 12 }}>
+                            <td style={{ padding: '14px 16px', fontWeight: 700, color: 'var(--text-primary)', fontSize: 14 }}>
                               {order.retailer.pharmacyName === "Walk-in Customer (POS)" ? (
                                 <span style={{ fontSize: 11, color: '#0EA5E9' }}>{getWalkInName(order.overrideJustification)}</span>
                               ) : (
@@ -1150,7 +1150,7 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
                             <td style={{ padding: '14px 16px', fontFamily: 'monospace', textAlign: 'right', fontWeight: 700, color: '#8B5CF6' }}>
                               {(order.advanceApplied || 0) > 0 ? `Rs. ${(order.advanceApplied as number).toLocaleString()}` : '—'}
                             </td>
-                            <td style={{ padding: '14px 16px', fontFamily: 'monospace', textAlign: 'right', fontWeight: 800, color: '#1E293B' }}>
+                            <td style={{ padding: '14px 16px', fontFamily: 'monospace', textAlign: 'right', fontWeight: 800, color: 'var(--text-primary)' }}>
                               Rs. {order.netAmount.toLocaleString()}
                             </td>
                             <td style={{ padding: '14px 16px', fontFamily: 'monospace', textAlign: 'right', fontWeight: 800, color: '#10B981' }}>
@@ -1185,7 +1185,7 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
       {activeTab === 'supplier_bills' && (
         <div className="card" style={{ background: 'rgba(255,255,255,0.85)', padding: 24 }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 12, borderBottom: '1px solid #F1F5F9', paddingBottom: 14, marginBottom: 16 }}>
-            <h3 style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#1E293B', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <h3 style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
               <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#0EA5E9', display: 'inline-block' }} /> Wholesaler Supplier Bills Ledger
             </h3>
             
@@ -1200,7 +1200,7 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
                 style={{ fontSize: 11, padding: '5px 10px', width: 180 }}
               />
               <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span style={{ fontSize: 10, color: '#64748B', fontWeight: 650 }}>Date:</span>
+                <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 650 }}>Date:</span>
                 <input
                   type="date"
                   value={supBillDateFrom}
@@ -1208,7 +1208,7 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
                   className="input-crisp"
                   style={{ fontSize: 11, padding: '4px 8px', width: 115 }}
                 />
-                <span style={{ fontSize: 10, color: '#64748B' }}>to</span>
+                <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>to</span>
                 <input
                   type="date"
                   value={supBillDateTo}
@@ -1225,7 +1225,7 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
                     setSupBillDateTo('');
                   }}
                   className="btn-ghost"
-                  style={{ fontSize: 10, padding: '5px 10px', color: '#EF4444', borderColor: '#FECDD3', background: '#FEF2F2' }}
+                  style={{ fontSize: 12, padding: '5px 10px', color: '#EF4444', borderColor: '#FECDD3', background: '#FEF2F2' }}
                 >
                   Clear Filters
                 </button>
@@ -1262,7 +1262,7 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
                   });
 
                   if (filtered.length === 0) {
-                    return <tr><td colSpan={8} style={{ padding: '32px', textAlign: 'center', color: '#94A3B8', fontStyle: 'italic', fontSize: 12 }}>No supplier bills found matching filters.</td></tr>;
+                    return <tr><td colSpan={8} style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)', fontStyle: 'italic', fontSize: 14 }}>No supplier bills found matching filters.</td></tr>;
                   }
 
                   return filtered.map((bill) => {
@@ -1270,9 +1270,9 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
                     const isFullyPaid = bill.paidAmount >= bill.totalAmount;
                     return (
                       <tr key={bill.id} onClick={() => setDetailSupplierBill(bill)} style={{ cursor: 'pointer' }}>
-                        <td style={{ fontFamily: 'monospace', fontSize: 11, color: '#64748B' }}>{new Date(bill.billDate).toLocaleDateString()}</td>
+                        <td style={{ fontFamily: 'monospace', fontSize: 11, color: 'var(--text-secondary)' }}>{new Date(bill.billDate).toLocaleDateString()}</td>
                         <td style={{ fontFamily: 'monospace', fontWeight: 800, color: '#0EA5E9' }}>{bill.billNumber}</td>
-                        <td style={{ fontWeight: 700, color: '#1E293B' }}>{bill.supplier.name}</td>
+                        <td style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{bill.supplier.name}</td>
                         <td>
                           <span className={`status-pill status-pill-${bill.status.toLowerCase()}`}>{bill.status}</span>
                         </td>
@@ -1290,13 +1290,13 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
                                     value={settleAmount} 
                                     onChange={e => setSettleAmount(e.target.value)} 
                                     className="input-crisp" 
-                                    style={{ width: 80, fontSize: 10, padding: 4 }} 
+                                    style={{ width: 80, fontSize: 12, padding: 4 }} 
                                   />
                                   <select
                                     value={supplierBillSettleMethod}
                                     onChange={e => setSupplierBillSettleMethod(e.target.value)}
                                     className="select-crisp"
-                                    style={{ fontSize: 10, padding: '4px 6px', width: 90 }}
+                                    style={{ fontSize: 12, padding: '4px 6px', width: 90 }}
                                   >
                                     <option value="CASH">💵 Cash</option>
                                     <option value="BANK_TRANSFER">🏦 Bank</option>
@@ -1320,7 +1320,7 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
                                 <button 
                                   onClick={() => { setSettlingBillId(bill.id); setSettleAmount(due.toString()); }}
                                   className="btn-ghost"
-                                  style={{ padding: '4px 8px', fontSize: 10, borderColor: '#BAE6FD', color: '#0EA5E9' }}
+                                  style={{ padding: '4px 8px', fontSize: 12, borderColor: '#BAE6FD', color: '#0EA5E9' }}
                                 >
                                   Settle
                                 </button>
@@ -1340,30 +1340,84 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
         </div>
       )}
 
-      {/* Period Chart Tabs */}
-      {(['daily', 'weekly', 'monthly', 'yearly'] as TabType[]).includes(activeTab) && (
-        <div className="card" style={{ background: 'rgba(255,255,255,0.85)', padding: 24 }}>
-          <h3 style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#1E293B', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 6 }}>
-            <BarChart2 style={{ width: 14, height: 14, color: '#0EA5E9' }} /> {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} Revenue &amp; Profit
-          </h3>
-          {analyticsLoading ? (
-            <div style={{ height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94A3B8', fontSize: 12 }}>Loading chart data...</div>
-          ) : analyticsData.length === 0 ? (
-            <div style={{ height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94A3B8', fontSize: 12 }}>No data for this period yet.</div>
-          ) : (
-            <ResponsiveContainer width="100%" height={300}>
-              <ComposedChart data={analyticsData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
-                <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#94A3B8', fontWeight: 600 }} />
-                <YAxis tick={{ fontSize: 10, fill: '#94A3B8' }} tickFormatter={(v) => `Rs.${(v/1000).toFixed(0)}k`} />
-                <Tooltip content={<CustomTooltip />} />
-                <Legend wrapperStyle={{ fontSize: 11, fontWeight: 700 }} />
-                <Bar dataKey="revenue" name="Revenue" fill="#0EA5E9" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="profit" name="Profit" fill="#0EA5E9" radius={[4, 4, 0, 0]} />
-                <Line type="monotone" dataKey="revenue" stroke="#0EA5E9" strokeWidth={2} dot={false} />
-              </ComposedChart>
-            </ResponsiveContainer>
-          )}
+      {/* ANALYTICS TAB — unified with period picker */}
+      {activeTab === 'analytics' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Period Picker */}
+          <div style={{ background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: 10, padding: 16, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <BarChart2 style={{ width: 16, height: 16, color: '#0EA5E9' }} />
+              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>Revenue & Profit Analytics</span>
+            </div>
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: 4, background: '#F3F4F6', borderRadius: 8, padding: 3 }}>
+              {(['daily', 'weekly', 'monthly', 'yearly'] as AnalyticsPeriod[]).map(p => (
+                <button
+                  key={p}
+                  onClick={() => setAnalyticsPeriod(p)}
+                  style={{
+                    padding: '5px 14px', borderRadius: 6, border: 'none', cursor: 'pointer',
+                    fontSize: 12, fontWeight: 700, fontFamily: 'inherit', transition: 'all 0.15s',
+                    background: analyticsPeriod === p ? '#0EA5E9' : 'transparent',
+                    color: analyticsPeriod === p ? 'white' : '#6B7280',
+                  }}
+                >
+                  {p.charAt(0).toUpperCase() + p.slice(1)}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Quick metric strip for analytics period */}
+          {analyticsData.length > 0 && (() => {
+            const totalRev = analyticsData.reduce((s: number, d: any) => s + (d.revenue || 0), 0);
+            const totalProft = analyticsData.reduce((s: number, d: any) => s + (d.profit || 0), 0);
+            const avgRev = analyticsData.length > 0 ? totalRev / analyticsData.length : 0;
+            return (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10 }}>
+                {[
+                  { label: `Total ${analyticsPeriod} revenue`, val: `Rs. ${totalRev.toLocaleString()}`, color: '#0284C7', bg: '#F0F9FF', border: '#BAE6FD' },
+                  { label: `Total ${analyticsPeriod} profit`, val: `Rs. ${totalProft.toLocaleString()}`, color: '#059669', bg: '#F0FDF4', border: '#BBF7D0' },
+                  { label: `Avg per period`, val: `Rs. ${Math.round(avgRev).toLocaleString()}`, color: '#7C3AED', bg: '#FAF5FF', border: '#DDD6FE' },
+                  { label: 'Profit margin', val: totalRev > 0 ? `${((totalProft / totalRev) * 100).toFixed(1)}%` : '0%', color: '#B45309', bg: '#FFF7ED', border: '#FED7AA' },
+                ].map(k => (
+                  <div key={k.label} style={{ background: k.bg, border: `1.5px solid ${k.border}`, borderRadius: 10, padding: '12px 14px' }}>
+                    <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', color: k.color, marginBottom: 4 }}>{k.label}</div>
+                    <div style={{ fontSize: 18, fontWeight: 900, color: k.color, fontFamily: 'monospace' }}>{k.val}</div>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+
+          {/* Chart */}
+          <div style={{ background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: 10, padding: 20 }}>
+            {analyticsLoading ? (
+              <div style={{ height: 320, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 14 }}>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ width: 32, height: 32, borderRadius: '50%', border: '3px solid #0EA5E9', borderTopColor: 'transparent', animation: 'spin 0.8s linear infinite', margin: '0 auto 12px' }} />
+                  Loading {analyticsPeriod} analytics...
+                </div>
+              </div>
+            ) : analyticsData.length === 0 ? (
+              <div style={{ height: 320, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 14, flexDirection: 'column', gap: 8 }}>
+                <BarChart2 style={{ width: 40, height: 40, opacity: 0.2 }} />
+                <span>No data available for this period yet.</span>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={320}>
+                <ComposedChart data={analyticsData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
+                  <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#94A3B8', fontWeight: 600 }} />
+                  <YAxis tick={{ fontSize: 11, fill: '#94A3B8' }} tickFormatter={(v) => `Rs.${(v/1000).toFixed(0)}k`} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Legend wrapperStyle={{ fontSize: 12, fontWeight: 700 }} />
+                  <Bar dataKey="revenue" name="Revenue" fill="#0EA5E9" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="profit" name="Profit" fill="#10B981" radius={[4, 4, 0, 0]} />
+                  <Line type="monotone" dataKey="revenue" stroke="#0284C7" strokeWidth={2} dot={false} />
+                </ComposedChart>
+              </ResponsiveContainer>
+            )}
+          </div>
         </div>
       )}
 
@@ -1371,17 +1425,17 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
       {activeTab === 'fiscal' && (
         <div className="card" style={{ background: 'rgba(255,255,255,0.85)', padding: 24 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-            <h3 style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#1E293B', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <h3 style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
               <Calendar style={{ width: 14, height: 14, color: '#0EA5E9' }} /> Fiscal Year Audit Report — {fiscalYear}
             </h3>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               <select value={fiscalYear} onChange={e => setFiscalYear(parseInt(e.target.value))} className="input-crisp" style={{ fontSize: 11, padding: '4px 10px', width: 'auto' }}>
                 {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
               </select>
-               <button onClick={downloadFiscalExcel} className="btn-primary animate-scaleIn" style={{ fontSize: 10, padding: '5px 12px', gap: 4, background: 'linear-gradient(135deg, #10B981, #059669)', border: 'none' }}>
+               <button onClick={downloadFiscalExcel} className="btn-primary animate-scaleIn" style={{ fontSize: 12, padding: '5px 12px', gap: 4, background: '#059669', border: 'none' }}>
                 <FileText style={{ width: 12, height: 12 }} /> Export Excel
               </button>
-              <button onClick={printFiscalAudit} className="btn-ghost" style={{ fontSize: 10, padding: '5px 12px', gap: 4 }}>
+              <button onClick={printFiscalAudit} className="btn-ghost" style={{ fontSize: 12, padding: '5px 12px', gap: 4 }}>
                 <Printer style={{ width: 12, height: 12 }} /> Print Audit
               </button>
             </div>
@@ -1434,7 +1488,7 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
             });
             return (
               <div style={{ marginBottom: 20, background: '#FAFCFF', border: '1.5px solid #E0F2FE', borderRadius: 14, padding: 18 }}>
-                <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: '#475569', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-secondary)', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
                   <BarChart2 style={{ width: 12, height: 12, color: '#0EA5E9' }} /> Monthly Revenue, Profit & Procurement — {fiscalYear}
                 </div>
                 <ResponsiveContainer width="100%" height={220}>
@@ -1443,7 +1497,7 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
                     <XAxis dataKey="label" tick={{ fontSize: 9, fill: '#94A3B8', fontWeight: 600 }} />
                     <YAxis tick={{ fontSize: 9, fill: '#94A3B8' }} tickFormatter={(v) => `Rs.${(v/1000).toFixed(0)}k`} />
                     <Tooltip content={<CustomTooltip />} />
-                    <Legend wrapperStyle={{ fontSize: 10, fontWeight: 700 }} />
+                    <Legend wrapperStyle={{ fontSize: 12, fontWeight: 700 }} />
                     <Bar dataKey="revenue" name="Sales Revenue" fill="#0EA5E9" radius={[3, 3, 0, 0]} />
                     <Bar dataKey="procurement" name="Procurement Cost" fill="#EF4444" radius={[3, 3, 0, 0]} />
                     <Bar dataKey="profit" name="Gross Profit" fill="#10B981" radius={[3, 3, 0, 0]} />
@@ -1461,7 +1515,7 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
               </tr></thead>
               <tbody>
                 {fiscalOrders.length === 0 ? (
-                  <tr><td colSpan={8} style={{ padding: '32px', textAlign: 'center', color: '#94A3B8', fontStyle: 'italic' }}>No orders for fiscal year {fiscalYear}.</td></tr>
+                  <tr><td colSpan={8} style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)', fontStyle: 'italic' }}>No orders for fiscal year {fiscalYear}.</td></tr>
                 ) : (
                   <>
                     {fiscalOrders.map(o => (
@@ -1497,7 +1551,7 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
 
           {/* ── Supplier Bills Table for Fiscal Year ── */}
           <div style={{ marginTop: 24 }}>
-            <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: '#BE123C', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', color: '#BE123C', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
               <Receipt style={{ width: 12, height: 12 }} /> Supplier Procurement Bills — {fiscalYear}
             </div>
             <div className="table-wrapper">
@@ -1510,7 +1564,7 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
                 </tr></thead>
                 <tbody>
                   {fiscalSupplierBills.length === 0 ? (
-                    <tr><td colSpan={7} style={{ padding: '24px', textAlign: 'center', color: '#94A3B8', fontStyle: 'italic' }}>No supplier bills for fiscal year {fiscalYear}.</td></tr>
+                    <tr><td colSpan={7} style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)', fontStyle: 'italic' }}>No supplier bills for fiscal year {fiscalYear}.</td></tr>
                   ) : (
                     <>
                       {fiscalSupplierBills.map(b => {
@@ -1566,16 +1620,16 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
             <div className="modal-card animate-scaleIn" style={{ '--modal-max-width': '650px' } as React.CSSProperties} onClick={e => e.stopPropagation()}>
               <div className="modal-header">
                 <div>
-                  <h3 style={{ fontSize: 14, fontWeight: 900, color: '#1E293B', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <h3 style={{ fontSize: 14, fontWeight: 900, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
                     <Receipt style={{ width: 18, height: 18, color: '#0EA5E9' }} /> Supplier Bill Details
                   </h3>
-                  <p style={{ fontSize: 11, color: '#64748B', marginTop: 4 }}>
+                  <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4 }}>
                     Bill No: {detailSupplierBill.billNumber} · Date: {new Date(detailSupplierBill.billDate).toLocaleDateString()}
                   </p>
                 </div>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                   <span className={`status-pill status-pill-${detailSupplierBill.status.toLowerCase()}`}>{detailSupplierBill.status}</span>
-                  <button onClick={() => setDetailSupplierBill(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8', padding: 4, display: 'flex' }}>
+                  <button onClick={() => setDetailSupplierBill(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4, display: 'flex' }}>
                     <X style={{ width: 20, height: 20 }} />
                   </button>
                 </div>
@@ -1585,20 +1639,20 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
                 {/* Supplier Info */}
                 <div style={{ background: '#FAFCFF', border: '1px solid #E0F2FE', borderRadius: 12, padding: 12, fontSize: 11, color: '#334155' }}>
                   <div style={{ fontWeight: 800, color: '#0369A1', textTransform: 'uppercase', fontSize: 9, marginBottom: 4 }}>Supplier Details</div>
-                  <div style={{ fontWeight: 700, fontSize: 12 }}>{detailSupplierBill.supplier.name}</div>
-                  {detailSupplierBill.supplier.phone && <div style={{ color: '#64748B', marginTop: 2 }}>Phone: {detailSupplierBill.supplier.phone}</div>}
+                  <div style={{ fontWeight: 700, fontSize: 14 }}>{detailSupplierBill.supplier.name}</div>
+                  {detailSupplierBill.supplier.phone && <div style={{ color: 'var(--text-secondary)', marginTop: 2 }}>Phone: {detailSupplierBill.supplier.phone}</div>}
                 </div>
 
                 {/* Amounts Summary */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
                   {[
-                    { label: 'Total Amount', val: `Rs. ${detailSupplierBill.totalAmount.toLocaleString()}`, color: '#1E293B' },
+                    { label: 'Total Amount', val: `Rs. ${detailSupplierBill.totalAmount.toLocaleString()}`, color: 'var(--text-primary)' },
                     { label: 'Paid Amount', val: `Rs. ${detailSupplierBill.paidAmount.toLocaleString()}`, color: '#059669' },
                     { label: 'Remaining Due', val: `Rs. ${due.toLocaleString()}`, color: due > 0 ? '#DC2626' : '#94A3B8' },
                   ].map(({ label, val, color }) => (
-                    <div key={label} style={{ background: '#F8FAFC', borderRadius: 12, padding: '12px 14px', border: '1px solid #E2E8F0' }}>
-                      <div style={{ fontSize: 9, fontWeight: 800, color: '#94A3B8', textTransform: 'uppercase', marginBottom: 4 }}>{label}</div>
-                      <div style={{ fontSize: 13, fontWeight: 800, color, fontFamily: 'monospace' }}>{val}</div>
+                    <div key={label} style={{ background: 'var(--table-header-bg)', borderRadius: 12, padding: '12px 14px', border: '1px solid var(--card-border)' }}>
+                      <div style={{ fontSize: 9, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 4 }}>{label}</div>
+                      <div style={{ fontSize: 14, fontWeight: 800, color, fontFamily: 'monospace' }}>{val}</div>
                     </div>
                   ))}
                 </div>
@@ -1606,15 +1660,15 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
                 {/* Supplied Items */}
                 {itemsArray.length > 0 && (
                   <div>
-                    <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: '#475569', marginBottom: 8 }}>Medication Items</div>
-                    <div style={{ border: '1px solid #E2E8F0', borderRadius: 10, overflow: 'hidden' }}>
+                    <div style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-secondary)', marginBottom: 8 }}>Medication Items</div>
+                    <div style={{ border: '1px solid var(--card-border)', borderRadius: 10, overflow: 'hidden' }}>
                       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
-                        <thead style={{ background: '#F8FAFC' }}>
+                        <thead style={{ background: 'var(--table-header-bg)' }}>
                           <tr>
-                            <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 700, color: '#475569' }}>Item</th>
-                            <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 700, color: '#475569' }}>Boxes</th>
-                            <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, color: '#475569' }}>Cost / Box</th>
-                            <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, color: '#475569' }}>Subtotal</th>
+                            <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 700, color: 'var(--text-secondary)' }}>Item</th>
+                            <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 700, color: 'var(--text-secondary)' }}>Boxes</th>
+                            <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, color: 'var(--text-secondary)' }}>Cost / Box</th>
+                            <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, color: 'var(--text-secondary)' }}>Subtotal</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1632,7 +1686,7 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
                                 <td style={{ padding: '8px 12px', textAlign: 'right', fontFamily: 'monospace' }}>
                                   Rs. {costPerBox.toLocaleString()}
                                   {(!item.pricePerBox || item.pricePerBox === 0) && costPerBox > 0 && (
-                                    <span style={{ fontSize: 9, color: '#94A3B8', marginLeft: 4 }}>(from batch)</span>
+                                    <span style={{ fontSize: 9, color: 'var(--text-muted)', marginLeft: 4 }}>(from batch)</span>
                                   )}
                                 </td>
                                 <td style={{ padding: '8px 12px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 800 }}>Rs. {subtotal.toLocaleString()}</td>
@@ -1654,10 +1708,10 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
 
                 {/* Settlement Timeline Ledger */}
                 <div>
-                  <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: '#475569', marginBottom: 8 }}>Settlement History Ledger</div>
-                  <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 12, padding: 12, maxHeight: 150, overflowY: 'auto' }}>
+                  <div style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-secondary)', marginBottom: 8 }}>Settlement History Ledger</div>
+                  <div style={{ background: 'var(--table-header-bg)', border: '1px solid var(--card-border)', borderRadius: 12, padding: 12, maxHeight: 150, overflowY: 'auto' }}>
                     {detailSupplierBill.settlements.length === 0 ? (
-                      <div style={{ textAlign: 'center', color: '#94A3B8', fontSize: 11, padding: 12, fontStyle: 'italic' }}>
+                      <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 11, padding: 12, fontStyle: 'italic' }}>
                         No settlements recorded yet.
                       </div>
                     ) : (
@@ -1665,8 +1719,8 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
                         {detailSupplierBill.settlements.map((settle) => (
                           <div key={settle.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, borderBottom: '1px solid #F1F5F9', paddingBottom: 6 }}>
                             <div>
-                              <span style={{ color: '#64748B' }}>{new Date(settle.date).toLocaleString()}</span>
-                              {settle.notes && <div style={{ fontSize: 9, color: '#94A3B8', marginTop: 1 }}>{settle.notes}</div>}
+                              <span style={{ color: 'var(--text-secondary)' }}>{new Date(settle.date).toLocaleString()}</span>
+                              {settle.notes && <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 1 }}>{settle.notes}</div>}
                             </div>
                             <span style={{ fontWeight: 800, color: '#059669' }}>+ Rs. {settle.amount.toLocaleString()} ({settle.paymentMethod})</span>
                           </div>
@@ -1678,12 +1732,12 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
 
                 {/* Inline Settle Section */}
                 {due > 0 && (
-                  <div style={{ background: 'linear-gradient(135deg, #FFF7ED, #FEF2F2)', border: '1.5px solid #FED7AA', borderRadius: 14, padding: 16 }}>
-                    <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: '#C2410C', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div style={{ background: 'var(--table-header-bg)', border: '1px solid #FED7AA', borderRadius: 8, padding: 16 }}>
+                    <div style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', color: '#C2410C', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
                       <CreditCard style={{ width: 12, height: 12 }} /> Record Settlement Payment
                     </div>
                     <div style={{ fontSize: 11, color: '#7C2D12', marginBottom: 8 }}>
-                      Outstanding Due: <strong style={{ fontFamily: 'monospace', fontSize: 13 }}>Rs. {due.toLocaleString()}</strong>
+                      Outstanding Due: <strong style={{ fontFamily: 'monospace', fontSize: 14 }}>Rs. {due.toLocaleString()}</strong>
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 8, alignItems: 'center' }}>
                       <input
@@ -1693,13 +1747,13 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
                         value={detailBillSettleAmount}
                         onChange={e => setDetailBillSettleAmount(e.target.value)}
                         className="input-crisp"
-                        style={{ fontSize: 12, padding: '8px 10px' }}
+                        style={{ fontSize: 14, padding: '8px 10px' }}
                       />
                       <select
                         value={detailBillSettleMethod}
                         onChange={e => setDetailBillSettleMethod(e.target.value)}
                         className="select-crisp"
-                        style={{ fontSize: 12, padding: '8px 10px' }}
+                        style={{ fontSize: 14, padding: '8px 10px' }}
                       >
                         <option value="CASH">💵 CASH</option>
                         <option value="BANK_TRANSFER">🏦 BANK TRANSFER</option>
@@ -1748,11 +1802,11 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
             {/* Header */}
             <div className="modal-header">
               <div>
-                <h3 style={{ fontSize: 15, fontWeight: 900, color: '#1E293B', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <h3 style={{ fontSize: 18, fontWeight: 900, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
                   <Receipt style={{ width: 18, height: 18, color: '#0EA5E9' }} />
                   Invoice: INV-{invoiceModalOrder.id.substring(0, 12).toUpperCase()}
                 </h3>
-                <p style={{ fontSize: 11, color: '#94A3B8', marginTop: 3 }}>
+                <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>
                   {invoiceModalOrder.retailer.pharmacyName === 'Walk-in Customer (POS)' ? (
                     <span style={{ fontWeight: 'bold', color: '#0EA5E9' }}>{getWalkInName(invoiceModalOrder.overrideJustification)}</span>
                   ) : (
@@ -1763,7 +1817,7 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
               </div>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 <span style={statusPillStyle(invoiceModalOrder.status)}>{invoiceModalOrder.status}</span>
-                <button onClick={() => setInvoiceModalOrder(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8', padding: 4, borderRadius: 8, display: 'flex' }}>
+                <button onClick={() => setInvoiceModalOrder(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4, borderRadius: 8, display: 'flex' }}>
                   <X style={{ width: 20, height: 20 }} />
                 </button>
               </div>
@@ -1780,7 +1834,7 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
                     {/* Summary grid */}
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 12 }}>
                       {[
-                        { label: 'Gross Amount', val: `Rs. ${imoOrder.totalAmount.toFixed(2)}`, color: '#1E293B' },
+                        { label: 'Gross Amount', val: `Rs. ${imoOrder.totalAmount.toFixed(2)}`, color: 'var(--text-primary)' },
                         { label: 'Discount', val: `- Rs. ${imoOrder.discountAmount.toFixed(2)}`, color: '#EA580C' },
                         { label: 'Advance Applied', val: (imoOrder.advanceApplied || 0) > 0 ? `Rs. ${(imoOrder.advanceApplied as number).toLocaleString()}` : 'None', color: '#7C3AED' },
                         { label: 'Net Payable', val: `Rs. ${imoOrder.netAmount.toFixed(2)}`, color: '#0EA5E9' },
@@ -1788,24 +1842,24 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
                         { label: 'Remaining Due', val: `Rs. ${imoDue.toLocaleString()}`, color: imoDue > 0 ? '#DC2626' : '#94A3B8' },
                         { label: 'Profit', val: imoOrder.status === 'DELIVERED' ? `Rs. ${getOrderProfit(imoOrder).toFixed(2)}` : 'Pending', color: '#059669' },
                       ].map(({ label, val, color }) => (
-                        <div key={label} style={{ background: '#F8FAFC', borderRadius: 12, padding: '12px 14px', border: '1px solid #E2E8F0' }}>
-                          <div style={{ fontSize: 9, fontWeight: 800, color: '#94A3B8', textTransform: 'uppercase', marginBottom: 4 }}>{label}</div>
-                          <div style={{ fontSize: 13, fontWeight: 800, color, fontFamily: 'monospace' }}>{val}</div>
+                        <div key={label} style={{ background: 'var(--table-header-bg)', borderRadius: 12, padding: '12px 14px', border: '1px solid var(--card-border)' }}>
+                          <div style={{ fontSize: 9, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 4 }}>{label}</div>
+                          <div style={{ fontSize: 14, fontWeight: 800, color, fontFamily: 'monospace' }}>{val}</div>
                         </div>
                       ))}
                     </div>
 
                     {/* Items */}
                     <div>
-                      <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: '#475569', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <div style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-secondary)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
                         <Package style={{ width: 12, height: 12 }} /> Itemized Order Lines
                       </div>
-                      <div style={{ border: '1px solid #E2E8F0', borderRadius: 12, overflow: 'hidden' }}>
+                      <div style={{ border: '1px solid var(--card-border)', borderRadius: 12, overflow: 'hidden' }}>
                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
-                          <thead style={{ background: '#F8FAFC' }}>
+                          <thead style={{ background: 'var(--table-header-bg)' }}>
                             <tr>
                               {['Product', 'SKU', 'Qty', 'Unit Price', 'Subtotal'].map(h => (
-                                <th key={h} style={{ padding: '8px 12px', textAlign: h === 'Product' || h === 'SKU' ? 'left' : 'right', fontWeight: 700, color: '#475569', fontSize: 10, textTransform: 'uppercase' }}>{h}</th>
+                                <th key={h} style={{ padding: '8px 12px', textAlign: h === 'Product' || h === 'SKU' ? 'left' : 'right', fontWeight: 700, color: 'var(--text-secondary)', fontSize: 12, textTransform: 'uppercase' }}>{h}</th>
                               ))}
                             </tr>
                           </thead>
@@ -1814,8 +1868,8 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
                               const boxQty = Math.floor(item.quantity / (item.product.tabletsPerStrip * item.product.stripsPerBox));
                               return (
                                 <tr key={item.id} style={{ borderTop: '1px solid #E2E8F0' }}>
-                                  <td style={{ padding: '10px 12px', fontWeight: 700, color: '#1E293B' }}>{item.product.name}</td>
-                                  <td style={{ padding: '10px 12px', fontFamily: 'monospace', fontSize: 10, color: '#64748B' }}>{item.product.sku}</td>
+                                  <td style={{ padding: '10px 12px', fontWeight: 700, color: 'var(--text-primary)' }}>{item.product.name}</td>
+                                  <td style={{ padding: '10px 12px', fontFamily: 'monospace', fontSize: 12, color: 'var(--text-secondary)' }}>{item.product.sku}</td>
                                   <td style={{ padding: '10px 12px', textAlign: 'right', fontFamily: 'monospace' }}>{boxQty} boxes</td>
                                   <td style={{ padding: '10px 12px', textAlign: 'right', fontFamily: 'monospace' }}>Rs. {(item.pricePerUnit * item.product.tabletsPerStrip * item.product.stripsPerBox).toFixed(2)}/box</td>
                                   <td style={{ padding: '10px 12px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 800 }}>Rs. {(item.quantity * item.pricePerUnit).toFixed(2)}</td>
@@ -1830,20 +1884,20 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
                     {/* Settle History + Settle Input */}
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                       <div>
-                        <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: '#475569', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <div style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-secondary)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
                           <History style={{ width: 12, height: 12 }} /> Payment History
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 180, overflowY: 'auto' }}>
                           {imoVerifiedSettlements.length === 0 ? (
-                            <div style={{ fontSize: 11, color: '#94A3B8', fontStyle: 'italic', padding: '12px 0' }}>No payments recorded yet.</div>
+                            <div style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic', padding: '12px 0' }}>No payments recorded yet.</div>
                           ) : (
                             imoVerifiedSettlements.map((entry: any, i: number) => (
                               <div key={entry.id || i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 8 }}>
                                 <div>
-                                  <div style={{ fontSize: 10, color: '#475569' }}>{new Date(entry.createdAt || entry.date).toLocaleString()}</div>
-                                  {entry.method && <div style={{ fontSize: 9, color: '#94A3B8', marginTop: 1 }}>{entry.method}</div>}
+                                  <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{new Date(entry.createdAt || entry.date).toLocaleString()}</div>
+                                  {entry.method && <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 1 }}>{entry.method}</div>}
                                 </div>
-                                <div style={{ fontSize: 12, fontWeight: 800, color: '#059669', fontFamily: 'monospace' }}>+ Rs. {(entry.amount || 0).toLocaleString()}</div>
+                                <div style={{ fontSize: 14, fontWeight: 800, color: '#059669', fontFamily: 'monospace' }}>+ Rs. {(entry.amount || 0).toLocaleString()}</div>
                               </div>
                             ))
                           )}
@@ -1851,10 +1905,10 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
                           {(imoOrder.b2bSettlements || []).filter((s: any) => s.status === 'PENDING').map((entry: any, i: number) => (
                             <div key={`pending-${entry.id || i}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 8 }}>
                               <div>
-                                <div style={{ fontSize: 10, color: '#475569' }}>{new Date(entry.createdAt || entry.date).toLocaleString()}</div>
+                                <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{new Date(entry.createdAt || entry.date).toLocaleString()}</div>
                                 <div style={{ fontSize: 9, color: '#C2410C', fontWeight: 700 }}>⏳ AWAITING APPROVAL</div>
                               </div>
-                              <div style={{ fontSize: 12, fontWeight: 800, color: '#EA580C', fontFamily: 'monospace' }}>Rs. {(entry.amount || 0).toLocaleString()}</div>
+                              <div style={{ fontSize: 14, fontWeight: 800, color: '#EA580C', fontFamily: 'monospace' }}>Rs. {(entry.amount || 0).toLocaleString()}</div>
                             </div>
                           ))}
                         </div>
@@ -1862,7 +1916,7 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
 
                       {/* Settle input */}
                       <div style={{ background: '#FFF7ED', border: '1.5px solid #FED7AA', borderRadius: 14, padding: 16 }}>
-                        <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: '#C2410C', marginBottom: 10 }}>
+                        <div style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', color: '#C2410C', marginBottom: 10 }}>
                           <CreditCard style={{ width: 12, height: 12, display: 'inline', marginRight: 4 }} />
                           Record Manual Payment
                         </div>
@@ -1872,8 +1926,8 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
                               Remaining Due: <strong style={{ fontFamily: 'monospace' }}>Rs. {imoDue.toLocaleString()}</strong>
                             </div>
                             <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                              <button onClick={() => setSettleAmount(String(imoDue))} style={{ padding: '4px 10px', fontSize: 10, borderRadius: 8, border: '1px solid #FED7AA', background: '#FEF3C7', color: '#92400E', cursor: 'pointer', fontWeight: 700 }}>Full Pay</button>
-                              <button onClick={() => setSettleAmount(String(Math.floor(imoDue / 2)))} style={{ padding: '4px 10px', fontSize: 10, borderRadius: 8, border: '1px solid #FED7AA', background: '#FEF3C7', color: '#92400E', cursor: 'pointer', fontWeight: 700 }}>Half Pay</button>
+                              <button onClick={() => setSettleAmount(String(imoDue))} style={{ padding: '4px 10px', fontSize: 12, borderRadius: 8, border: '1px solid #FED7AA', background: '#FEF3C7', color: '#92400E', cursor: 'pointer', fontWeight: 700 }}>Full Pay</button>
+                              <button onClick={() => setSettleAmount(String(Math.floor(imoDue / 2)))} style={{ padding: '4px 10px', fontSize: 12, borderRadius: 8, border: '1px solid #FED7AA', background: '#FEF3C7', color: '#92400E', cursor: 'pointer', fontWeight: 700 }}>Half Pay</button>
                             </div>
                             <div style={{ display: 'flex', gap: 6 }}>
                               <input
@@ -1882,7 +1936,7 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
                                 value={settleAmount}
                                 onChange={e => setSettleAmount(e.target.value)}
                                 className="input-crisp"
-                                style={{ flex: 1, fontSize: 12, padding: '8px 10px' }}
+                                style={{ flex: 1, fontSize: 14, padding: '8px 10px' }}
                               />
                               <button
                                 onClick={() => handleSettleSubmit(imoOrder.id, imoOrder.netAmount)}
@@ -1894,7 +1948,7 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
                             </div>
                           </div>
                         ) : (
-                          <div style={{ fontSize: 12, color: '#059669', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, padding: '8px 0' }}>
+                          <div style={{ fontSize: 14, color: '#059669', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, padding: '8px 0' }}>
                             <Check style={{ width: 16, height: 16 }} /> Fully Settled
                           </div>
                         )}
@@ -1926,14 +1980,14 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
         <div className="modal-overlay" onClick={() => setShowColPicker(false)}>
           <div className="modal-card animate-scaleIn" style={{ '--modal-max-width': '360px' } as React.CSSProperties} onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <h3 style={{ fontSize: 13, fontWeight: 800, color: '#1E293B' }}>Toggle Columns</h3>
-              <button onClick={() => setShowColPicker(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8', display: 'flex' }}>
+              <h3 style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)' }}>Toggle Columns</h3>
+              <button onClick={() => setShowColPicker(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex' }}>
                 <X style={{ width: 18, height: 18 }} />
               </button>
             </div>
             <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {Object.entries(COLUMN_LABELS).map(([col, label]) => (
-                <label key={col} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, fontWeight: 600, color: '#334155', cursor: 'pointer', padding: '8px 12px', borderRadius: 10, background: visibleCols[col] ? '#F0F9FF' : '#F8FAFC', border: `1.5px solid ${visibleCols[col] ? '#BAE6FD' : '#E2E8F0'}`, transition: 'all 0.15s' }}>
+                <label key={col} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, fontWeight: 600, color: '#334155', cursor: 'pointer', padding: '8px 12px', borderRadius: 10, background: visibleCols[col] ? '#F0F9FF' : '#F8FAFC', border: `1.5px solid ${visibleCols[col] ? '#BAE6FD' : '#E2E8F0'}`, transition: 'all 0.15s' }}>
                   <input type="checkbox" checked={visibleCols[col]} onChange={() => setVisibleCols({ ...visibleCols, [col]: !visibleCols[col] })} style={{ accentColor: '#0EA5E9', width: 14, height: 14 }} />
                   {label}
                 </label>
@@ -1948,63 +2002,63 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
         <div className="modal-overlay" onClick={() => setSelectedOrderForPrint(null)}>
           <div className="modal-card animate-scaleIn" style={{ '--modal-max-width': '900px' } as React.CSSProperties} onClick={e => e.stopPropagation()}>
             <div className="modal-header no-print">
-              <h3 style={{ fontSize: 13, fontWeight: 900, color: '#1E293B', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <h3 style={{ fontSize: 14, fontWeight: 900, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
                 <Receipt style={{ width: 16, height: 16, color: '#0EA5E9' }} /> Invoice Print Preview
               </h3>
-              <button onClick={() => setSelectedOrderForPrint(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8', display: 'flex' }}>
+              <button onClick={() => setSelectedOrderForPrint(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex' }}>
                 <X style={{ width: 20, height: 20 }} />
               </button>
             </div>
             <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                {/* Customizer row */}
-              <div className="no-print" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, background: '#F8FAFC', padding: 16, borderRadius: 12 }}>
-                <div><label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', marginBottom: 6 }}>Invoice Title</label><input type="text" value={customInvoiceTitle} onChange={e => setCustomInvoiceTitle(e.target.value)} className="input-crisp" /></div>
-                <div><label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', marginBottom: 6 }}>Terms &amp; Conditions</label><textarea rows={2} value={customTerms} onChange={e => setCustomTerms(e.target.value)} className="input-crisp" style={{ resize: 'vertical' }} /></div>
-                <div><label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', marginBottom: 6 }}>Memo / Notes</label><textarea rows={2} value={customNotes} onChange={e => setCustomNotes(e.target.value)} className="input-crisp" style={{ resize: 'vertical' }} /></div>
+              <div className="no-print" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, background: 'var(--table-header-bg)', padding: 16, borderRadius: 12 }}>
+                <div><label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 6 }}>Invoice Title</label><input type="text" value={customInvoiceTitle} onChange={e => setCustomInvoiceTitle(e.target.value)} className="input-crisp" /></div>
+                <div><label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 6 }}>Terms &amp; Conditions</label><textarea rows={2} value={customTerms} onChange={e => setCustomTerms(e.target.value)} className="input-crisp" style={{ resize: 'vertical' }} /></div>
+                <div><label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 6 }}>Memo / Notes</label><textarea rows={2} value={customNotes} onChange={e => setCustomNotes(e.target.value)} className="input-crisp" style={{ resize: 'vertical' }} /></div>
               </div>
               {/* Print area */}
-              <div id="print-area" style={{ color: '#1E293B', fontSize: 12, background: 'white', border: '1px solid #E2E8F0', borderRadius: 12, padding: 24 }}>
+              <div id="print-area" style={{ color: 'var(--text-primary)', fontSize: 14, background: 'var(--card-bg)', border: '1px solid var(--card-border)', borderRadius: 12, padding: 24 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #1E293B', paddingBottom: 16, marginBottom: 20 }}>
                   <div>
-                    <h1 style={{ fontSize: 20, fontWeight: 900, textTransform: 'uppercase' }}>{customInvoiceTitle}</h1>
-                    <div style={{ fontFamily: 'monospace', fontWeight: 700, color: '#475569', marginTop: 4 }}>INV-{selectedOrderForPrint.id.substring(0, 12).toUpperCase()}</div>
-                    <div style={{ fontSize: 10, color: '#94A3B8', fontFamily: 'monospace', marginTop: 2 }}>Date: {new Date(selectedOrderForPrint.createdAt).toLocaleDateString()}</div>
+                    <h1 style={{ fontSize: 22, fontWeight: 900, textTransform: 'uppercase' }}>{customInvoiceTitle}</h1>
+                    <div style={{ fontFamily: 'monospace', fontWeight: 700, color: 'var(--text-secondary)', marginTop: 4 }}>INV-{selectedOrderForPrint.id.substring(0, 12).toUpperCase()}</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'monospace', marginTop: 2 }}>Date: {new Date(selectedOrderForPrint.createdAt).toLocaleDateString()}</div>
                   </div>
                   <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    <h2 style={{ fontSize: 13, fontWeight: 900, textTransform: 'uppercase' }}>{profile?.companyName || 'MedHub Distributor'}</h2>
-                    <div style={{ fontSize: 10, color: '#475569' }}>{profile?.address || 'Warehouse Location'}</div>
-                    <div style={{ fontSize: 10, color: '#475569' }}>Phone: {profile?.phone || 'N/A'}</div>
-                    <div style={{ fontSize: 11, color: '#475569', fontWeight: 800, marginTop: 4 }}>VAT / PAN ID: {profile?.taxId || profileId.substring(0, 8).toUpperCase()}</div>
+                    <h2 style={{ fontSize: 14, fontWeight: 900, textTransform: 'uppercase' }}>{profile?.companyName || 'MedHub Distributor'}</h2>
+                    <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{profile?.address || 'Warehouse Location'}</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Phone: {profile?.phone || 'N/A'}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 800, marginTop: 4 }}>VAT / PAN ID: {profile?.taxId || profileId.substring(0, 8).toUpperCase()}</div>
                   </div>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 12, padding: 16, marginBottom: 20 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, background: 'var(--table-header-bg)', border: '1px solid var(--card-border)', borderRadius: 12, padding: 16, marginBottom: 20 }}>
                   <div>
-                    <div style={{ fontSize: 9, textTransform: 'uppercase', color: '#94A3B8', fontWeight: 800, marginBottom: 6 }}>Billed To:</div>
-                    <div style={{ fontSize: 13, fontWeight: 900 }}>
+                    <div style={{ fontSize: 9, textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 800, marginBottom: 6 }}>Billed To:</div>
+                    <div style={{ fontSize: 14, fontWeight: 900 }}>
                       {selectedOrderForPrint.retailer.pharmacyName === "Walk-in Customer (POS)" ? (
                         <span>{getWalkInName(selectedOrderForPrint.overrideJustification)}</span>
                       ) : (
                         selectedOrderForPrint.retailer.pharmacyName
                       )}
                     </div>
-                    <div style={{ fontSize: 11, color: '#475569', marginTop: 2 }}>
+                    <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
                       {selectedOrderForPrint.retailer.pharmacyName === "Walk-in Customer (POS)" ? 'POS Counter Walk-in Cash Sale' : selectedOrderForPrint.retailer.address}
                     </div>
-                    <div style={{ fontSize: 10, color: '#94A3B8', marginTop: 1 }}>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 1 }}>
                       {selectedOrderForPrint.retailer.pharmacyName === "Walk-in Customer (POS)" 
                         ? `Phone: ${getWalkInPhone(selectedOrderForPrint.overrideJustification)}` 
                         : `Phone: ${selectedOrderForPrint.retailer.phone}`}
                     </div>
                   </div>
                   <div>
-                    <div style={{ fontSize: 9, textTransform: 'uppercase', color: '#94A3B8', fontWeight: 800, marginBottom: 6 }}>Payment Summary:</div>
-                    <div style={{ fontSize: 13, fontWeight: 900 }}>Net Value: Rs. {selectedOrderForPrint.netAmount.toFixed(2)}</div>
+                    <div style={{ fontSize: 9, textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 800, marginBottom: 6 }}>Payment Summary:</div>
+                    <div style={{ fontSize: 14, fontWeight: 900 }}>Net Value: Rs. {selectedOrderForPrint.netAmount.toFixed(2)}</div>
                     <div style={{ fontSize: 11, color: '#059669', marginTop: 2 }}>Paid: Rs. {getOrderPaid(selectedOrderForPrint as any).toLocaleString()}</div>
                     <div style={{ fontSize: 11, color: '#DC2626', marginTop: 1 }}>Remaining: Rs. {Math.max(selectedOrderForPrint.netAmount - getOrderPaid(selectedOrderForPrint as any), 0).toLocaleString()}</div>
                   </div>
                 </div>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, marginBottom: 20 }}>
-                  <thead><tr style={{ borderBottom: '2px solid #1E293B', textTransform: 'uppercase', fontSize: 9, letterSpacing: '0.08em', color: '#475569' }}>
+                  <thead><tr style={{ borderBottom: '2px solid #1E293B', textTransform: 'uppercase', fontSize: 9, letterSpacing: '0.08em', color: 'var(--text-secondary)' }}>
                     <th style={{ padding: '8px 0', textAlign: 'left' }}>SKU</th>
                     <th style={{ padding: '8px 0', textAlign: 'left' }}>Description</th>
                     <th style={{ padding: '8px 0', textAlign: 'right' }}>Units</th>
@@ -2026,21 +2080,21 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
                 </table>
                 <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '2px solid #1E293B', paddingTop: 16, marginBottom: 16 }}>
                   <div style={{ width: '50%', display: 'flex', flexDirection: 'column', gap: 6, fontFamily: 'monospace', fontSize: 11 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748B' }}><span>Total:</span><span>Rs. {selectedOrderForPrint.totalAmount.toFixed(2)}</span></div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748B' }}><span>Discount:</span><span>- Rs. {selectedOrderForPrint.discountAmount.toFixed(2)}</span></div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 900, fontSize: 14, color: '#1E293B', borderTop: '1px solid #1E293B', paddingTop: 8, marginTop: 4 }}><span>NET DUE:</span><span>Rs. {selectedOrderForPrint.netAmount.toFixed(2)}</span></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}><span>Total:</span><span>Rs. {selectedOrderForPrint.totalAmount.toFixed(2)}</span></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}><span>Discount:</span><span>- Rs. {selectedOrderForPrint.discountAmount.toFixed(2)}</span></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 900, fontSize: 14, color: 'var(--text-primary)', borderTop: '1px solid #1E293B', paddingTop: 8, marginTop: 4 }}><span>NET DUE:</span><span>Rs. {selectedOrderForPrint.netAmount.toFixed(2)}</span></div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', color: '#059669', fontWeight: 700 }}><span>Paid:</span><span>Rs. {getOrderPaid(selectedOrderForPrint as any).toLocaleString()}</span></div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', color: '#DC2626', fontWeight: 700 }}><span>Remaining:</span><span>Rs. {Math.max(selectedOrderForPrint.netAmount - getOrderPaid(selectedOrderForPrint as any), 0).toLocaleString()}</span></div>
                   </div>
                 </div>
-                <div style={{ borderTop: '1px dashed #CBD5E1', paddingTop: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 10, fontWeight: 700, color: '#94A3B8', fontFamily: 'monospace' }}>
+                <div style={{ borderTop: '1px dashed #CBD5E1', paddingTop: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', fontFamily: 'monospace' }}>
                   <span>MEDHUB SECURE BILLING MATRIX</span>
                   <div style={{ textAlign: 'right' }}><div style={{ width: 140, borderBottom: '1px solid #94A3B8', height: 40 }}></div><span style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginTop: 4 }}>Authorized Signature</span></div>
                 </div>
               </div>
             </div>
             <div className="modal-footer no-print" style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button onClick={handlePrint} className="btn-primary" style={{ background: 'linear-gradient(135deg, #0EA5E9, #38BDF8)', gap: 6 }}>
+              <button onClick={handlePrint} className="btn-primary" style={{ background: '#0EA5E9', gap: 6 }}>
                 <Printer style={{ width: 14, height: 14 }} /> Print Document
               </button>
               <button onClick={() => setSelectedOrderForPrint(null)} className="btn-ghost">Close Preview</button>

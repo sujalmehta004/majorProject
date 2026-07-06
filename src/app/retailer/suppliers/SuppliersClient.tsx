@@ -307,17 +307,17 @@ export default function SuppliersClient({ profile, initialWholesalers, initialCu
       {/* ── Header ── */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
         <div>
-          <h1 style={{ fontSize: 24, fontWeight: 900, color: '#1E293B', margin: 0 }}>Supplier & Wholesale Panel</h1>
-          <p style={{ fontSize: 13, color: '#64748B', margin: '4px 0 0' }}>
+          <h1 style={{ fontSize: 24, fontWeight: 900, color: 'var(--text-primary)', margin: 0 }}>Supplier & Wholesale Panel</h1>
+          <p style={{ fontSize: 14, color: 'var(--text-secondary)', margin: '4px 0 0' }}>
             Browse live wholesalers or manage your retail custom suppliers &nbsp;
-            <span style={{ fontSize: 11, color: '#94A3B8' }}>[ / ] Search</span>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>[ / ] Search</span>
           </p>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
           {activeTab === 'custom' && (
             <button
               onClick={handleOpenCreate}
-              style={{ background: '#F59E0B', color: '#FFFFFF', display: 'flex', alignItems: 'center', gap: 8, padding: '10px 18px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', border: 'none', boxShadow: '0 4px 12px rgba(245,158,11,0.3)' }}
+              style={{ background: '#F59E0B', color: '#FFFFFF', display: 'flex', alignItems: 'center', gap: 8, padding: '10px 18px', borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: 'pointer', border: 'none', boxShadow: '0 4px 12px rgba(245,158,11,0.3)' }}
             >
               <Plus style={{ width: 15, height: 15 }} />
               Add Custom Supplier
@@ -326,7 +326,7 @@ export default function SuppliersClient({ profile, initialWholesalers, initialCu
           {cart.length > 0 && (
             <button
               onClick={() => setShowCartModal(true)}
-              style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#10B981', color: '#FFFFFF', border: 'none', borderRadius: 12, padding: '10px 20px', fontSize: 13, fontWeight: 800, cursor: 'pointer', boxShadow: '0 4px 16px rgba(16,185,129,0.35)' }}
+              style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#10B981', color: '#FFFFFF', border: 'none', borderRadius: 12, padding: '10px 20px', fontSize: 14, fontWeight: 800, cursor: 'pointer', boxShadow: '0 4px 16px rgba(16,185,129,0.35)' }}
             >
               <ShoppingBag style={{ width: 16, height: 16 }} />
               Basket ({cart.length}) · Rs. {cartTotal.toLocaleString()}
@@ -336,16 +336,16 @@ export default function SuppliersClient({ profile, initialWholesalers, initialCu
       </div>
 
       {/* ── Tabs ── */}
-      <div style={{ display: 'flex', gap: 4, background: '#F8FAFC', borderRadius: 12, padding: 4, border: '1px solid #E2E8F0' }}>
+      <div style={{ display: 'flex', gap: 4, background: 'var(--table-header-bg)', borderRadius: 12, padding: 4, border: '1px solid var(--card-border)' }}>
         <button
           onClick={() => { setActiveTab('wholesalers'); setFilterQuery(''); }}
-          style={{ flex: 1, padding: '10px 16px', borderRadius: 9, border: 'none', fontSize: 13, fontWeight: 800, cursor: 'pointer', transition: 'all 0.15s', background: activeTab === 'wholesalers' ? '#FFFFFF' : 'transparent', color: activeTab === 'wholesalers' ? '#F59E0B' : '#64748B', boxShadow: activeTab === 'wholesalers' ? '0 2px 8px rgba(0,0,0,0.07)' : 'none' }}
+          style={{ flex: 1, padding: '10px 16px', borderRadius: 9, border: 'none', fontSize: 14, fontWeight: 800, cursor: 'pointer', transition: 'all 0.15s', background: 'var(--card-bg)', color: activeTab === 'wholesalers' ? '#F59E0B' : '#64748B', boxShadow: activeTab === 'wholesalers' ? '0 2px 8px rgba(0,0,0,0.07)' : 'none' }}
         >
           Wholesale B2B Marketplace
         </button>
         <button
           onClick={() => { setActiveTab('custom'); setFilterQuery(''); }}
-          style={{ flex: 1, padding: '10px 16px', borderRadius: 9, border: 'none', fontSize: 13, fontWeight: 800, cursor: 'pointer', transition: 'all 0.15s', background: activeTab === 'custom' ? '#FFFFFF' : 'transparent', color: activeTab === 'custom' ? '#F59E0B' : '#64748B', boxShadow: activeTab === 'custom' ? '0 2px 8px rgba(0,0,0,0.07)' : 'none' }}
+          style={{ flex: 1, padding: '10px 16px', borderRadius: 9, border: 'none', fontSize: 14, fontWeight: 800, cursor: 'pointer', transition: 'all 0.15s', background: 'var(--card-bg)', color: activeTab === 'custom' ? '#F59E0B' : '#64748B', boxShadow: activeTab === 'custom' ? '0 2px 8px rgba(0,0,0,0.07)' : 'none' }}
         >
           Custom Direct Suppliers ({customSuppliers.length})
         </button>
@@ -357,21 +357,21 @@ export default function SuppliersClient({ profile, initialWholesalers, initialCu
           
           {/* Left panel: Wholesalers */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#FFFFFF', padding: '8px 14px', borderRadius: 10, border: '1.5px solid #F1F5F9' }}>
-              <Search style={{ width: 14, height: 14, color: '#94A3B8' }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--card-bg)', padding: '8px 14px', borderRadius: 10, border: '1px solid var(--card-border)' }}>
+              <Search style={{ width: 14, height: 14, color: 'var(--text-muted)' }} />
               <input
                 ref={searchRef}
                 type="text"
                 placeholder="Search wholesalers…"
                 value={filterQuery}
                 onChange={(e) => setFilterQuery(e.target.value)}
-                style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%', fontSize: 12 }}
+                style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%', fontSize: 14 }}
               />
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {filteredWholesalers.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '40px 20px', color: '#94A3B8', fontSize: 12 }}>No wholesalers found</div>
+                <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)', fontSize: 14 }}>No wholesalers found</div>
               ) : filteredWholesalers.map((w, idx) => {
                 const isActive = selectedWholesaler?.id === w.id;
                 const wColor = WCOLORS[idx % WCOLORS.length];
@@ -385,7 +385,7 @@ export default function SuppliersClient({ profile, initialWholesalers, initialCu
                     key={w.id}
                     onClick={() => { setSelectedWholesaler(w); setCart([]); setOrderMessage({ text: '', isError: false }); setQtyInputs({}); }}
                     style={{
-                      background: '#FFFFFF',
+                      background: 'var(--card-bg)',
                       border: isActive ? `2px solid ${wColor}` : '1.5px solid #F1F5F9',
                       borderRadius: 14,
                       padding: 16,
@@ -396,12 +396,12 @@ export default function SuppliersClient({ profile, initialWholesalers, initialCu
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <div style={{ width: 36, height: 36, borderRadius: 10, background: `${wColor}12`, border: `1.5px solid ${wColor}25`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 900, color: wColor, flexShrink: 0, textAlign: 'center', lineHeight: '32px' }}>
+                      <div style={{ width: 36, height: 36, borderRadius: 10, background: `${wColor}12`, border: `1.5px solid ${wColor}25`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 900, color: wColor, flexShrink: 0, textAlign: 'center', lineHeight: '32px' }}>
                         {w.companyName[0]}
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 800, color: '#1E293B', fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{w.companyName}</div>
-                        <div style={{ fontSize: 10, color: '#94A3B8', marginTop: 1, display: 'flex', alignItems: 'center', gap: 3 }}>
+                        <div style={{ fontWeight: 800, color: 'var(--text-primary)', fontSize: 14, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{w.companyName}</div>
+                        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 1, display: 'flex', alignItems: 'center', gap: 3 }}>
                           <MapPin style={{ width: 9, height: 9 }} />
                           {w.address.length > 25 ? w.address.substring(0, 25) + '…' : w.address}
                         </div>
@@ -410,11 +410,11 @@ export default function SuppliersClient({ profile, initialWholesalers, initialCu
                     <div style={{ display: 'flex', gap: 8, marginTop: 10, paddingTop: 10, borderTop: '1px solid #F8FAFC' }}>
                       <div style={{ flex: 1, background: `${wColor}08`, borderRadius: 6, padding: '5px 8px', textAlign: 'center' }}>
                         <div style={{ fontSize: 14, fontWeight: 900, color: wColor }}>{totalSKUs}</div>
-                        <div style={{ fontSize: 9, color: '#94A3B8', fontWeight: 700 }}>SKUs</div>
+                        <div style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 700 }}>SKUs</div>
                       </div>
                       <div style={{ flex: 1, background: `${wColor}08`, borderRadius: 6, padding: '5px 8px', textAlign: 'center' }}>
                         <div style={{ fontSize: 14, fontWeight: 900, color: wColor }}>{totalBoxes}</div>
-                        <div style={{ fontSize: 9, color: '#94A3B8', fontWeight: 700 }}>BOXES</div>
+                        <div style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 700 }}>BOXES</div>
                       </div>
                     </div>
                   </button>
@@ -426,44 +426,44 @@ export default function SuppliersClient({ profile, initialWholesalers, initialCu
           {/* Right Catalog View */}
           <div>
             {!selectedWholesaler ? (
-              <div style={{ background: '#FFFFFF', borderRadius: 18, border: '1.5px solid #F1F5F9', padding: '80px 24px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+              <div style={{ background: 'var(--card-bg)', borderRadius: 18, border: '1px solid var(--card-border)', padding: '80px 24px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
                 <div style={{ width: 64, height: 64, borderRadius: 20, background: 'rgba(245,158,11,0.08)', border: '2px dashed rgba(245,158,11,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <Building style={{ width: 28, height: 28, color: '#F59E0B' }} />
                 </div>
                 <div>
-                  <h3 style={{ fontSize: 16, fontWeight: 800, color: '#1E293B', margin: 0 }}>Select a Wholesaler</h3>
-                  <p style={{ fontSize: 13, color: '#94A3B8', margin: '6px 0 0' }}>Choose a supplier from the left list to browse their live catalog and order items</p>
+                  <h3 style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>Select a Wholesaler</h3>
+                  <p style={{ fontSize: 14, color: 'var(--text-muted)', margin: '6px 0 0' }}>Choose a supplier from the left list to browse their live catalog and order items</p>
                 </div>
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
                 {/* Banner */}
-                <div style={{ background: '#FFFFFF', borderRadius: 16, border: '1.5px solid #F1F5F9', padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+                <div style={{ background: 'var(--card-bg)', borderRadius: 16, border: '1px solid var(--card-border)', padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                     <div style={{ width: 48, height: 48, borderRadius: 14, background: 'rgba(245,158,11,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, fontWeight: 900, color: '#F59E0B' }}>
                       {selectedWholesaler.companyName[0]}
                     </div>
                     <div>
-                      <h2 style={{ fontSize: 20, fontWeight: 900, color: '#1E293B', margin: 0 }}>{selectedWholesaler.companyName}</h2>
+                      <h2 style={{ fontSize: 22, fontWeight: 900, color: 'var(--text-primary)', margin: 0 }}>{selectedWholesaler.companyName}</h2>
                       <div style={{ display: 'flex', gap: 14, marginTop: 4, flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: 11, color: '#64748B', display: 'flex', alignItems: 'center', gap: 4 }}><Phone style={{ width: 10, height: 10 }} />{selectedWholesaler.phone}</span>
-                        <span style={{ fontSize: 11, color: '#64748B', display: 'flex', alignItems: 'center', gap: 4 }}><MapPin style={{ width: 10, height: 10 }} />{selectedWholesaler.address}</span>
+                        <span style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 4 }}><Phone style={{ width: 10, height: 10 }} />{selectedWholesaler.phone}</span>
+                        <span style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 4 }}><MapPin style={{ width: 10, height: 10 }} />{selectedWholesaler.address}</span>
                       </div>
                     </div>
                   </div>
                 </div>
 
                 {/* Catalog Table */}
-                <div style={{ background: '#FFFFFF', borderRadius: 16, border: '1.5px solid #F1F5F9', overflow: 'hidden' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                <div style={{ background: 'var(--card-bg)', borderRadius: 16, border: '1px solid var(--card-border)', overflow: 'hidden' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
                     <thead>
-                      <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #F1F5F9' }}>
-                        <th style={{ padding: '12px 20px', color: '#64748B', fontWeight: 700, textAlign: 'left' }}>Medicine</th>
-                        <th style={{ padding: '12px 20px', color: '#64748B', fontWeight: 700, textAlign: 'left' }}>Category</th>
-                        <th style={{ padding: '12px 20px', color: '#64748B', fontWeight: 700, textAlign: 'right' }}>Available</th>
-                        <th style={{ padding: '12px 20px', color: '#64748B', fontWeight: 700, textAlign: 'right' }}>Price / Box</th>
-                        <th style={{ padding: '12px 20px', color: '#64748B', fontWeight: 700, textAlign: 'center' }}>Order Qty</th>
-                        <th style={{ padding: '12px 20px', color: '#64748B', fontWeight: 700, textAlign: 'center' }}>Action</th>
+                      <tr style={{ background: 'var(--table-header-bg)', borderBottom: '1px solid #F1F5F9' }}>
+                        <th style={{ padding: '12px 20px', color: 'var(--text-secondary)', fontWeight: 700, textAlign: 'left' }}>Medicine</th>
+                        <th style={{ padding: '12px 20px', color: 'var(--text-secondary)', fontWeight: 700, textAlign: 'left' }}>Category</th>
+                        <th style={{ padding: '12px 20px', color: 'var(--text-secondary)', fontWeight: 700, textAlign: 'right' }}>Available</th>
+                        <th style={{ padding: '12px 20px', color: 'var(--text-secondary)', fontWeight: 700, textAlign: 'right' }}>Price / Box</th>
+                        <th style={{ padding: '12px 20px', color: 'var(--text-secondary)', fontWeight: 700, textAlign: 'center' }}>Order Qty</th>
+                        <th style={{ padding: '12px 20px', color: 'var(--text-secondary)', fontWeight: 700, textAlign: 'center' }}>Action</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -488,18 +488,18 @@ export default function SuppliersClient({ profile, initialWholesalers, initialCu
                           return (
                             <tr key={prod.id} style={{ borderBottom: '1px solid #F8FAFC', background: isMatch ? 'rgba(245,158,11,0.06)' : undefined }}>
                               <td style={{ padding: '13px 20px' }}>
-                                <div style={{ fontWeight: 800, color: '#1E293B', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <div style={{ fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
                                   {prod.name}
                                   {isMatch && <span style={{ fontSize: 9, background: '#FEF3C7', color: '#D97706', padding: '1px 5px', borderRadius: 4, fontWeight: 800 }}>Search Match</span>}
                                 </div>
-                                <div style={{ fontSize: 11, color: '#94A3B8', fontFamily: 'monospace' }}>{prod.sku}</div>
+                                <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'monospace' }}>{prod.sku}</div>
                               </td>
                               <td style={{ padding: '13px 20px' }}>
-                                <span style={{ padding: '3px 8px', borderRadius: 6, background: '#F1F5F9', fontSize: 11, fontWeight: 600, color: '#475569' }}>{prod.category}</span>
+                                <span style={{ padding: '3px 8px', borderRadius: 6, background: '#F1F5F9', fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)' }}>{prod.category}</span>
                               </td>
                               <td style={{ padding: '13px 20px', textAlign: 'right' }}>
                                 <div style={{ fontWeight: 700, color: totalBoxes > 0 ? '#1E293B' : '#EF4444' }}>{totalBoxes} boxes</div>
-                                <div style={{ fontSize: 10, color: '#94A3B8' }}>{totalUnits.toLocaleString()} units</div>
+                                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{totalUnits.toLocaleString()} units</div>
                               </td>
                               <td style={{ padding: '13px 20px', textAlign: 'right', fontWeight: 800, color: '#F59E0B' }}>
                                 Rs. {price.toLocaleString()}
@@ -512,7 +512,7 @@ export default function SuppliersClient({ profile, initialWholesalers, initialCu
                                   placeholder="0"
                                   value={qtyInputs[prod.id] || (cartItem ? String(cartItem.qtyBoxes) : '')}
                                   onChange={(e) => setQtyInputs({ ...qtyInputs, [prod.id]: e.target.value })}
-                                  style={{ width: 60, padding: '6px', borderRadius: 7, border: '1px solid #E2E8F0', textAlign: 'center' }}
+                                  style={{ width: 60, padding: '6px', borderRadius: 7, border: '1px solid var(--card-border)', textAlign: 'center' }}
                                 />
                               </td>
                               <td style={{ padding: '13px 20px', textAlign: 'center' }}>
@@ -536,33 +536,33 @@ export default function SuppliersClient({ profile, initialWholesalers, initialCu
       ) : (
         /* ── Custom Direct Suppliers Tab ── */
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#FFFFFF', padding: '8px 14px', borderRadius: 10, border: '1.5px solid #F1F5F9', maxWidth: 360 }}>
-            <Search style={{ width: 14, height: 14, color: '#94A3B8' }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--card-bg)', padding: '8px 14px', borderRadius: 10, border: '1px solid var(--card-border)', maxWidth: 360 }}>
+            <Search style={{ width: 14, height: 14, color: 'var(--text-muted)' }} />
             <input
               type="text"
               placeholder="Search custom suppliers…"
               value={filterQuery}
               onChange={(e) => setFilterQuery(e.target.value)}
-              style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%', fontSize: 12 }}
+              style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%', fontSize: 14 }}
             />
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 16 }}>
             {filteredCustom.length === 0 ? (
-              <div style={{ gridColumn: '1 / -1', background: '#FFFFFF', border: '1.5px solid #F1F5F9', borderRadius: 16, padding: '60px', textAlign: 'center', color: '#94A3B8' }}>
+              <div style={{ gridColumn: '1 / -1', background: 'var(--card-bg)', border: '1px solid var(--card-border)', borderRadius: 16, padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>
                 <Building style={{ width: 40, height: 40, color: '#CBD5E1', margin: '0 auto 10px' }} />
                 <div>No custom suppliers registered yet. Click "Add Custom Supplier" above.</div>
               </div>
             ) : filteredCustom.map((sup) => (
               <div
                 key={sup.id}
-                style={{ background: '#FFFFFF', border: '1.5px solid #F1F5F9', borderRadius: 16, padding: 20, display: 'flex', flexDirection: 'column', gap: 12, boxShadow: '0 2px 4px rgba(0,0,0,0.01)' }}
+                style={{ background: 'var(--card-bg)', border: '1px solid var(--card-border)', borderRadius: 16, padding: 20, display: 'flex', flexDirection: 'column', gap: 12, boxShadow: 'none' }}
               >
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <div style={{ fontWeight: 800, color: '#1E293B', fontSize: 14 }}>{sup.name}</div>
+                    <div style={{ fontWeight: 800, color: 'var(--text-primary)', fontSize: 14 }}>{sup.name}</div>
                     <div style={{ display: 'flex', gap: 6 }}>
-                      <button onClick={(e) => handleOpenEdit(sup, e)} style={{ border: 'none', background: '#F8FAFC', padding: 6, borderRadius: 6, cursor: 'pointer', color: '#3B82F6' }}>
+                      <button onClick={(e) => handleOpenEdit(sup, e)} style={{ border: 'none', background: 'var(--table-header-bg)', padding: 6, borderRadius: 6, cursor: 'pointer', color: '#3B82F6' }}>
                         <Edit2 style={{ width: 12, height: 12 }} />
                       </button>
                       <button onClick={(e) => handleDeleteSupplier(sup.id, e)} style={{ border: 'none', background: 'rgba(239,68,68,0.06)', padding: 6, borderRadius: 6, cursor: 'pointer', color: '#EF4444' }}>
@@ -571,22 +571,22 @@ export default function SuppliersClient({ profile, initialWholesalers, initialCu
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 10, fontSize: 12, color: '#64748B' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 10, fontSize: 14, color: 'var(--text-secondary)' }}>
                     {sup.contactPerson && (
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <User style={{ width: 12, height: 12, color: '#94A3B8' }} />
+                        <User style={{ width: 12, height: 12, color: 'var(--text-muted)' }} />
                         {sup.contactPerson}
                       </div>
                     )}
                     {sup.phone && (
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <Phone style={{ width: 12, height: 12, color: '#94A3B8' }} />
+                        <Phone style={{ width: 12, height: 12, color: 'var(--text-muted)' }} />
                         {sup.phone}
                       </div>
                     )}
                     {sup.email && (
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <Mail style={{ width: 12, height: 12, color: '#94A3B8' }} />
+                        <Mail style={{ width: 12, height: 12, color: 'var(--text-muted)' }} />
                         {sup.email}
                       </div>
                     )}
@@ -594,7 +594,7 @@ export default function SuppliersClient({ profile, initialWholesalers, initialCu
                 </div>
 
                 {sup.address && (
-                  <div style={{ fontSize: 11, color: '#94A3B8', borderTop: '1px solid #F8FAFC', paddingTop: 8, display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', borderTop: '1px solid #F8FAFC', paddingTop: 8, display: 'flex', alignItems: 'center', gap: 4 }}>
                     <MapPin style={{ width: 11, height: 11 }} />
                     {sup.address}
                   </div>
@@ -608,30 +608,30 @@ export default function SuppliersClient({ profile, initialWholesalers, initialCu
       {/* ── Cart Modal ── */}
       {showCartModal && selectedWholesaler && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(15,23,42,0.35)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-          <form onSubmit={handlePlaceOrder} style={{ width: '100%', maxWidth: 520, background: '#FFFFFF', borderRadius: 20, overflow: 'hidden', boxShadow: '0 24px 60px rgba(0,0,0,0.12)' }}>
+          <form onSubmit={handlePlaceOrder} style={{ width: '100%', maxWidth: 520, background: 'var(--card-bg)', borderRadius: 20, overflow: 'hidden', boxShadow: 'none' }}>
             <div style={{ padding: '20px 24px', borderBottom: '1px solid #F1F5F9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ fontSize: 16, fontWeight: 900, color: '#1E293B', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <h3 style={{ fontSize: 16, fontWeight: 900, color: 'var(--text-primary)', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <ShoppingBag style={{ width: 18, height: 18, color: '#F59E0B' }} />
                 Review B2B Order Basket
               </h3>
-              <button type="button" onClick={() => setShowCartModal(false)} style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: '6px', cursor: 'pointer', color: '#64748B' }}>
+              <button type="button" onClick={() => setShowCartModal(false)} style={{ background: 'var(--table-header-bg)', border: '1px solid var(--card-border)', borderRadius: 8, padding: '6px', cursor: 'pointer', color: 'var(--text-secondary)' }}>
                 <X style={{ width: 16, height: 16 }} />
               </button>
             </div>
             
             <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 18 }}>
               {orderMessage.text && (
-                <div style={{ padding: '10px 14px', background: orderMessage.isError ? 'rgba(239,68,68,0.06)' : 'rgba(16,185,129,0.06)', border: `1px solid ${orderMessage.isError ? 'rgba(239,68,68,0.2)' : 'rgba(16,185,129,0.2)'}`, color: orderMessage.isError ? '#EF4444' : '#10B981', borderRadius: 8, fontSize: 12, fontWeight: 600 }}>
+                <div style={{ padding: '10px 14px', background: orderMessage.isError ? 'rgba(239,68,68,0.06)' : 'rgba(16,185,129,0.06)', border: `1px solid ${orderMessage.isError ? 'rgba(239,68,68,0.2)' : 'rgba(16,185,129,0.2)'}`, color: orderMessage.isError ? '#EF4444' : '#10B981', borderRadius: 8, fontSize: 14, fontWeight: 600 }}>
                   {orderMessage.text}
                 </div>
               )}
 
               <div style={{ maxHeight: 220, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {cart.map((item) => (
-                  <div key={item.productId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: '#F8FAFC', borderRadius: 10 }}>
+                  <div key={item.productId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: 'var(--table-header-bg)', borderRadius: 10 }}>
                     <div>
-                      <div style={{ fontWeight: 800, fontSize: 13 }}>{item.name}</div>
-                      <div style={{ fontSize: 11, color: '#94A3B8' }}>{item.qtyBoxes} boxes × Rs. {item.pricePerBox.toLocaleString()}</div>
+                      <div style={{ fontWeight: 800, fontSize: 14 }}>{item.name}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{item.qtyBoxes} boxes × Rs. {item.pricePerBox.toLocaleString()}</div>
                     </div>
                     <button type="button" onClick={() => removeFromCart(item.productId)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#EF4444' }}>
                       <Trash2 style={{ width: 14, height: 14 }} />
@@ -649,22 +649,22 @@ export default function SuppliersClient({ profile, initialWholesalers, initialCu
                     value={overrideMsg}
                     onChange={(e) => setOverrideMsg(e.target.value)}
                     placeholder="Enter limit override request note..."
-                    style={{ padding: '10px', borderRadius: 8, border: '1.5px solid #EF4444', fontSize: 12 }}
+                    style={{ padding: '10px', borderRadius: 8, border: '1.5px solid #EF4444', fontSize: 14 }}
                   />
                 </div>
               )}
 
-              <div style={{ borderTop: '1px solid #E2E8F0', paddingTop: 14, display: 'flex', justifyContent: 'space-between', fontWeight: 950, fontSize: 15, color: '#1E293B' }}>
+              <div style={{ borderTop: '1px solid #E2E8F0', paddingTop: 14, display: 'flex', justifyContent: 'space-between', fontWeight: 950, fontSize: 18, color: 'var(--text-primary)' }}>
                 <span>Order Total:</span>
                 <span style={{ color: '#F59E0B' }}>Rs. {cartTotal.toLocaleString()}</span>
               </div>
             </div>
 
             <div style={{ padding: '16px 24px', borderTop: '1px solid #F1F5F9', display: 'flex', gap: 10 }}>
-              <button type="button" onClick={() => setShowCartModal(false)} style={{ flex: 1, padding: 11, borderRadius: 10, border: '1.5px solid #E2E8F0', background: '#FFFFFF', color: '#475569', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+              <button type="button" onClick={() => setShowCartModal(false)} style={{ flex: 1, padding: 11, borderRadius: 10, border: '1px solid var(--card-border)', background: 'var(--card-bg)', color: 'var(--text-secondary)', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
                 Close
               </button>
-              <button type="submit" disabled={placingOrder} style={{ flex: 2, padding: 11, border: 'none', borderRadius: 10, background: '#F59E0B', color: '#FFFFFF', fontSize: 13, fontWeight: 800, cursor: 'pointer', opacity: placingOrder ? 0.7 : 1 }}>
+              <button type="submit" disabled={placingOrder} style={{ flex: 2, padding: 11, border: 'none', borderRadius: 10, background: '#F59E0B', color: '#FFFFFF', fontSize: 14, fontWeight: 800, cursor: 'pointer', opacity: placingOrder ? 0.7 : 1 }}>
                 {placingOrder ? 'Placing Order…' : 'Submit B2B Order'}
               </button>
             </div>
@@ -675,87 +675,87 @@ export default function SuppliersClient({ profile, initialWholesalers, initialCu
       {/* ── Add Custom Supplier Modal ── */}
       {showAddSupplierModal && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(15,23,42,0.35)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-          <form onSubmit={handleSaveSupplier} style={{ width: '100%', maxWidth: 460, background: '#FFFFFF', borderRadius: 20, overflow: 'hidden', boxShadow: '0 24px 60px rgba(0,0,0,0.12)' }}>
+          <form onSubmit={handleSaveSupplier} style={{ width: '100%', maxWidth: 460, background: 'var(--card-bg)', borderRadius: 20, overflow: 'hidden', boxShadow: 'none' }}>
             <div style={{ padding: '20px 24px', borderBottom: '1px solid #F1F5F9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ fontSize: 16, fontWeight: 900, color: '#1E293B', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <h3 style={{ fontSize: 16, fontWeight: 900, color: 'var(--text-primary)', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Plus style={{ width: 18, height: 18, color: '#F59E0B' }} />
                 {editingSupplier ? 'Modify Custom Supplier' : 'Register Custom Supplier'}
               </h3>
-              <button type="button" onClick={() => { setShowAddSupplierModal(false); setEditingSupplier(null); }} style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: '6px', cursor: 'pointer', color: '#64748B' }}>
+              <button type="button" onClick={() => { setShowAddSupplierModal(false); setEditingSupplier(null); }} style={{ background: 'var(--table-header-bg)', border: '1px solid var(--card-border)', borderRadius: 8, padding: '6px', cursor: 'pointer', color: 'var(--text-secondary)' }}>
                 <X style={{ width: 16, height: 16 }} />
               </button>
             </div>
 
             <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 14 }}>
               {supplierError && (
-                <div style={{ padding: '10px 14px', background: 'rgba(239,68,68,0.06)', borderRadius: 8, border: '1px solid rgba(239,68,68,0.2)', color: '#EF4444', fontSize: 12, fontWeight: 600 }}>
+                <div style={{ padding: '10px 14px', background: 'rgba(239,68,68,0.06)', borderRadius: 8, border: '1px solid rgba(239,68,68,0.2)', color: '#EF4444', fontSize: 14, fontWeight: 600 }}>
                   {supplierError}
                 </div>
               )}
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                <label style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Supplier Name</label>
+                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Supplier Name</label>
                 <input
                   type="text"
                   required
                   value={supName}
                   onChange={(e) => setSupName(e.target.value)}
                   placeholder="e.g. Acme Pharmaceuticals Ltd."
-                  style={{ padding: '10px', borderRadius: 8, border: '1.5px solid #E2E8F0', fontSize: 13 }}
+                  style={{ padding: '10px', borderRadius: 8, border: '1px solid var(--card-border)', fontSize: 14 }}
                 />
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                  <label style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Contact Person</label>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Contact Person</label>
                   <input
                     type="text"
                     value={supContact}
                     onChange={(e) => setSupContact(e.target.value)}
                     placeholder="e.g. John Doe"
-                    style={{ padding: '10px', borderRadius: 8, border: '1.5px solid #E2E8F0', fontSize: 13 }}
+                    style={{ padding: '10px', borderRadius: 8, border: '1px solid var(--card-border)', fontSize: 14 }}
                   />
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                  <label style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Phone</label>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Phone</label>
                   <input
                     type="text"
                     value={supPhone}
                     onChange={(e) => setSupPhone(e.target.value)}
                     placeholder="e.g. +977-98123456"
-                    style={{ padding: '10px', borderRadius: 8, border: '1.5px solid #E2E8F0', fontSize: 13 }}
+                    style={{ padding: '10px', borderRadius: 8, border: '1px solid var(--card-border)', fontSize: 14 }}
                   />
                 </div>
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                <label style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Email Address</label>
+                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Email Address</label>
                 <input
                   type="email"
                   value={supEmail}
                   onChange={(e) => setSupEmail(e.target.value)}
                   placeholder="e.g. sales@acme.com"
-                  style={{ padding: '10px', borderRadius: 8, border: '1.5px solid #E2E8F0', fontSize: 13 }}
+                  style={{ padding: '10px', borderRadius: 8, border: '1px solid var(--card-border)', fontSize: 14 }}
                 />
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                <label style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Physical Address</label>
+                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Physical Address</label>
                 <input
                   type="text"
                   value={supAddress}
                   onChange={(e) => setSupAddress(e.target.value)}
                   placeholder="e.g. Tinkune, Kathmandu"
-                  style={{ padding: '10px', borderRadius: 8, border: '1.5px solid #E2E8F0', fontSize: 13 }}
+                  style={{ padding: '10px', borderRadius: 8, border: '1px solid var(--card-border)', fontSize: 14 }}
                 />
               </div>
             </div>
 
             <div style={{ padding: '16px 24px', borderTop: '1px solid #F1F5F9', display: 'flex', gap: 10 }}>
-              <button type="button" onClick={() => { setShowAddSupplierModal(false); setEditingSupplier(null); }} style={{ flex: 1, padding: 11, borderRadius: 10, border: '1.5px solid #E2E8F0', background: '#FFFFFF', color: '#475569', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+              <button type="button" onClick={() => { setShowAddSupplierModal(false); setEditingSupplier(null); }} style={{ flex: 1, padding: 11, borderRadius: 10, border: '1px solid var(--card-border)', background: 'var(--card-bg)', color: 'var(--text-secondary)', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
                 Cancel
               </button>
-              <button type="submit" disabled={supplierSubmitting} style={{ flex: 2, padding: 11, border: 'none', borderRadius: 10, background: '#F59E0B', color: '#FFFFFF', fontSize: 13, fontWeight: 800, cursor: 'pointer', opacity: supplierSubmitting ? 0.7 : 1 }}>
+              <button type="submit" disabled={supplierSubmitting} style={{ flex: 2, padding: 11, border: 'none', borderRadius: 10, background: '#F59E0B', color: '#FFFFFF', fontSize: 14, fontWeight: 800, cursor: 'pointer', opacity: supplierSubmitting ? 0.7 : 1 }}>
                 {supplierSubmitting ? 'Saving…' : 'Save Supplier'}
               </button>
             </div>

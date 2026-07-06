@@ -46,7 +46,7 @@ export default function Sidebar({ user, profile, visibleNavItems, pathname, logA
               href={item.href}
               onClick={() => logActivity('NAVIGATE', `Clicked menu link: ${item.name}`)}
               className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors"
-              style={isActive ? { background: '#1A1A1A', color: '#FFFFFF' } : { color: '#475569' }}
+              style={isActive ? { background: '#1A1A1A', color: '#FFFFFF' } : { color: 'var(--text-secondary)' }}
             >
               <Icon className="w-4 h-4" />
               {item.name}
@@ -56,7 +56,7 @@ export default function Sidebar({ user, profile, visibleNavItems, pathname, logA
       </nav>
       <div className="border-t border-gray-100 p-4">
         <form method="post" action="/api/auth/logout" onSubmit={e => { e.preventDefault(); logActivity('LOGOUT', 'User logged out'); window.location.href = '/api/auth/logout'; }}>
-          <button type="submit" className="flex items-center gap-2 w-full text-left px-3 py-2 rounded-md hover:bg-gray-50" style={{ color: '#94A3B8', border: '1px solid #E2E8F0', background: '#FFFFFF' }}>
+          <button type="submit" className="flex items-center gap-2 w-full text-left px-3 py-2 rounded-md hover:bg-gray-50" style={{ color: 'var(--text-muted)', border: '1px solid var(--card-border)', background: 'var(--card-bg)' }}>
             <LogOut className="w-4 h-4" />
             Sign Out
           </button>

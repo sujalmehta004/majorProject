@@ -6,7 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, Package, Truck, Receipt, LogOut,
   ShieldAlert, ChevronRight, Search, Settings, X,
-  PanelLeftClose, PanelLeftOpen, Menu, Users, Briefcase
+  PanelLeftClose, PanelLeftOpen, Menu, Users, Briefcase, ClipboardList
 } from 'lucide-react';
 
 interface WholesalerLayoutProps {
@@ -127,7 +127,15 @@ export default function WholesalerLayout({ children, user, profile }: Wholesaler
       desc: 'Profile, staff roster, logs and preferences',
       feature: 'Settings',
       tags: 'profile, staff, team, logs, audit, security, settings',
-    }
+    },
+    {
+      name: 'Activity Log',
+      href: '/wholesaler/settings?tab=logs',
+      icon: ClipboardList,
+      desc: 'Audit trail of all system events and actions',
+      feature: 'Logs',
+      tags: 'activity log, audit, logs, history, events, actions, trail',
+    },
   ];
 
   let currentFeature = '';
@@ -184,16 +192,51 @@ export default function WholesalerLayout({ children, user, profile }: Wholesaler
     flatResults.push({ type: 'medicine', title: m.name, subtitle: `SKU: ${m.sku}`, url: `/wholesaler/inventory`, icon: Package });
   });
   searchResults.transactions.forEach(t => {
-    flatResults.push({ type: 'transaction', title: `Invoice: ${t.id.substring(0, 8).toUpperCase()}`, subtitle: `Amt: Rs. ${t.netAmount.toLocaleString()} | Retailer: ${t.retailer?.pharmacyName || 'Walk-in'}`, url: `/wholesaler/billing`, icon: Receipt });
+    flatResults.push({
+      type: 'transaction',
+      title: `INV-${t.id.substring(0, 8).toUpperCase()}`,
+      subtitle: `Rs. ${t.netAmount?.toLocaleString()} · ${t.retailer?.pharmacyName || 'Walk-in'} · ${new Date(t.createdAt).toLocaleDateString()}`,
+      url: `/wholesaler/billing?invoiceId=${t.id}`,
+      icon: Receipt
+    });
   });
   searchResults.customers.forEach(c => {
-    flatResults.push({ type: 'customer', title: c.pharmacyName, subtitle: `Phone: ${c.phone || 'N/A'} | Email: ${c.user?.email || 'N/A'}`, url: `/wholesaler/customers?id=${c.id}`, icon: Users });
+    flatResults.push({
+      type: 'customer',
+      title: c.pharmacyName,
+      subtitle: `Phone: ${c.phone || 'N/A'} | Email: ${c.user?.email || 'N/A'}`,
+      url: `/wholesaler/customers?search=${encodeURIComponent(c.pharmacyName)}`,
+      icon: Users
+    });
+  });
+  (searchResults as any).suppliers?.forEach((s: any) => {
+    flatResults.push({
+      type: 'customer' as any,
+      title: s.name,
+      subtitle: `Supplier · ${s.contactPerson || s.email || s.phone || 'No contact'}`,
+      url: `/wholesaler/suppliers?search=${encodeURIComponent(s.name)}`,
+      icon: Briefcase
+    });
   });
 
   useEffect(() => {
     setMounted(true);
     const savedCollapsed = localStorage.getItem('sidebar_collapsed');
     if (savedCollapsed === 'true') setCollapsed(true);
+    
+    // Set theme on mount
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    if (savedTheme === 'dark') {
+      document.body.classList.add('dark-mode');
+    } else {
+      document.body.classList.remove('dark-mode');
+    }
+
+    // Set font scale on mount
+    const savedFontScale = localStorage.getItem('font_scale') || 'md';
+    document.body.classList.remove('font-xs', 'font-sm', 'font-md', 'font-lg', 'font-xl');
+    document.body.classList.add(`font-${savedFontScale}`);
+    
     logActivity('VIEW_PAGE', `Opened page: ${pathname}`);
   }, [pathname]);
 
@@ -356,7 +399,7 @@ export default function WholesalerLayout({ children, user, profile }: Wholesaler
               animation: 'spin 0.8s linear infinite',
             }}
           />
-          <span style={{ fontSize: 13, fontWeight: 600, color: '#475569' }}>
+          <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-secondary)' }}>
             Loading workspace…
           </span>
         </div>
@@ -384,9 +427,9 @@ export default function WholesalerLayout({ children, user, profile }: Wholesaler
               <div className="sidebar-logo-icon">M</div>
               <div className="sidebar-logo-text">
                 <div className="sidebar-logo-name">
-                  Med<span style={{ color: '#0EA5E9' }}>Hub</span>
+                  <span style={{ color: '#FFFFFF' }}>Med</span><span style={{ color: '#3B82F6' }}>Hub</span>
                 </div>
-                <div className="sidebar-logo-company">{profile.companyName}</div>
+                <div className="sidebar-logo-company" style={{ color: '#9CA3AF' }}>{profile.companyName}</div>
               </div>
             </Link>
           )}
@@ -416,22 +459,22 @@ export default function WholesalerLayout({ children, user, profile }: Wholesaler
                 gap: 8,
                 width: '100%',
                 padding: '8px 12px',
-                borderRadius: 8,
-                border: '1.5px solid #E0F2FE',
-                background: 'rgba(255,255,255,0.7)',
-                color: '#94A3B8',
-                fontSize: 12,
+                borderRadius: 6,
+                border: '1px solid #374151',
+                background: '#1F2937',
+                color: '#9CA3AF',
+                fontSize: 14,
                 fontWeight: 500,
                 cursor: 'pointer',
-                transition: 'all 0.18s',
+                transition: 'all 0.15s',
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = '#0EA5E9';
-                e.currentTarget.style.color = '#0EA5E9';
+                e.currentTarget.style.borderColor = '#4B5563';
+                e.currentTarget.style.color = '#FFFFFF';
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = '#E0F2FE';
-                e.currentTarget.style.color = '#94A3B8';
+                e.currentTarget.style.borderColor = '#374151';
+                e.currentTarget.style.color = '#9CA3AF';
               }}
             >
               <Search style={{ width: 13, height: 13 }} />
@@ -441,11 +484,11 @@ export default function WholesalerLayout({ children, user, profile }: Wholesaler
                   fontSize: 9,
                   fontFamily: 'monospace',
                   fontWeight: 700,
-                  background: '#F0F9FF',
-                  border: '1px solid #BAE6FD',
+                  background: '#374151',
+                  border: '1px solid #4B5563',
                   borderRadius: 4,
                   padding: '1px 5px',
-                  color: '#0EA5E9',
+                  color: '#FFFFFF',
                 }}
               >
                 ⌘K
@@ -460,7 +503,7 @@ export default function WholesalerLayout({ children, user, profile }: Wholesaler
             <div key={group.category} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               {!collapsed && (
                 <div style={{
-                  fontSize: 9, fontWeight: 900, textTransform: 'uppercase', color: '#94A3B8',
+                  fontSize: 9, fontWeight: 950, textTransform: 'uppercase', color: '#6B7280',
                   padding: '0 20px', marginBottom: 4, letterSpacing: '0.05em'
                 }}>
                   {group.category}
@@ -495,7 +538,7 @@ export default function WholesalerLayout({ children, user, profile }: Wholesaler
               className={`sidebar-nav-item ${pathname === '/wholesaler/settings' ? 'active' : ''}`}
               style={{
                 marginBottom: 12,
-                borderRadius: 8,
+                borderRadius: 6,
               }}
               data-label="Settings"
               onClick={() => logActivity('NAVIGATE', 'Clicked: Settings')}
@@ -511,12 +554,12 @@ export default function WholesalerLayout({ children, user, profile }: Wholesaler
               style={{
                 padding: '6px 10px',
                 margin: '0 0 8px',
-                background: 'rgba(224,242,254,0.5)',
-                borderRadius: 8,
-                border: '1px solid #BAE6FD',
-                fontSize: 10,
+                background: '#1F2937',
+                borderRadius: 6,
+                border: '1px solid #374151',
+                fontSize: 12,
                 fontWeight: 700,
-                color: '#0284C7',
+                color: '#9CA3AF',
                 fontFamily: 'monospace',
                 letterSpacing: '0.05em',
               }}
@@ -548,7 +591,7 @@ export default function WholesalerLayout({ children, user, profile }: Wholesaler
 
       {/* ═══ MAIN CONTENT ═══ */}
       <main className={`main-content ${collapsed ? 'sidebar-collapsed' : ''}`}>
-        <div className="animate-fadeIn" style={{ maxWidth: 1400 }}>
+        <div className="animate-fadeIn" style={{ width: '100%' }}>
           {isDenied ? (
             <div
               style={{
@@ -574,10 +617,10 @@ export default function WholesalerLayout({ children, user, profile }: Wholesaler
               >
                 <ShieldAlert style={{ width: 28, height: 28, color: '#F97316' }} />
               </div>
-              <h2 style={{ fontSize: 18, fontWeight: 800, color: '#1E293B' }}>
+              <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)' }}>
                 Access Restricted
               </h2>
-              <p style={{ fontSize: 14, color: '#475569', maxWidth: 360, lineHeight: 1.6 }}>
+              <p style={{ fontSize: 14, color: 'var(--text-secondary)', maxWidth: 360, lineHeight: 1.6 }}>
                 Your credentials do not allow access to{' '}
                 <strong>{currentFeature}</strong>. Contact the account owner.
               </p>
@@ -626,6 +669,56 @@ export default function WholesalerLayout({ children, user, profile }: Wholesaler
             }}
             onClick={(e) => e.stopPropagation()}
           >
+            {/* Theme & Font controls inside Search Modal */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: '8px 12px', gap: 10 }}>
+              <div style={{ display: 'flex', gap: 4 }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    localStorage.setItem('theme', 'light');
+                    document.body.classList.remove('dark-mode');
+                  }}
+                  style={{ padding: '3px 8px', fontSize: 10, fontWeight: 700, borderRadius: 4, border: '1px solid #CBD5E1', cursor: 'pointer', background: '#fff' }}
+                >
+                  ☀️ Light
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    localStorage.setItem('theme', 'dark');
+                    document.body.classList.add('dark-mode');
+                  }}
+                  style={{ padding: '3px 8px', fontSize: 10, fontWeight: 700, borderRadius: 4, border: '1px solid #CBD5E1', cursor: 'pointer', background: '#0F172A', color: '#fff' }}
+                >
+                  🌙 Dark
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
+                <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600 }}>Scale:</span>
+                {([
+                  { k: 'xs', l: 'XS' },
+                  { k: 'sm', l: 'S' },
+                  { k: 'md', l: 'M' },
+                  { k: 'lg', l: 'L' },
+                  { k: 'xl', l: 'XL' }
+                ] as const).map(item => (
+                  <button
+                    key={item.k}
+                    type="button"
+                    onClick={() => {
+                      localStorage.setItem('font_scale', item.k);
+                      document.body.classList.remove('font-xs', 'font-sm', 'font-md', 'font-lg', 'font-xl');
+                      document.body.classList.add(`font-${item.k}`);
+                    }}
+                    style={{ padding: '3px 6px', fontSize: 10, fontWeight: 700, borderRadius: 4, border: '1px solid #CBD5E1', cursor: 'pointer', background: '#fff' }}
+                  >
+                    {item.l}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* Input */}
             <div className="search-bar">
               <Search style={{ width: 16, height: 16, color: '#0EA5E9', flexShrink: 0 }} />
@@ -642,7 +735,7 @@ export default function WholesalerLayout({ children, user, profile }: Wholesaler
               <button
                 onClick={() => { setShowSearch(false); setSearchQuery(''); }}
                 style={{
-                  fontSize: 10,
+                  fontSize: 12,
                   fontWeight: 700,
                   background: '#F0F9FF',
                   border: '1px solid #BAE6FD',
@@ -662,7 +755,7 @@ export default function WholesalerLayout({ children, user, profile }: Wholesaler
             <div style={{ maxHeight: 350, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
               {searchQuery === '' ? (
                 <div style={{ padding: '16px 0', textAlign: 'center' }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
                     Quick Jump
                   </div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
@@ -688,7 +781,7 @@ export default function WholesalerLayout({ children, user, profile }: Wholesaler
                   </div>
                 </div>
               ) : flatResults.length === 0 ? (
-                <div style={{ padding: '32px 0', textAlign: 'center', fontSize: 13, color: '#94A3B8' }}>
+                <div style={{ padding: '32px 0', textAlign: 'center', fontSize: 14, color: 'var(--text-muted)' }}>
                   No results for &ldquo;{searchQuery}&rdquo;
                 </div>
               ) : (
@@ -700,7 +793,7 @@ export default function WholesalerLayout({ children, user, profile }: Wholesaler
 
                     return (
                       <div key={groupType} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                        <div style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', color: '#94A3B8', letterSpacing: '0.07em', paddingLeft: 6, marginBottom: 2 }}>
+                        <div style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.07em', paddingLeft: 6, marginBottom: 2 }}>
                           {groupType === 'page' ? 'Navigation Pages' : groupType === 'medicine' ? 'Inventory Products' : groupType === 'transaction' ? 'Ledger Invoices' : 'Retailer Customers'}
                         </div>
                         {groupItems.map((item) => {
@@ -740,7 +833,7 @@ export default function WholesalerLayout({ children, user, profile }: Wholesaler
                                   height: 32,
                                   borderRadius: 8,
                                   background: isHighlighted ? '#E0F2FE' : '#F8FAFC',
-                                  border: '1px solid #E2E8F0',
+                                  border: '1px solid var(--card-border)',
                                   display: 'flex',
                                   alignItems: 'center',
                                   justifyContent: 'center',
@@ -750,8 +843,8 @@ export default function WholesalerLayout({ children, user, profile }: Wholesaler
                                 <Icon style={{ width: 15, height: 15, color: '#0EA5E9' }} />
                               </div>
                               <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ fontSize: 12, fontWeight: 700, color: '#1E293B' }}>{item.title}</div>
-                                <div style={{ fontSize: 10, color: '#94A3B8', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.subtitle}</div>
+                                <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>{item.title}</div>
+                                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.subtitle}</div>
                               </div>
                               <ChevronRight style={{ width: 14, height: 14, color: isHighlighted ? '#0EA5E9' : '#E2E8F0', flexShrink: 0 }} />
                             </button>

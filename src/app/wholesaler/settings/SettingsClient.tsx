@@ -118,6 +118,57 @@ export default function SettingsClient({
     "profile" | "staff" | "logs" | "security" | "alerts"
   >(getInitialTab());
 
+  // Theme Mode Settings
+  const [themeMode, setThemeMode] = useState<'light' | 'dark'>('light');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('theme') as 'light' | 'dark' || 'light';
+      setThemeMode(saved);
+      // Check URL param for direct tab navigation (e.g. from command palette ?tab=logs)
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get('tab');
+      const validTabs = ['profile', 'staff', 'logs', 'security', 'alerts'] as const;
+      if (tabParam && (validTabs as readonly string[]).includes(tabParam)) {
+        const t = tabParam as typeof validTabs[number];
+        if (t === 'logs' && hasLogsAccess) setActiveTab('logs');
+        else if (t === 'staff' && isOwner) setActiveTab('staff');
+        else if (t === 'profile' && hasProfileAccess) setActiveTab('profile');
+        else if (t === 'security') setActiveTab('security');
+        else if (t === 'alerts') setActiveTab('alerts');
+      }
+    }
+  }, []);
+
+  const handleToggleTheme = (mode: 'light' | 'dark') => {
+    setThemeMode(mode);
+    localStorage.setItem('theme', mode);
+    if (mode === 'dark') {
+      document.body.classList.add('dark-mode');
+    } else {
+      document.body.classList.remove('dark-mode');
+    }
+  };
+
+  // Font Scale Settings
+  const fontScaleLevels = ['xs', 'sm', 'md', 'lg', 'xl'] as const;
+  type FontScale = typeof fontScaleLevels[number];
+  const [fontScale, setFontScale] = useState<FontScale>('md');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const saved = (localStorage.getItem('font_scale') || 'md') as FontScale;
+      setFontScale(fontScaleLevels.includes(saved) ? saved : 'md');
+    }
+  }, []);
+
+  const handleToggleFontScale = (scale: FontScale) => {
+    setFontScale(scale);
+    localStorage.setItem('font_scale', scale);
+    document.body.classList.remove('font-xs', 'font-sm', 'font-md', 'font-lg', 'font-xl');
+    document.body.classList.add(`font-${scale}`);
+  };
+
   const [loading, setLoading] = useState(false);
   const [isFetchingLocation, setIsFetchingLocation] = useState(false);
   const [error, setError] = useState("");
@@ -583,7 +634,7 @@ export default function SettingsClient({
           border: "1.5px solid rgba(186,230,253,0.5)",
           borderRadius: 20,
           padding: "20px 24px",
-          boxShadow: "0 2px 12px rgba(14,165,233,0.07)",
+          boxShadow: "none",
         }}
       >
         <div
@@ -599,9 +650,9 @@ export default function SettingsClient({
           <div>
             <h1
               style={{
-                fontSize: 20,
+                fontSize: 22,
                 fontWeight: 800,
-                color: "#1E293B",
+                color: "var(--text-primary)",
                 letterSpacing: "-0.02em",
                 display: "flex",
                 alignItems: "center",
@@ -611,7 +662,7 @@ export default function SettingsClient({
               <Building style={{ width: 22, height: 22, color: "#0EA5E9" }} />
               Registry Console &amp; Settings
             </h1>
-            <p style={{ fontSize: 13, color: "#64748B", marginTop: 4 }}>
+            <p style={{ fontSize: 14, color: "var(--text-secondary)", marginTop: 4 }}>
               Configure profile details, staff permissions, audit logs, and
               security controls.
             </p>
@@ -638,17 +689,17 @@ export default function SettingsClient({
                   fontWeight: 800,
                   textTransform: "uppercase",
                   letterSpacing: "0.06em",
-                  color: "#94A3B8",
+                  color: "var(--text-muted)",
                 }}
               >
                 Store Lease Expiry
               </div>
               <div
                 style={{
-                  fontSize: 12,
+                  fontSize: 14,
                   fontWeight: 700,
                   fontFamily: "monospace",
-                  color: "#1E293B",
+                  color: "var(--text-primary)",
                   marginTop: 2,
                 }}
               >
@@ -680,7 +731,7 @@ export default function SettingsClient({
               style={{
                 padding: "8px 18px",
                 borderRadius: 10,
-                fontSize: 12,
+                fontSize: 14,
                 fontWeight: 700,
                 textTransform: "uppercase",
                 letterSpacing: "0.04em",
@@ -712,7 +763,7 @@ export default function SettingsClient({
               style={{
                 padding: "8px 18px",
                 borderRadius: 10,
-                fontSize: 12,
+                fontSize: 14,
                 fontWeight: 700,
                 textTransform: "uppercase",
                 letterSpacing: "0.04em",
@@ -744,7 +795,7 @@ export default function SettingsClient({
               style={{
                 padding: "8px 18px",
                 borderRadius: 10,
-                fontSize: 12,
+                fontSize: 14,
                 fontWeight: 700,
                 textTransform: "uppercase",
                 letterSpacing: "0.04em",
@@ -775,7 +826,7 @@ export default function SettingsClient({
             style={{
               padding: "8px 18px",
               borderRadius: 10,
-              fontSize: 12,
+              fontSize: 14,
               fontWeight: 700,
               textTransform: "uppercase",
               letterSpacing: "0.04em",
@@ -805,7 +856,7 @@ export default function SettingsClient({
             style={{
               padding: "8px 18px",
               borderRadius: 10,
-              fontSize: 12,
+              fontSize: 14,
               fontWeight: 700,
               textTransform: "uppercase",
               letterSpacing: "0.04em",
@@ -853,7 +904,7 @@ export default function SettingsClient({
               className="lg:col-span-7 card bg-white/85 backdrop-blur-xl p-6 space-y-6"
               style={{
                 border: "1.5px solid rgba(251,146,60,0.12)",
-                boxShadow: "0 4px 24px rgba(249,115,22,0.06)",
+                boxShadow: "none",
               }}
             >
               <div>
@@ -875,7 +926,7 @@ export default function SettingsClient({
                       alignItems: "center",
                       justifyContent: "center",
                       flexShrink: 0,
-                      boxShadow: "0 4px 12px rgba(249,115,22,0.25)",
+                      boxShadow: "none",
                     }}
                   >
                     <Building
@@ -885,15 +936,15 @@ export default function SettingsClient({
                   <div>
                     <h3
                       style={{
-                        fontSize: 13,
+                        fontSize: 14,
                         fontWeight: 800,
-                        color: "#1E293B",
+                        color: "var(--text-primary)",
                         letterSpacing: "-0.01em",
                       }}
                     >
                       Distributor Registry Form
                     </h3>
-                    <p style={{ fontSize: 10, color: "#94A3B8", marginTop: 1 }}>
+                    <p style={{ fontSize: 14, color: "var(--text-muted)", marginTop: 1 }}>
                       Company identity &amp; contact information
                     </p>
                   </div>
@@ -1025,13 +1076,13 @@ export default function SettingsClient({
                         style={{
                           background:
                             "linear-gradient(135deg, #0EA5E9, #0284C7)",
-                          fontSize: 10,
+                          fontSize: 14,
                           padding: "6px 12px",
                           display: "flex",
                           alignItems: "center",
                           gap: 6,
                           borderRadius: 8,
-                          boxShadow: "0 4px 10px rgba(249,115,22,0.2)",
+                          boxShadow: "none",
                           opacity: isFetchingLocation ? 0.7 : 1,
                         }}
                       >
@@ -1097,7 +1148,7 @@ export default function SettingsClient({
                         style={{
                           background:
                             "linear-gradient(135deg, #0EA5E9, #0284C7)",
-                          fontSize: 10,
+                          fontSize: 14,
                           padding: "6px 12px",
                           display: "flex",
                           alignItems: "center",
@@ -1105,7 +1156,7 @@ export default function SettingsClient({
 
                           borderRadius: 8,
                           height: "auto",
-                          boxShadow: "0 4px 10px rgba(249,115,22,0.2)",
+                          boxShadow: "none",
                           opacity: isFetchingLocation ? 0.7 : 1,
                         }}
                       >
@@ -1141,9 +1192,9 @@ export default function SettingsClient({
                         >
                           <h3
                             style={{
-                              fontSize: 13,
+                              fontSize: 14,
                               fontWeight: 900,
-                              color: "#1E293B",
+                              color: "var(--text-primary)",
                               textTransform: "uppercase",
                             }}
                           >
@@ -1155,7 +1206,7 @@ export default function SettingsClient({
                               background: "none",
                               border: "none",
                               cursor: "pointer",
-                              color: "#94A3B8",
+                              color: "var(--text-muted)",
                             }}
                           >
                             <X style={{ width: 18, height: 18 }} />
@@ -1172,7 +1223,7 @@ export default function SettingsClient({
                               value={newFieldLabel}
                               onChange={(e) => setNewFieldLabel(e.target.value)}
                               className="input-crisp bg-white"
-                              style={{ fontSize: 12 }}
+                              style={{ fontSize: 14 }}
                             />
                           </div>
                           <div>
@@ -1185,7 +1236,7 @@ export default function SettingsClient({
                               value={newFieldValue}
                               onChange={(e) => setNewFieldValue(e.target.value)}
                               className="input-crisp bg-white"
-                              style={{ fontSize: 12 }}
+                              style={{ fontSize: 14 }}
                             />
                           </div>
                           <div
@@ -1198,7 +1249,7 @@ export default function SettingsClient({
                               className="btn-primary"
                               style={{
                                 padding: "8px 16px",
-                                fontSize: 11,
+                                fontSize: 14,
                                 background:
                                   "linear-gradient(135deg, #0EA5E9, #38BDF8)",
                               }}
@@ -1209,7 +1260,7 @@ export default function SettingsClient({
                               type="button"
                               onClick={() => setShowAddFieldForm(false)}
                               className="btn-ghost"
-                              style={{ padding: "8px 16px", fontSize: 11 }}
+                              style={{ padding: "8px 16px", fontSize: 14 }}
                             >
                               Cancel
                             </button>
@@ -1286,7 +1337,7 @@ export default function SettingsClient({
                 className="card bg-white/85 p-6 space-y-4"
                 style={{
                   border: "1.5px solid rgba(14,165,233,0.12)",
-                  boxShadow: "0 4px 24px rgba(14,165,233,0.06)",
+                  boxShadow: "none",
                 }}
               >
                 <div
@@ -1307,7 +1358,7 @@ export default function SettingsClient({
                       alignItems: "center",
                       justifyContent: "center",
                       flexShrink: 0,
-                      boxShadow: "0 4px 12px rgba(14,165,233,0.25)",
+                      boxShadow: "none",
                     }}
                   >
                     <MapPin style={{ width: 15, height: 15, color: "white" }} />
@@ -1315,20 +1366,20 @@ export default function SettingsClient({
                   <div>
                     <h3
                       style={{
-                        fontSize: 13,
+                        fontSize: 14,
                         fontWeight: 800,
-                        color: "#1E293B",
+                        color: "var(--text-primary)",
                         letterSpacing: "-0.01em",
                       }}
                     >
                       Map Geolocation View
                     </h3>
-                    <p style={{ fontSize: 10, color: "#94A3B8", marginTop: 1 }}>
+                    <p style={{ fontSize: 14, color: "var(--text-muted)", marginTop: 1 }}>
                       Capture warehouse coordinates
                     </p>
                   </div>
                 </div>
-                <p style={{ fontSize: 11, color: "#64748B" }}>
+                <p style={{ fontSize: 14, color: "var(--text-secondary)" }}>
                   Your registered warehouse location coordinates. Once captured,
                   verify them on Google Maps.
                 </p>
@@ -1348,9 +1399,9 @@ export default function SettingsClient({
                     <label
                       style={{
                         display: "block",
-                        fontSize: 10,
+                        fontSize: 14,
                         fontWeight: 700,
-                        color: "#475569",
+                        color: "var(--text-secondary)",
                         textTransform: "uppercase",
                         marginBottom: 4,
                       }}
@@ -1372,7 +1423,7 @@ export default function SettingsClient({
                         onChange={(e) => setLatitude(e.target.value)}
                         className="input-crisp"
                         style={{
-                          fontSize: 11,
+                          fontSize: 14,
                           padding: 6,
                           width: "100%",
                           fontFamily: "monospace",
@@ -1386,7 +1437,7 @@ export default function SettingsClient({
                         onChange={(e) => setLongitude(e.target.value)}
                         className="input-crisp"
                         style={{
-                          fontSize: 11,
+                          fontSize: 14,
                           padding: 6,
                           width: "100%",
                           fontFamily: "monospace",
@@ -1403,12 +1454,12 @@ export default function SettingsClient({
                       className="btn-ghost"
                       style={{
                         padding: "8px 14px",
-                        fontSize: 11,
+                        fontSize: 14,
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
                         gap: 6,
-                        background: "white",
+                        background: "var(--card-bg)",
                       }}
                     >
                       <MapPin
@@ -1430,7 +1481,7 @@ export default function SettingsClient({
               className="lg:col-span-12 card bg-white/85 p-6 space-y-4"
               style={{
                 border: "1.5px solid rgba(249,115,22,0.12)",
-                boxShadow: "0 4px 24px rgba(249,115,22,0.06)",
+                boxShadow: "none",
               }}
             >
               <div
@@ -1452,7 +1503,7 @@ export default function SettingsClient({
                     alignItems: "center",
                     justifyContent: "center",
                     flexShrink: 0,
-                    boxShadow: "0 4px 12px rgba(249,115,22,0.25)",
+                    boxShadow: "none",
                   }}
                 >
                   <UserPlus style={{ width: 15, height: 15, color: "white" }} />
@@ -1460,15 +1511,15 @@ export default function SettingsClient({
                 <div>
                   <h3
                     style={{
-                      fontSize: 13,
+                      fontSize: 14,
                       fontWeight: 800,
-                      color: "#1E293B",
+                      color: "var(--text-primary)",
                       letterSpacing: "-0.01em",
                     }}
                   >
                     Register Staff Member
                   </h3>
-                  <p style={{ fontSize: 10, color: "#94A3B8", marginTop: 1 }}>
+                  <p style={{ fontSize: 14, color: "var(--text-muted)", marginTop: 1 }}>
                     Create employee login credentials and feature access
                   </p>
                 </div>
@@ -1603,7 +1654,7 @@ export default function SettingsClient({
                             </span>
                             <span
                               style={{
-                                fontSize: 11,
+                                fontSize: 14,
                                 fontWeight: 700,
                                 color: isChecked ? "#1E293B" : "#64748B",
                               }}
@@ -1632,7 +1683,7 @@ export default function SettingsClient({
                     style={{
                       background: "linear-gradient(135deg, #0EA5E9, #38BDF8)",
                       padding: "12px 32px",
-                      fontSize: 11,
+                      fontSize: 14,
                       fontWeight: 800,
                       textTransform: "uppercase",
                     }}
@@ -1650,7 +1701,7 @@ export default function SettingsClient({
               className="lg:col-span-12 card bg-white/85 p-6 space-y-4"
               style={{
                 border: "1.5px solid rgba(14,165,233,0.12)",
-                boxShadow: "0 4px 24px rgba(14,165,233,0.06)",
+                boxShadow: "none",
               }}
             >
               <div
@@ -1672,7 +1723,7 @@ export default function SettingsClient({
                     alignItems: "center",
                     justifyContent: "center",
                     flexShrink: 0,
-                    boxShadow: "0 4px 12px rgba(14,165,233,0.25)",
+                    boxShadow: "none",
                   }}
                 >
                   <Users style={{ width: 15, height: 15, color: "white" }} />
@@ -1680,15 +1731,15 @@ export default function SettingsClient({
                 <div>
                   <h3
                     style={{
-                      fontSize: 13,
+                      fontSize: 14,
                       fontWeight: 800,
-                      color: "#1E293B",
+                      color: "var(--text-primary)",
                       letterSpacing: "-0.01em",
                     }}
                   >
                     Staff Directory Roster
                   </h3>
-                  <p style={{ fontSize: 10, color: "#94A3B8", marginTop: 1 }}>
+                  <p style={{ fontSize: 14, color: "var(--text-muted)", marginTop: 1 }}>
                     {staff.length} employee account
                     {staff.length !== 1 ? "s" : ""} registered
                   </p>
@@ -1782,7 +1833,7 @@ export default function SettingsClient({
                         background:
                           "linear-gradient(145deg, rgba(255,255,255,0.95), rgba(249,250,251,0.9))",
                         border: "1.5px solid rgba(14,165,233,0.1)",
-                        boxShadow: "0 4px 16px rgba(0,0,0,0.04)",
+                        boxShadow: "none",
                         display: "flex",
                         flexDirection: "column",
                         justifyContent: "space-between",
@@ -1833,10 +1884,10 @@ export default function SettingsClient({
                             display: "flex",
                             alignItems: "center",
                             gap: 8,
-                            fontSize: 11,
+                            fontSize: 14,
                             fontFamily: "monospace",
                             fontWeight: 700,
-                            color: "#475569",
+                            color: "var(--text-secondary)",
                           }}
                         >
                           <Key
@@ -1847,10 +1898,10 @@ export default function SettingsClient({
                               flexShrink: 0,
                             }}
                           />
-                          <span style={{ color: "#94A3B8" }}>PASSCODE:</span>
+                          <span style={{ color: "var(--text-muted)" }}>PASSCODE:</span>
                           <span
                             style={{
-                              color: "#1E293B",
+                              color: "var(--text-primary)",
                               fontWeight: 900,
                               letterSpacing: "0.05em",
                               userSelect: "all",
@@ -1912,7 +1963,7 @@ export default function SettingsClient({
                             border: "none",
                             background: "rgba(249,115,22,0.08)",
                             color: "#0369A1",
-                            fontSize: 10,
+                            fontSize: 14,
                             fontWeight: 800,
                             cursor: "pointer",
                             fontFamily: "inherit",
@@ -1936,7 +1987,7 @@ export default function SettingsClient({
                             border: "none",
                             background: "rgba(239,68,68,0.08)",
                             color: "#DC2626",
-                            fontSize: 10,
+                            fontSize: 14,
                             fontWeight: 800,
                             cursor: "pointer",
                             fontFamily: "inherit",
@@ -1961,7 +2012,7 @@ export default function SettingsClient({
             className="card bg-white/85 p-6 space-y-6"
             style={{
               border: "1.5px solid rgba(16,185,129,0.12)",
-              boxShadow: "0 4px 24px rgba(16,185,129,0.06)",
+              boxShadow: "none",
             }}
           >
             <div
@@ -1984,7 +2035,7 @@ export default function SettingsClient({
                     alignItems: "center",
                     justifyContent: "center",
                     flexShrink: 0,
-                    boxShadow: "0 4px 12px rgba(16,185,129,0.25)",
+                    boxShadow: "none",
                   }}
                 >
                   <FileText style={{ width: 15, height: 15, color: "white" }} />
@@ -1992,15 +2043,15 @@ export default function SettingsClient({
                 <div>
                   <h3
                     style={{
-                      fontSize: 13,
+                      fontSize: 14,
                       fontWeight: 800,
-                      color: "#1E293B",
+                      color: "var(--text-primary)",
                       letterSpacing: "-0.01em",
                     }}
                   >
                     Operational Activity Logs
                   </h3>
-                  <p style={{ fontSize: 10, color: "#94A3B8", marginTop: 1 }}>
+                  <p style={{ fontSize: 14, color: "var(--text-muted)", marginTop: 1 }}>
                     Audit trail of all system events
                   </p>
                 </div>
@@ -2016,7 +2067,7 @@ export default function SettingsClient({
                   border: "none",
                   background: "rgba(16,185,129,0.08)",
                   color: "#059669",
-                  fontSize: 10,
+                  fontSize: 14,
                   fontWeight: 800,
                   cursor: "pointer",
                   fontFamily: "inherit",
@@ -2112,7 +2163,7 @@ export default function SettingsClient({
                       border: "none",
                       borderRadius: 10,
                       fontWeight: 800,
-                      fontSize: 10,
+                      fontSize: 14,
                       textTransform: "uppercase",
                       letterSpacing: "0.05em",
                       cursor: "pointer",
@@ -2215,7 +2266,7 @@ export default function SettingsClient({
             {/* Main Card */}
             <div
               className="card"
-              style={{ background: "rgba(255,255,255,0.85)", padding: 24 }}
+              style={{ background: "var(--card-bg)", padding: 24 }}
             >
               <div
                 style={{
@@ -2230,11 +2281,11 @@ export default function SettingsClient({
                 <Lock style={{ width: 14, height: 14, color: "#0EA5E9" }} />
                 <h3
                   style={{
-                    fontSize: 11,
+                    fontSize: 14,
                     fontWeight: 800,
                     textTransform: "uppercase",
                     letterSpacing: "0.07em",
-                    color: "#1E293B",
+                    color: "var(--text-primary)",
                   }}
                 >
                   Security Preference Guard
@@ -2243,13 +2294,92 @@ export default function SettingsClient({
               <div
                 style={{ display: "flex", flexDirection: "column", gap: 16 }}
               >
+                {/* Appearance Theme Selector */}
+                <div style={{ borderBottom: '1px solid #E5E7EB', paddingBottom: 20, marginBottom: 4 }}>
+                  <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>Appearance Theme</h3>
+                  <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 2 }}>Toggle application display color scheme.</p>
+                  <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
+                    <button
+                      type="button"
+                      onClick={() => handleToggleTheme('light')}
+                      style={{
+                        flex: 1,
+                        padding: '10px',
+                        borderRadius: 6,
+                        border: themeMode === 'light' ? '2px solid #1D4ED8' : '1px solid #D1D5DB',
+                        background: themeMode === 'light' ? '#EFF6FF' : '#FFFFFF',
+                        color: themeMode === 'light' ? '#1D4ED8' : '#374151',
+                        fontWeight: 600,
+                        fontSize: 14,
+                        cursor: 'pointer',
+                        textAlign: 'center',
+                      }}
+                    >
+                      Light Mode
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleToggleTheme('dark')}
+                      style={{
+                        flex: 1,
+                        padding: '10px',
+                        borderRadius: 6,
+                        border: themeMode === 'dark' ? '2px solid #1D4ED8' : '1px solid #D1D5DB',
+                        background: themeMode === 'dark' ? '#1E293B' : '#FFFFFF',
+                        color: themeMode === 'dark' ? '#F9FAFB' : '#374151',
+                        fontWeight: 600,
+                        fontSize: 14,
+                        cursor: 'pointer',
+                        textAlign: 'center',
+                      }}
+                    >
+                      Dark Mode
+                    </button>
+                  </div>
+                </div>
+
+                {/* Typography Scale Selector */}
+                <div style={{ borderBottom: '1px solid #E5E7EB', paddingBottom: 20, marginBottom: 4 }}>
+                  <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>Font &amp; Interface Scale</h3>
+                  <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 2 }}>Adjust text and layout size across all pages.</p>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
+                    {([
+                      { scale: 'xs', label: 'Very Small (XS)' },
+                      { scale: 'sm', label: 'Small' },
+                      { scale: 'md', label: 'Medium' },
+                      { scale: 'lg', label: 'Large' },
+                      { scale: 'xl', label: 'Very Large (XL)' }
+                    ] as const).map((item) => (
+                      <button
+                        key={item.scale}
+                        type="button"
+                        onClick={() => handleToggleFontScale(item.scale)}
+                        style={{
+                          flex: '1 1 calc(33% - 8px)',
+                          padding: '10px 8px',
+                          borderRadius: 6,
+                          border: fontScale === item.scale ? '2px solid #2563EB' : '1px solid #D1D5DB',
+                          background: fontScale === item.scale ? '#EFF6FF' : '#FFFFFF',
+                          color: fontScale === item.scale ? '#2563EB' : '#374151',
+                          fontWeight: 600,
+                          fontSize: 13,
+                          cursor: 'pointer',
+                          textAlign: 'center',
+                        }}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 <div>
                   <label
                     style={{
                       display: "block",
-                      fontSize: 10,
+                      fontSize: 14,
                       fontWeight: 700,
-                      color: "#64748B",
+                      color: "var(--text-secondary)",
                       textTransform: "uppercase",
                       letterSpacing: "0.05em",
                       marginBottom: 6,
@@ -2259,8 +2389,8 @@ export default function SettingsClient({
                   </label>
                   <p
                     style={{
-                      fontSize: 12,
-                      color: "#94A3B8",
+                      fontSize: 14,
+                      color: "var(--text-muted)",
                       marginBottom: 12,
                       lineHeight: 1.6,
                     }}
@@ -2290,7 +2420,7 @@ export default function SettingsClient({
                     display: "flex",
                     alignItems: "center",
                     gap: 12,
-                    background: "#F8FAFC",
+                    background: "var(--table-header-bg)",
                     border: "1.5px solid #E0F2FE",
                     borderRadius: 12,
                     padding: "14px 16px",
@@ -2311,7 +2441,7 @@ export default function SettingsClient({
                         fontSize: 9,
                         fontWeight: 800,
                         textTransform: "uppercase",
-                        color: "#94A3B8",
+                        color: "var(--text-muted)",
                         letterSpacing: "0.06em",
                       }}
                     >
@@ -2322,7 +2452,7 @@ export default function SettingsClient({
                         fontSize: 14,
                         fontWeight: 900,
                         fontFamily: "monospace",
-                        color: "#1E293B",
+                        color: "var(--text-primary)",
                         marginTop: 2,
                       }}
                     >
@@ -2340,7 +2470,7 @@ export default function SettingsClient({
               <div style={{ position: "relative", zIndex: 1 }}>
                 <h3
                   style={{
-                    fontSize: 10,
+                    fontSize: 14,
                     fontWeight: 800,
                     textTransform: "uppercase",
                     letterSpacing: "0.1em",
@@ -2391,7 +2521,7 @@ export default function SettingsClient({
                       </div>
                       <div
                         style={{
-                          fontSize: 12,
+                          fontSize: 14,
                           fontWeight: 700,
                           color: "white",
                           marginTop: 3,
@@ -2420,7 +2550,7 @@ export default function SettingsClient({
             {/* Main Card */}
             <div
               className="card"
-              style={{ background: "rgba(255,255,255,0.85)", padding: 24 }}
+              style={{ background: "var(--card-bg)", padding: 24 }}
             >
               <div
                 style={{
@@ -2435,11 +2565,11 @@ export default function SettingsClient({
                 <Bell style={{ width: 14, height: 14, color: "#0EA5E9" }} />
                 <h3
                   style={{
-                    fontSize: 11,
+                    fontSize: 14,
                     fontWeight: 800,
                     textTransform: "uppercase",
                     letterSpacing: "0.07em",
-                    color: "#1E293B",
+                    color: "var(--text-primary)",
                   }}
                 >
                   Alert & Notifications Threshold Configuration
@@ -2452,9 +2582,9 @@ export default function SettingsClient({
                   <label
                     style={{
                       display: "block",
-                      fontSize: 10,
+                      fontSize: 14,
                       fontWeight: 700,
-                      color: "#64748B",
+                      color: "var(--text-secondary)",
                       textTransform: "uppercase",
                       letterSpacing: "0.05em",
                       marginBottom: 6,
@@ -2464,8 +2594,8 @@ export default function SettingsClient({
                   </label>
                   <p
                     style={{
-                      fontSize: 12,
-                      color: "#94A3B8",
+                      fontSize: 14,
+                      color: "var(--text-muted)",
                       marginBottom: 10,
                       lineHeight: 1.6,
                     }}
@@ -2477,9 +2607,9 @@ export default function SettingsClient({
                   <label
                     style={{
                       display: "block",
-                      fontSize: 10,
+                      fontSize: 14,
                       fontWeight: 700,
-                      color: "#64748B",
+                      color: "var(--text-secondary)",
                       textTransform: "uppercase",
                       letterSpacing: "0.05em",
                       marginBottom: 6,
@@ -2489,17 +2619,17 @@ export default function SettingsClient({
                   </label>
                   <p
                     style={{
-                      fontSize: 12,
-                      color: "#94A3B8",
+                      fontSize: 14,
+                      color: "var(--text-muted)",
                       marginBottom: 10,
                       lineHeight: 1.6,
                     }}
                   >
                     Define the inventory count (boxes, strips, tablets) below which a medicine is considered low stock and flagged on the dashboard.
                   </p>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, maxWidth: 350, background: "#F8FAFC", border: "1px solid #E2E8F0", padding: 12, borderRadius: 14 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, maxWidth: 350, background: "var(--table-header-bg)", border: "1px solid var(--card-border)", padding: 12, borderRadius: 14 }}>
                     <div>
-                      <label style={{ display: "block", fontSize: 9, fontWeight: 800, color: "#94A3B8", textAlign: "center", marginBottom: 4 }}>BOXES</label>
+                      <label style={{ display: "block", fontSize: 9, fontWeight: 800, color: "var(--text-muted)", textAlign: "center", marginBottom: 4 }}>BOXES</label>
                       <input
                         type="number"
                         min="0"
@@ -2513,11 +2643,11 @@ export default function SettingsClient({
                           )
                         }
                         className="input-crisp"
-                        style={{ width: "100%", textAlign: "center", fontWeight: "bold", fontSize: 12, fontFamily: "monospace" }}
+                        style={{ width: "100%", textAlign: "center", fontWeight: "bold", fontSize: 14, fontFamily: "monospace" }}
                       />
                     </div>
                     <div>
-                      <label style={{ display: "block", fontSize: 9, fontWeight: 800, color: "#94A3B8", textAlign: "center", marginBottom: 4 }}>STRIPS</label>
+                      <label style={{ display: "block", fontSize: 9, fontWeight: 800, color: "var(--text-muted)", textAlign: "center", marginBottom: 4 }}>STRIPS</label>
                       <input
                         type="number"
                         min="0"
@@ -2531,11 +2661,11 @@ export default function SettingsClient({
                           )
                         }
                         className="input-crisp"
-                        style={{ width: "100%", textAlign: "center", fontWeight: "bold", fontSize: 12, fontFamily: "monospace" }}
+                        style={{ width: "100%", textAlign: "center", fontWeight: "bold", fontSize: 14, fontFamily: "monospace" }}
                       />
                     </div>
                     <div>
-                      <label style={{ display: "block", fontSize: 9, fontWeight: 800, color: "#94A3B8", textAlign: "center", marginBottom: 4 }}>TABLETS</label>
+                      <label style={{ display: "block", fontSize: 9, fontWeight: 800, color: "var(--text-muted)", textAlign: "center", marginBottom: 4 }}>TABLETS</label>
                       <input
                         type="number"
                         min="0"
@@ -2549,7 +2679,7 @@ export default function SettingsClient({
                           )
                         }
                         className="input-crisp"
-                        style={{ width: "100%", textAlign: "center", fontWeight: "bold", fontSize: 12, fontFamily: "monospace" }}
+                        style={{ width: "100%", textAlign: "center", fontWeight: "bold", fontSize: 14, fontFamily: "monospace" }}
                       />
                     </div>
                   </div>
@@ -2559,9 +2689,9 @@ export default function SettingsClient({
                   <label
                     style={{
                       display: "block",
-                      fontSize: 10,
+                      fontSize: 14,
                       fontWeight: 700,
-                      color: "#64748B",
+                      color: "var(--text-secondary)",
                       textTransform: "uppercase",
                       letterSpacing: "0.05em",
                       marginBottom: 6,
@@ -2571,8 +2701,8 @@ export default function SettingsClient({
                   </label>
                   <p
                     style={{
-                      fontSize: 12,
-                      color: "#94A3B8",
+                      fontSize: 14,
+                      color: "var(--text-muted)",
                       marginBottom: 10,
                       lineHeight: 1.6,
                     }}
@@ -2629,11 +2759,11 @@ export default function SettingsClient({
                 />
                 <h4
                   style={{
-                    fontSize: 11,
+                    fontSize: 14,
                     fontWeight: 800,
                     textTransform: "uppercase",
                     letterSpacing: "0.05em",
-                    color: "#1E293B",
+                    color: "var(--text-primary)",
                   }}
                 >
                   Current Threshold Summary
@@ -2647,7 +2777,7 @@ export default function SettingsClient({
                     style={{
                       fontSize: 9,
                       fontWeight: 800,
-                      color: "#94A3B8",
+                      color: "var(--text-muted)",
                       textTransform: "uppercase",
                     }}
                   >
@@ -2655,22 +2785,22 @@ export default function SettingsClient({
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 4 }}>
                     {lowStockBoxes > 0 && (
-                      <div style={{ fontSize: 13, fontWeight: 700, color: "#1E293B", fontFamily: "monospace" }}>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)", fontFamily: "monospace" }}>
                         &lt; {lowStockBoxes} Boxes
                       </div>
                     )}
                     {lowStockStrips > 0 && (
-                      <div style={{ fontSize: 13, fontWeight: 700, color: "#1E293B", fontFamily: "monospace" }}>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)", fontFamily: "monospace" }}>
                         &lt; {lowStockStrips} Strips
                       </div>
                     )}
                     {lowStockTablets > 0 && (
-                      <div style={{ fontSize: 13, fontWeight: 700, color: "#1E293B", fontFamily: "monospace" }}>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)", fontFamily: "monospace" }}>
                         &lt; {lowStockTablets} Tablets
                       </div>
                     )}
                     {lowStockBoxes === 0 && lowStockStrips === 0 && lowStockTablets === 0 && (
-                      <div style={{ fontSize: 12, color: "#94A3B8", fontStyle: "italic" }}>No threshold set</div>
+                      <div style={{ fontSize: 14, color: "var(--text-muted)", fontStyle: "italic" }}>No threshold set</div>
                     )}
                   </div>
                 </div>
@@ -2679,7 +2809,7 @@ export default function SettingsClient({
                     style={{
                       fontSize: 9,
                       fontWeight: 800,
-                      color: "#94A3B8",
+                      color: "var(--text-muted)",
                       textTransform: "uppercase",
                     }}
                   >
@@ -2689,14 +2819,14 @@ export default function SettingsClient({
                     style={{
                       fontSize: 16,
                       fontWeight: 900,
-                      color: "#1E293B",
+                      color: "var(--text-primary)",
                       fontFamily: "monospace",
                       marginTop: 2,
                     }}
                   >
                     &lt; {expiryAlertDays} Days
                   </div>
-                  <p style={{ fontSize: 10, color: "#64748B", marginTop: 2 }}>
+                  <p style={{ fontSize: 14, color: "var(--text-secondary)", marginTop: 2 }}>
                     Warnings display dynamically
                   </p>
                 </div>
@@ -2722,7 +2852,7 @@ export default function SettingsClient({
                 style={{
                   fontSize: 14,
                   fontWeight: 800,
-                  color: "#1E293B",
+                  color: "var(--text-primary)",
                   display: "flex",
                   alignItems: "center",
                   gap: 8,
@@ -2737,7 +2867,7 @@ export default function SettingsClient({
                   background: "none",
                   border: "none",
                   cursor: "pointer",
-                  color: "#94A3B8",
+                  color: "var(--text-muted)",
                   padding: 4,
                 }}
               >
@@ -2754,9 +2884,9 @@ export default function SettingsClient({
                   <label
                     style={{
                       display: "block",
-                      fontSize: 10,
+                      fontSize: 14,
                       fontWeight: 700,
-                      color: "#64748B",
+                      color: "var(--text-secondary)",
                       textTransform: "uppercase",
                       letterSpacing: "0.05em",
                       marginBottom: 6,
@@ -2776,9 +2906,9 @@ export default function SettingsClient({
                   <label
                     style={{
                       display: "block",
-                      fontSize: 10,
+                      fontSize: 14,
                       fontWeight: 700,
-                      color: "#64748B",
+                      color: "var(--text-secondary)",
                       textTransform: "uppercase",
                       letterSpacing: "0.05em",
                       marginBottom: 6,
@@ -2798,9 +2928,9 @@ export default function SettingsClient({
                   <label
                     style={{
                       display: "block",
-                      fontSize: 10,
+                      fontSize: 14,
                       fontWeight: 700,
-                      color: "#64748B",
+                      color: "var(--text-secondary)",
                       textTransform: "uppercase",
                       letterSpacing: "0.05em",
                       marginBottom: 6,
@@ -2823,7 +2953,7 @@ export default function SettingsClient({
                     display: "flex",
                     justifyContent: "space-between",
                     alignItems: "center",
-                    background: "#F8FAFC",
+                    background: "var(--table-header-bg)",
                     border: "1.5px solid #E0F2FE",
                     borderRadius: 10,
                     padding: "10px 14px",
@@ -2831,9 +2961,9 @@ export default function SettingsClient({
                 >
                   <span
                     style={{
-                      fontSize: 12,
+                      fontSize: 14,
                       fontWeight: 700,
-                      color: "#64748B",
+                      color: "var(--text-secondary)",
                       textTransform: "uppercase",
                       letterSpacing: "0.05em",
                     }}
@@ -2860,7 +2990,7 @@ export default function SettingsClient({
                         />
                         <span
                           style={{
-                            fontSize: 11,
+                            fontSize: 14,
                             fontWeight: 800,
                             color: "#0EA5E9",
                           }}
@@ -2871,13 +3001,13 @@ export default function SettingsClient({
                     ) : (
                       <>
                         <ToggleLeft
-                          style={{ width: 32, height: 32, color: "#94A3B8" }}
+                          style={{ width: 32, height: 32, color: "var(--text-muted)" }}
                         />
                         <span
                           style={{
-                            fontSize: 11,
+                            fontSize: 14,
                             fontWeight: 800,
-                            color: "#94A3B8",
+                            color: "var(--text-muted)",
                           }}
                         >
                           DISABLED
@@ -2891,9 +3021,9 @@ export default function SettingsClient({
                   <label
                     style={{
                       display: "block",
-                      fontSize: 10,
+                      fontSize: 14,
                       fontWeight: 700,
-                      color: "#64748B",
+                      color: "var(--text-secondary)",
                       textTransform: "uppercase",
                       letterSpacing: "0.05em",
                       marginBottom: 8,
@@ -2971,7 +3101,7 @@ export default function SettingsClient({
                           </span>
                           <span
                             style={{
-                              fontSize: 11,
+                              fontSize: 14,
                               fontWeight: 700,
                               color: isChecked ? "#1E293B" : "#64748B",
                             }}

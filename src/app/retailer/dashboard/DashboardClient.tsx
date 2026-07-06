@@ -43,10 +43,10 @@ interface DashboardClientProps {
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
     return (
-      <div style={{ background: '#FFFFFF', border: '1.5px solid #FDE68A', padding: '12px 16px', borderRadius: 12, boxShadow: '0 10px 25px rgba(245,158,11,0.12)' }}>
-        <p style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: '#64748B', marginBottom: 6 }}>{label}</p>
+      <div style={{ background: 'var(--card-bg)', border: '1.5px solid #FDE68A', padding: '12px 16px', borderRadius: 12, boxShadow: '0 10px 25px rgba(245,158,11,0.12)' }}>
+        <p style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-secondary)', marginBottom: 6 }}>{label}</p>
         {payload.map((p: any) => (
-          <p key={p.name} style={{ fontSize: 12, fontWeight: 700, color: p.color }}>
+          <p key={p.name} style={{ fontSize: 14, fontWeight: 700, color: p.color }}>
             {p.name}: Rs. {(p.value || 0).toLocaleString()}
           </p>
         ))}
@@ -257,7 +257,7 @@ export default function DashboardClient({ profileId, metrics, auditLogs, rejecte
               <Clock style={{ width: 16, height: 16, color: '#D97706' }} />
             </div>
             <div>
-              <div style={{ fontSize: 12, fontWeight: 900, color: '#92400E' }}>
+              <div style={{ fontSize: 14, fontWeight: 900, color: '#92400E' }}>
                 Pending Return Verification Request
               </div>
               <div style={{ fontSize: 11, color: '#D97706', marginTop: 1 }}>
@@ -288,18 +288,18 @@ export default function DashboardClient({ profileId, metrics, auditLogs, rejecte
                     <Package style={{ width: 16, height: 16, color: '#D97706' }} />
                   </div>
                   <div>
-                    <div style={{ fontSize: 12, fontWeight: 800, color: '#1E293B' }}>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)' }}>
                       {r.wholesaler?.companyName}
                     </div>
-                    <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>
+                    <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
                       Order Ref: #{r.orderId.substring(0, 8).toUpperCase()}
                     </div>
                   </div>
                 </div>
 
-                <div style={{ flex: 1, minWidth: 200, fontSize: 12, color: '#475569' }}>
+                <div style={{ flex: 1, minWidth: 200, fontSize: 14, color: 'var(--text-secondary)' }}>
                   <strong>Reason:</strong> {r.reason || 'None specified'}<br/>
-                  <span style={{ fontSize: 11, color: '#94A3B8' }}>Submitted on: {new Date(r.createdAt).toLocaleDateString()}</span>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Submitted on: {new Date(r.createdAt).toLocaleDateString()}</span>
                 </div>
 
                 <div style={{ display: 'flex', gap: 10 }}>
@@ -346,7 +346,7 @@ export default function DashboardClient({ profileId, metrics, auditLogs, rejecte
               <AlertTriangle style={{ width: 16, height: 16, color: '#DC2626' }} />
             </div>
             <div>
-              <div style={{ fontSize: 12, fontWeight: 900, color: '#991B1B' }}>
+              <div style={{ fontSize: 14, fontWeight: 900, color: '#991B1B' }}>
                 Payment Settlement Rejected by Wholesaler
               </div>
               <div style={{ fontSize: 11, color: '#DC2626', marginTop: 1 }}>
@@ -378,10 +378,10 @@ export default function DashboardClient({ profileId, metrics, auditLogs, rejecte
                     <Users style={{ width: 16, height: 16, color: '#DC2626' }} />
                   </div>
                   <div>
-                    <div style={{ fontSize: 12, fontWeight: 800, color: '#1E293B' }}>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)' }}>
                       {s.wholesaler?.companyName || 'Wholesaler'}
                     </div>
-                    <div style={{ fontSize: 10, color: '#94A3B8', marginTop: 1 }}>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 1 }}>
                       Order #{s.id.substring(0, 8).toUpperCase()}
                     </div>
                   </div>
@@ -390,18 +390,18 @@ export default function DashboardClient({ profileId, metrics, auditLogs, rejecte
                 {/* Amount & Method */}
                 <div style={{ display: 'flex', gap: 16, alignItems: 'center', flex: 1 }}>
                   <div>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase' }}>Rejected Amount</div>
-                    <div style={{ fontSize: 15, fontWeight: 900, color: '#DC2626', fontFamily: 'monospace', marginTop: 2 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Rejected Amount</div>
+                    <div style={{ fontSize: 18, fontWeight: 900, color: '#DC2626', fontFamily: 'monospace', marginTop: 2 }}>
                       Rs. {s.settleAmount?.toLocaleString()}
                     </div>
                   </div>
                   <div>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase' }}>Method Attempted</div>
-                    <div style={{ fontSize: 12, fontWeight: 850, color: '#475569', marginTop: 2 }}>{s.settleMethod || 'CASH'}</div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Method Attempted</div>
+                    <div style={{ fontSize: 14, fontWeight: 850, color: 'var(--text-secondary)', marginTop: 2 }}>{s.settleMethod || 'CASH'}</div>
                   </div>
                   <div>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase' }}>Total Invoice Amount</div>
-                    <div style={{ fontSize: 13, fontWeight: 850, color: '#1E293B', marginTop: 2 }}>Rs. {s.netAmount?.toLocaleString()}</div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Total Invoice Amount</div>
+                    <div style={{ fontSize: 14, fontWeight: 850, color: 'var(--text-primary)', marginTop: 2 }}>Rs. {s.netAmount?.toLocaleString()}</div>
                   </div>
                 </div>
 
@@ -424,14 +424,14 @@ export default function DashboardClient({ profileId, metrics, auditLogs, rejecte
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 4 }}>
-            <div style={{ width: 44, height: 44, borderRadius: 12, background: 'linear-gradient(135deg, #F59E0B, #D97706)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#FFFFFF', fontWeight: 900, fontSize: 20 }}>
+            <div style={{ width: 44, height: 44, borderRadius: 12, background: 'linear-gradient(135deg, #F59E0B, #D97706)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#FFFFFF', fontWeight: 900, fontSize: 22 }}>
               R
             </div>
             <div>
-              <h1 style={{ fontSize: 26, fontWeight: 900, color: '#1E293B', margin: 0 }}>
+              <h1 style={{ fontSize: 26, fontWeight: 900, color: 'var(--text-primary)', margin: 0 }}>
                 {metrics.pharmacyName}
               </h1>
-              <p style={{ fontSize: 13, color: '#64748B', margin: 0 }}>Retail Pharmacy Dashboard · Node Overview</p>
+              <p style={{ fontSize: 14, color: 'var(--text-secondary)', margin: 0 }}>Retail Pharmacy Dashboard · Node Overview</p>
             </div>
           </div>
         </div>
@@ -439,7 +439,7 @@ export default function DashboardClient({ profileId, metrics, auditLogs, rejecte
           {metrics.nearExpiryCount > 0 && (
             <button
               onClick={() => setShowAlertModal(true)}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 10, border: '1.5px solid rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.06)', color: '#EF4444', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 10, border: '1.5px solid rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.06)', color: '#EF4444', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}
             >
               <Bell style={{ width: 14, height: 14 }} />
               {metrics.nearExpiryCount} Expiry Alert{metrics.nearExpiryCount > 1 ? 's' : ''}
@@ -448,31 +448,31 @@ export default function DashboardClient({ profileId, metrics, auditLogs, rejecte
           <button
             onClick={toggleFullscreen}
             title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 10, border: '1.5px solid #E2E8F0', background: isFullscreen ? '#1E293B' : '#FFFFFF', color: isFullscreen ? '#F59E0B' : '#475569', fontSize: 12, fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s' }}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 10, border: '1px solid var(--card-border)', background: isFullscreen ? '#1E293B' : '#FFFFFF', color: isFullscreen ? '#F59E0B' : '#475569', fontSize: 14, fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s' }}
           >
             {isFullscreen ? <Minimize2 style={{ width: 14, height: 14 }} /> : <Maximize2 style={{ width: 14, height: 14 }} />}
             {isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
           </button>
           <button
             onClick={() => setShowConfig(!showConfig)}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 10, border: '1.5px solid #E2E8F0', background: '#FFFFFF', color: '#475569', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 10, border: '1px solid var(--card-border)', background: 'var(--card-bg)', color: 'var(--text-secondary)', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}
           >
             <SlidersHorizontal style={{ width: 14, height: 14 }} />
             Configure
           </button>
           <div style={{ background: 'linear-gradient(135deg, rgba(245,158,11,0.08), rgba(245,158,11,0.03))', border: '1.5px solid rgba(245,158,11,0.25)', padding: '8px 16px', borderRadius: 10, textAlign: 'right' }}>
-            <div style={{ fontSize: 10, color: '#94A3B8', fontWeight: 700, textTransform: 'uppercase' }}>B2B Credit Ceiling</div>
-            <div style={{ fontSize: 15, fontWeight: 900, color: '#F59E0B' }}>Rs. {metrics.creditLimit.toLocaleString()}</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>B2B Credit Ceiling</div>
+            <div style={{ fontSize: 18, fontWeight: 900, color: '#F59E0B' }}>Rs. {metrics.creditLimit.toLocaleString()}</div>
           </div>
         </div>
       </div>
 
       {/* Widget Configure */}
       {showConfig && (
-        <div style={{ background: '#F8FAFC', border: '1.5px solid #E2E8F0', borderRadius: 12, padding: '14px 20px', display: 'flex', gap: 20, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 11, fontWeight: 800, color: '#64748B', textTransform: 'uppercase', alignSelf: 'center' }}>Panels:</span>
+        <div style={{ background: 'var(--table-header-bg)', border: '1px solid var(--card-border)', borderRadius: 12, padding: '14px 20px', display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', alignSelf: 'center' }}>Panels:</span>
           {Object.keys(widgets).map((key) => (
-            <label key={key} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, fontWeight: 700, color: '#475569', cursor: 'pointer' }}>
+            <label key={key} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 700, color: 'var(--text-secondary)', cursor: 'pointer' }}>
               <input
                 type="checkbox"
                 checked={(widgets as any)[key]}
@@ -496,7 +496,7 @@ export default function DashboardClient({ profileId, metrics, auditLogs, rejecte
                 href={card.link}
                 onClick={card.title === 'Near Expiry Batches' && metrics.nearExpiryCount > 0 ? (e) => { e.preventDefault(); setShowAlertModal(true); } : undefined}
                 style={{
-                  background: '#FFFFFF',
+                  background: 'var(--card-bg)',
                   border: `1.5px solid ${card.borderColor}`,
                   borderRadius: 16,
                   padding: 22,
@@ -518,7 +518,7 @@ export default function DashboardClient({ profileId, metrics, auditLogs, rejecte
                 }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <span style={{ fontSize: 11, fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.06em', lineHeight: 1.3 }}>
+                  <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em', lineHeight: 1.3 }}>
                     {card.title}
                   </span>
                   <div style={{ width: 36, height: 36, borderRadius: 10, background: card.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -526,11 +526,11 @@ export default function DashboardClient({ profileId, metrics, auditLogs, rejecte
                   </div>
                 </div>
                 <div>
-                  <div style={{ fontSize: 26, fontWeight: 900, color: '#1E293B', lineHeight: 1 }}>
+                  <div style={{ fontSize: 26, fontWeight: 900, color: 'var(--text-primary)', lineHeight: 1 }}>
                     {card.value}
-                    {card.unit && <span style={{ fontSize: 13, color: '#94A3B8', marginLeft: 4, fontWeight: 600 }}>{card.unit}</span>}
+                    {card.unit && <span style={{ fontSize: 14, color: 'var(--text-muted)', marginLeft: 4, fontWeight: 600 }}>{card.unit}</span>}
                   </div>
-                  <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
                     {card.trend === 'up' && <ArrowUpRight style={{ width: 12, height: 12, color: '#10B981' }} />}
                     {card.delta}
                   </div>
@@ -543,18 +543,18 @@ export default function DashboardClient({ profileId, metrics, auditLogs, rejecte
 
       {/* ── Charts Section ── */}
       {widgets.charts && (
-        <div style={{ background: '#FFFFFF', borderRadius: 18, border: '1.5px solid #F1F5F9', padding: 28, display: 'flex', flexDirection: 'column', gap: 20 }}>
+        <div style={{ background: 'var(--card-bg)', borderRadius: 18, border: '1px solid var(--card-border)', padding: 28, display: 'flex', flexDirection: 'column', gap: 20 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
             <div>
-              <h3 style={{ fontSize: 16, fontWeight: 900, color: '#1E293B', margin: 0 }}>Revenue vs. Procurement Ledger</h3>
-              <p style={{ fontSize: 12, color: '#94A3B8', margin: '4px 0 0' }}>6-month B2C sales income against B2B wholesale spend</p>
+              <h3 style={{ fontSize: 16, fontWeight: 900, color: 'var(--text-primary)', margin: 0 }}>Revenue vs. Procurement Ledger</h3>
+              <p style={{ fontSize: 14, color: 'var(--text-muted)', margin: '4px 0 0' }}>6-month B2C sales income against B2B wholesale spend</p>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
               {(['area', 'bar'] as const).map((type) => (
                 <button
                   key={type}
                   onClick={() => setActiveChart(type)}
-                  style={{ padding: '6px 14px', borderRadius: 8, border: '1.5px solid #E2E8F0', fontSize: 11, fontWeight: 700, cursor: 'pointer', background: activeChart === type ? '#F59E0B' : '#FFFFFF', color: activeChart === type ? '#FFFFFF' : '#475569', transition: 'all 0.15s' }}
+                  style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid var(--card-border)', fontSize: 11, fontWeight: 700, cursor: 'pointer', background: activeChart === type ? '#F59E0B' : '#FFFFFF', color: activeChart === type ? '#FFFFFF' : '#475569', transition: 'all 0.15s' }}
                 >
                   {type.toUpperCase()}
                 </button>
@@ -600,12 +600,12 @@ export default function DashboardClient({ profileId, metrics, auditLogs, rejecte
           <div style={{ display: 'flex', gap: 16, paddingTop: 12, borderTop: '1px solid #F1F5F9', flexWrap: 'wrap' }}>
             {[
               { label: 'Total Revenue', val: `Rs. ${metrics.totalSalesRevenue.toLocaleString()}`, color: '#F59E0B' },
-              { label: 'Total Spend', val: `Rs. ${metrics.lifetimeSpend.toLocaleString()}`, color: '#475569' },
+              { label: 'Total Spend', val: `Rs. ${metrics.lifetimeSpend.toLocaleString()}`, color: 'var(--text-secondary)' },
               { label: 'Net Margin', val: `Rs. ${margin.toLocaleString()} (${marginPct}%)`, color: margin >= 0 ? '#10B981' : '#EF4444' },
             ].map((s) => (
-              <div key={s.label} style={{ flex: 1, minWidth: 120, background: '#F8FAFC', padding: '12px 16px', borderRadius: 10 }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase' }}>{s.label}</div>
-                <div style={{ fontSize: 15, fontWeight: 900, color: s.color, marginTop: 4 }}>{s.val}</div>
+              <div key={s.label} style={{ flex: 1, minWidth: 120, background: 'var(--table-header-bg)', padding: '12px 16px', borderRadius: 10 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>{s.label}</div>
+                <div style={{ fontSize: 18, fontWeight: 900, color: s.color, marginTop: 4 }}>{s.val}</div>
               </div>
             ))}
           </div>
@@ -617,10 +617,10 @@ export default function DashboardClient({ profileId, metrics, auditLogs, rejecte
 
         {/* Quick Actions */}
         {widgets.quickActions && (
-          <div style={{ background: '#FFFFFF', borderRadius: 18, border: '1.5px solid #F1F5F9', padding: 28, display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <div style={{ background: 'var(--card-bg)', borderRadius: 18, border: '1px solid var(--card-border)', padding: 28, display: 'flex', flexDirection: 'column', gap: 20 }}>
             <div>
-              <h3 style={{ fontSize: 16, fontWeight: 900, color: '#1E293B', margin: 0 }}>Quick Launchpad</h3>
-              <p style={{ fontSize: 12, color: '#94A3B8', margin: '4px 0 0' }}>Frequently used operations and shortcuts</p>
+              <h3 style={{ fontSize: 16, fontWeight: 900, color: 'var(--text-primary)', margin: 0 }}>Quick Launchpad</h3>
+              <p style={{ fontSize: 14, color: 'var(--text-muted)', margin: '4px 0 0' }}>Frequently used operations and shortcuts</p>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14 }}>
               {quickActions.map((action) => {
@@ -655,8 +655,8 @@ export default function DashboardClient({ profileId, metrics, auditLogs, rejecte
                       <Icon style={{ width: 18, height: 18, color: '#FFFFFF' }} />
                     </div>
                     <div>
-                      <div style={{ fontSize: 13, fontWeight: 800, color: '#1E293B' }}>{action.label}</div>
-                      <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 1 }}>{action.desc}</div>
+                      <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)' }}>{action.label}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>{action.desc}</div>
                     </div>
                   </Link>
                 );
@@ -675,7 +675,7 @@ export default function DashboardClient({ profileId, metrics, auditLogs, rejecte
                   style={{ flex: 1, background: `${s.color}10`, borderRadius: 8, padding: '10px 14px', textAlign: 'center' }}
                 >
                   <div style={{ fontSize: 16, fontWeight: 900, color: s.color }}>{s.val}</div>
-                  <div style={{ fontSize: 9, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', marginTop: 2 }}>{s.label}</div>
+                  <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginTop: 2 }}>{s.label}</div>
                 </div>
               ))}
             </div>
@@ -684,17 +684,17 @@ export default function DashboardClient({ profileId, metrics, auditLogs, rejecte
 
         {/* Audit Logs Panel */}
         {widgets.logs && (
-          <div style={{ background: '#FFFFFF', borderRadius: 18, border: '1.5px solid #F1F5F9', padding: 28, display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <div style={{ background: 'var(--card-bg)', borderRadius: 18, border: '1px solid var(--card-border)', padding: 28, display: 'flex', flexDirection: 'column', gap: 20 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <h3 style={{ fontSize: 16, fontWeight: 900, color: '#1E293B', margin: 0 }}>Activity Log</h3>
-                <p style={{ fontSize: 12, color: '#94A3B8', margin: '4px 0 0' }}>Audit trail for this node</p>
+                <h3 style={{ fontSize: 16, fontWeight: 900, color: 'var(--text-primary)', margin: 0 }}>Activity Log</h3>
+                <p style={{ fontSize: 14, color: 'var(--text-muted)', margin: '4px 0 0' }}>Audit trail for this node</p>
               </div>
-              <Activity style={{ width: 16, height: 16, color: '#94A3B8' }} />
+              <Activity style={{ width: 16, height: 16, color: 'var(--text-muted)' }} />
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 0, maxHeight: 340, overflowY: 'auto' }}>
               {auditLogs.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '24px', fontSize: 12, color: '#94A3B8' }}>No activity logs yet</div>
+                <div style={{ textAlign: 'center', padding: '24px', fontSize: 14, color: 'var(--text-muted)' }}>No activity logs yet</div>
               ) : (
                 auditLogs.slice(0, 12).map((log, idx) => (
                   <button
@@ -707,9 +707,9 @@ export default function DashboardClient({ profileId, metrics, auditLogs, rejecte
                       {idx < auditLogs.length - 1 && <div style={{ flex: 1, width: 1, background: '#F1F5F9', marginTop: 4 }} />}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 700, color: '#334155', fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{log.action}</div>
-                      <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{log.details}</div>
-                      <div style={{ fontSize: 10, color: '#CBD5E1', marginTop: 2 }}>{new Date(log.timestamp).toLocaleTimeString()}</div>
+                      <div style={{ fontWeight: 700, color: '#334155', fontSize: 14, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{log.action}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{log.details}</div>
+                      <div style={{ fontSize: 12, color: '#CBD5E1', marginTop: 2 }}>{new Date(log.timestamp).toLocaleTimeString()}</div>
                     </div>
                   </button>
                 ))
@@ -722,32 +722,32 @@ export default function DashboardClient({ profileId, metrics, auditLogs, rejecte
       {/* ── Expiry Alerts Modal ── */}
       {showAlertModal && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(15,23,42,0.35)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-          <div style={{ width: '100%', maxWidth: 480, background: '#FFFFFF', borderRadius: 20, border: '1.5px solid #FEE2E2', padding: 28, display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <div style={{ width: '100%', maxWidth: 480, background: 'var(--card-bg)', borderRadius: 20, border: '1.5px solid #FEE2E2', padding: 28, display: 'flex', flexDirection: 'column', gap: 20 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div style={{ width: 40, height: 40, borderRadius: 12, background: 'rgba(239,68,68,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <AlertTriangle style={{ width: 20, height: 20, color: '#EF4444' }} />
                 </div>
                 <div>
-                  <h3 style={{ fontSize: 16, fontWeight: 900, color: '#1E293B', margin: 0 }}>Expiry Alerts</h3>
-                  <p style={{ fontSize: 12, color: '#94A3B8', margin: 0 }}>{metrics.nearExpiryCount} batch(es) expiring in 30 days</p>
+                  <h3 style={{ fontSize: 16, fontWeight: 900, color: 'var(--text-primary)', margin: 0 }}>Expiry Alerts</h3>
+                  <p style={{ fontSize: 14, color: 'var(--text-muted)', margin: 0 }}>{metrics.nearExpiryCount} batch(es) expiring in 30 days</p>
                 </div>
               </div>
-              <button onClick={() => setShowAlertModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8' }}>
+              <button onClick={() => setShowAlertModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
                 <X style={{ width: 20, height: 20 }} />
               </button>
             </div>
-            <div style={{ padding: '16px', background: 'rgba(239,68,68,0.04)', borderRadius: 12, border: '1px solid rgba(239,68,68,0.12)', fontSize: 13, color: '#475569', lineHeight: 1.6 }}>
+            <div style={{ padding: '16px', background: 'rgba(239,68,68,0.04)', borderRadius: 12, border: '1px solid rgba(239,68,68,0.12)', fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
               <strong>{metrics.nearExpiryCount}</strong> inventory batches are expiring within the next <strong>30 days</strong>. Please review your inventory to take action — issue discounts, return to supplier, or expedite sales for near-expiry stock.
             </div>
             <div style={{ display: 'flex', gap: 12 }}>
-              <button onClick={() => setShowAlertModal(false)} style={{ flex: 1, padding: '12px', borderRadius: 10, border: '1px solid #E2E8F0', fontSize: 13, fontWeight: 700, cursor: 'pointer', background: '#FFFFFF', color: '#475569' }}>
+              <button onClick={() => setShowAlertModal(false)} style={{ flex: 1, padding: '12px', borderRadius: 10, border: '1px solid var(--card-border)', fontSize: 14, fontWeight: 700, cursor: 'pointer', background: 'var(--card-bg)', color: 'var(--text-secondary)' }}>
                 Dismiss
               </button>
               <Link
                 href="/retailer/inventory"
                 onClick={() => setShowAlertModal(false)}
-                style={{ flex: 2, padding: '12px', borderRadius: 10, border: 'none', fontSize: 13, fontWeight: 800, cursor: 'pointer', background: '#EF4444', color: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, textDecoration: 'none' }}
+                style={{ flex: 2, padding: '12px', borderRadius: 10, border: 'none', fontSize: 14, fontWeight: 800, cursor: 'pointer', background: '#EF4444', color: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, textDecoration: 'none' }}
               >
                 <ShieldAlert style={{ width: 15, height: 15 }} />
                 View Inventory
@@ -760,35 +760,35 @@ export default function DashboardClient({ profileId, metrics, auditLogs, rejecte
       {/* ── Activity Log Detail Modal ── */}
       {selectedLog && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(15,23,42,0.35)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-          <div style={{ width: '100%', maxWidth: 420, background: '#FFFFFF', borderRadius: 20, border: '1.5px solid #F1F5F9', padding: 28, display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ width: '100%', maxWidth: 420, background: 'var(--card-bg)', borderRadius: 20, border: '1px solid var(--card-border)', padding: 28, display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ fontSize: 16, fontWeight: 900, color: '#1E293B', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <h3 style={{ fontSize: 16, fontWeight: 900, color: 'var(--text-primary)', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Activity style={{ width: 18, height: 18, color: '#F59E0B' }} />
                 Activity Detail
               </h3>
-              <button onClick={() => setSelectedLog(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8' }}>
+              <button onClick={() => setSelectedLog(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
                 <X style={{ width: 18, height: 18 }} />
               </button>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 13 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 14 }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <span style={{ fontSize: 10, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase' }}>Action</span>
-                <span style={{ fontWeight: 800, color: '#1E293B' }}>{selectedLog.action}</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Action</span>
+                <span style={{ fontWeight: 800, color: 'var(--text-primary)' }}>{selectedLog.action}</span>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <span style={{ fontSize: 10, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase' }}>Details</span>
-                <span style={{ color: '#475569', lineHeight: 1.5 }}>{selectedLog.details}</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Details</span>
+                <span style={{ color: 'var(--text-secondary)', lineHeight: 1.5 }}>{selectedLog.details}</span>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <span style={{ fontSize: 10, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase' }}>Timestamp</span>
-                <span style={{ color: '#475569', fontFamily: 'monospace' }}>{new Date(selectedLog.timestamp).toLocaleString()}</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Timestamp</span>
+                <span style={{ color: 'var(--text-secondary)', fontFamily: 'monospace' }}>{new Date(selectedLog.timestamp).toLocaleString()}</span>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <span style={{ fontSize: 10, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase' }}>Log ID</span>
-                <span style={{ color: '#94A3B8', fontFamily: 'monospace', fontSize: 11 }}>{selectedLog.id}</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Log ID</span>
+                <span style={{ color: 'var(--text-muted)', fontFamily: 'monospace', fontSize: 11 }}>{selectedLog.id}</span>
               </div>
             </div>
-            <button onClick={() => setSelectedLog(null)} style={{ padding: '12px', borderRadius: 10, border: 'none', fontSize: 13, fontWeight: 800, cursor: 'pointer', background: '#F59E0B', color: '#FFFFFF', marginTop: 8 }}>
+            <button onClick={() => setSelectedLog(null)} style={{ padding: '12px', borderRadius: 10, border: 'none', fontSize: 14, fontWeight: 800, cursor: 'pointer', background: '#F59E0B', color: '#FFFFFF', marginTop: 8 }}>
               Close
             </button>
           </div>
