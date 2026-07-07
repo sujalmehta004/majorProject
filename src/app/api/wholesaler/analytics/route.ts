@@ -125,7 +125,7 @@ export async function GET(request: NextRequest) {
     });
 
     // Group by product, sum available units
-    const productStockMap = new Map<string, { name: string; units: number; sku: string }>();
+    const productStockMap = new Map<string, { name: string; units: number; sku: string; stripsPerBox: number; tabletsPerStrip: number }>();
     allBatches.forEach(batch => {
       const existing = productStockMap.get(batch.productId);
       if (existing) {
@@ -135,6 +135,8 @@ export async function GET(request: NextRequest) {
           name: batch.product.name,
           sku: batch.product.sku,
           units: batch.availableBaseUnits,
+          stripsPerBox: batch.product.stripsPerBox,
+          tabletsPerStrip: batch.product.tabletsPerStrip,
         });
       }
     });
