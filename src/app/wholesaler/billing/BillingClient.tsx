@@ -653,7 +653,7 @@ export default function BillingClient({ profileId, initialOrders, initialSupplie
     orders.forEach((order: any) => {
       if (order.status === 'DELIVERED') {
         totalSales += order.netAmount;
-        order.items.forEach((item: any) => item.allocations.forEach((al: any) => {
+        order.items.forEach((item: any) => item.allocations?.forEach((al: any) => {
           totalCogs += al.quantity * al.batch.manufacturingCost;
         }));
       }
@@ -662,9 +662,10 @@ export default function BillingClient({ profileId, initialOrders, initialSupplie
       const remaining = Math.max(order.netAmount - paid, 0);
       pendingSales += remaining;
     });
-    const grossProfit = totalSales - totalCogs;
+    const rawProfit = totalSales - totalCogs;
+    const grossProfit = Math.round(rawProfit * 100) / 100;
     const profitMargin = totalSales > 0 ? (grossProfit / totalSales) * 100 : 0;
-    return { totalSales, totalCogs, grossProfit, profitMargin, pendingSales };
+    return { totalSales, totalCogs, grossProfit: grossProfit === -0 ? 0 : grossProfit, profitMargin, pendingSales };
   };
 
   const { totalSales, totalCogs, grossProfit, profitMargin, pendingSales } = calculateMetrics();
@@ -672,8 +673,11 @@ export default function BillingClient({ profileId, initialOrders, initialSupplie
   const getOrderProfit = (order: Order) => {
     if (order.status !== 'DELIVERED') return 0;
     let cost = 0;
-    order.items.forEach(item => item.allocations.forEach(al => { cost += al.quantity * al.batch.manufacturingCost; }));
-    return order.netAmount - cost;
+    order.items.forEach(item => item.allocations?.forEach(al => { cost += al.quantity * al.batch.manufacturingCost; }));
+    const raw = order.netAmount - cost;
+    // Round to 2 decimal places; clamp tiny floating-point negatives to 0
+    const rounded = Math.round(raw * 100) / 100;
+    return rounded < 0 && rounded > -0.005 ? 0 : rounded;
   };
   const downloadFiscalExcel = () => {
     const headers = [

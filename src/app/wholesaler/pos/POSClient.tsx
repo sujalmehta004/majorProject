@@ -92,9 +92,6 @@ export default function POSClient({ profile, products }: POSClientProps) {
   const [selectedProductId, setSelectedProductId] = useState('');
   const [selectedBatchId, setSelectedBatchId] = useState('');
   
-  // Pricing mode: false = use flat selling price, true = apply volume tier pricing
-  const [useTierPricing, setUseTierPricing] = useState(false);
-  
   // Advanced Ingestion Quantities & UOM
   const [posUomType, setPosUomType] = useState<'BOXES' | 'STRIPS' | 'TABLETS'>('BOXES');
   const [posQtyInput, setPosQtyInput] = useState(1);
@@ -150,6 +147,20 @@ export default function POSClient({ profile, products }: POSClientProps) {
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
+
+  // Auto-select recommended batch when product changes
+  useEffect(() => {
+    if (!selectedProductId) {
+      setSelectedBatchId('');
+      return;
+    }
+    const product = products.find(p => p.id === selectedProductId);
+    if (product && product.batches.length > 0) {
+      const sorted = [...product.batches].sort((a, b) => new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime());
+      const recommended = sorted.find(b => b.availableBaseUnits > 0) || sorted[0];
+      if (recommended) setSelectedBatchId(recommended.id);
+    }
+  }, [selectedProductId, products]);
 
   const handleCreateCustomer = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -208,26 +219,33 @@ export default function POSClient({ profile, products }: POSClientProps) {
       )
     : registeredCustomers;
 
-  // Evaluate tiered pricing per Box — falls back to batch sellingPricePerBox, not a hardcoded value
-  const getPricePerBox = (product: Product, qty: number) => {
-    // Determine base selling price from the earliest (recommended) batch
+  // Evaluate pricing per Box — auto-applies tier pricing when tiers are defined for the product
+  // Uses selected batch's selling price as the base; tiers override when quantity matches
+  const getPricePerBox = (product: Product, qty: number, targetBatchId?: string) => {
+    // Determine base selling price from the selected or recommended batch
     const sortedBatches = [...product.batches].sort((a, b) => new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime());
-    const activeBatch = sortedBatches.find(b => b.availableBaseUnits > 0);
-    const baseSellPrice = activeBatch?.sellingPricePerBox ?? (sortedBatches[0]?.sellingPricePerBox ?? 0);
+    let baseSellPrice: number;
+    if (targetBatchId) {
+      const targetBatch = product.batches.find(b => b.id === targetBatchId);
+      baseSellPrice = targetBatch?.sellingPricePerBox ?? (sortedBatches[0]?.sellingPricePerBox ?? 0);
+    } else {
+      const activeBatch = sortedBatches.find(b => b.availableBaseUnits > 0);
+      baseSellPrice = activeBatch?.sellingPricePerBox ?? (sortedBatches[0]?.sellingPricePerBox ?? 0);
+    }
 
-    // When flat pricing mode is active, always return the selling price directly
-    if (!useTierPricing) return baseSellPrice;
-
+    // Auto-apply tier pricing when tiers are defined
     let price = baseSellPrice;
     try {
       const tiers = JSON.parse(product.tierPricingJson || '[]');
-      const matchingTier = tiers.find(
-        (t: any) => qty >= t.minQty && qty <= (t.maxQty || 999999)
-      );
-      if (matchingTier) {
-        price = matchingTier.pricePerBox;
+      if (tiers.length > 0) {
+        const matchingTier = tiers.find(
+          (t: any) => qty >= t.minQty && qty <= (t.maxQty || 999999)
+        );
+        if (matchingTier) {
+          price = matchingTier.pricePerBox;
+        }
+        // If no tier matched, keep batch base selling price
       }
-      // If no tier matched, keep base selling price
     } catch (e) {
       console.error('Failed to evaluate price tiers', e);
     }
@@ -256,7 +274,7 @@ export default function POSClient({ profile, products }: POSClientProps) {
       qtyBoxes = inputQty / tabletsPerBox;
     }
 
-    const pricePerBox = getPricePerBox(product, qtyBoxes);
+    const pricePerBox = getPricePerBox(product, qtyBoxes, batchId);
     const existing = cart.find(item => item.product.id === product.id && item.selectedBatchId === batchId);
     const totalQty = existing ? existing.qtyBoxes + qtyBoxes : qtyBoxes;
 
@@ -273,7 +291,7 @@ export default function POSClient({ profile, products }: POSClientProps) {
     if (existing) {
       setCart(cart.map(item => 
         (item.product.id === product.id && item.selectedBatchId === batchId)
-          ? { ...item, qtyBoxes: totalQty, pricePerBox: getPricePerBox(product, totalQty) }
+          ? { ...item, qtyBoxes: totalQty, pricePerBox: getPricePerBox(product, totalQty, batchId) }
           : item
       ));
     } else {
@@ -334,7 +352,7 @@ export default function POSClient({ profile, products }: POSClientProps) {
 
     setCart(cart.map(c => 
       (c.product.id === productId && c.selectedBatchId === batchId)
-        ? { ...c, qtyBoxes: newQty, pricePerBox: getPricePerBox(c.product, newQty) }
+        ? { ...c, qtyBoxes: newQty, pricePerBox: getPricePerBox(c.product, newQty, c.selectedBatchId) }
         : c
     ));
   };
@@ -581,32 +599,9 @@ export default function POSClient({ profile, products }: POSClientProps) {
               </h3>
               <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>Search medicines, allocate batches, verify volume discount tiers, and configure transaction unit choices.</p>
             </div>
-            {/* Pricing Mode Toggle */}
-            <div style={{ display: 'flex', gap: 3, background: '#F3F4F6', padding: 3, borderRadius: 6 }}>
-              <button
-                type="button"
-                onClick={() => setUseTierPricing(false)}
-                style={{
-                  padding: '5px 12px', border: 'none', borderRadius: 4, fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                  background: !useTierPricing ? 'white' : 'transparent',
-                  color: !useTierPricing ? '#2563EB' : '#6B7280',
-                  boxShadow: !useTierPricing ? '0 1px 2px rgba(0,0,0,0.06)' : 'none'
-                }}
-              >
-                Flat Price
-              </button>
-              <button
-                type="button"
-                onClick={() => setUseTierPricing(true)}
-                style={{
-                  padding: '5px 12px', border: 'none', borderRadius: 4, fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                  background: useTierPricing ? 'white' : 'transparent',
-                  color: useTierPricing ? '#2563EB' : '#6B7280',
-                  boxShadow: useTierPricing ? '0 1px 2px rgba(0,0,0,0.06)' : 'none'
-                }}
-              >
-                Tier Pricing
-              </button>
+            {/* Pricing is auto: tier pricing applied when tiers exist, otherwise batch selling price */}
+            <div style={{ padding: '5px 12px', borderRadius: 6, background: '#EFF6FF', border: '1px solid #BFDBFE', fontSize: 12, fontWeight: 600, color: '#1D4ED8' }}>
+              Auto Pricing (Tier + Batch)
             </div>
           </div>
 

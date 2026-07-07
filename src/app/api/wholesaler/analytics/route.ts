@@ -100,7 +100,9 @@ export async function GET(request: NextRequest) {
             cost += alloc.quantity * alloc.batch.manufacturingCost;
           });
         });
-        bucket.profit += order.netAmount - cost;
+        const orderProfit = order.netAmount - cost;
+        const roundedProfit = Math.round(orderProfit * 100) / 100;
+        bucket.profit += (roundedProfit < 0 && order.netAmount >= cost - 0.1) ? 0 : roundedProfit;
       }
     });
 

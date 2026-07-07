@@ -210,6 +210,12 @@ export default function RetailerLayout({ children, user, profile }: RetailerLayo
     const savedFontScale = localStorage.getItem('font_scale') || 'md';
     document.body.classList.remove('font-sm', 'font-md', 'font-lg');
     document.body.classList.add(`font-${savedFontScale}`);
+
+    // Restore fullscreen if it was active before navigation
+    const wantsFullscreen = localStorage.getItem('app_fullscreen') === 'true';
+    if (wantsFullscreen && !document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
+    }
     
     logActivity('VIEW_PAGE', `Opened retailer page: ${pathname}`);
   }, [pathname]);
@@ -232,8 +238,10 @@ export default function RetailerLayout({ children, user, profile }: RetailerLayo
         e.preventDefault();
         if (!document.fullscreenElement) {
           document.documentElement.requestFullscreen().catch(() => {});
+          localStorage.setItem('app_fullscreen', 'true');
         } else {
           document.exitFullscreen().catch(() => {});
+          localStorage.setItem('app_fullscreen', 'false');
         }
       }
       if (e.key === 'Escape') {
@@ -262,6 +270,17 @@ export default function RetailerLayout({ children, user, profile }: RetailerLayo
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [showSearch, flatResults, activeIndex, router]);
+
+  // Sync fullscreen state: if user exits via Esc or browser chrome, clear the stored preference
+  useEffect(() => {
+    const handleFsChange = () => {
+      if (!document.fullscreenElement) {
+        localStorage.setItem('app_fullscreen', 'false');
+      }
+    };
+    document.addEventListener('fullscreenchange', handleFsChange);
+    return () => document.removeEventListener('fullscreenchange', handleFsChange);
+  }, []);
 
   const settingsFunctions = [
     {

@@ -149,6 +149,20 @@ export default function POSClient({ products }: POSClientProps) {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
+  // Auto-select recommended batch when product changes
+  useEffect(() => {
+    if (!selectedProductId) {
+      setSelectedBatchId('');
+      return;
+    }
+    const product = products.find(p => p.id === selectedProductId);
+    if (product && product.batches.length > 0) {
+      const sorted = [...product.batches].sort((a, b) => new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime());
+      const recommended = sorted.find(b => b.availableBaseUnits > 0) || sorted[0];
+      if (recommended) setSelectedBatchId(recommended.id);
+    }
+  }, [selectedProductId, products]);
+
   const adjustCartItemQty = (productId: string, batchNumber: string, packaging: 'box' | 'strip' | 'tablet', amount: number) => {
     setCart((prev) => prev.map((item) => {
       if (item.productId === productId && item.batchNumber === batchNumber && item.packaging === packaging) {
@@ -243,447 +257,323 @@ export default function POSClient({ products }: POSClientProps) {
         </div>
       </div>
 
-      {/* Main 2-column layout */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1.15fr 1fr', gap: 18, flex: 1 }} className="no-print">
+      {/* ── FULL WIDTH POS CASHIER LAYOUT ── */}
+      <div className="no-print" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-        {/* ── LEFT: Product selection ── */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-
-          {/* ── STEP 1: Find Medicine ── */}
-          <div style={{ background: 'var(--card-bg)', borderRadius: 12, border: '1px solid var(--card-border)' }}>
-
-            {/* Card header */}
-            <div style={{ padding: '11px 16px', borderBottom: '1px solid var(--card-border)', display: 'flex', alignItems: 'center', gap: 10, background: 'var(--table-header-bg)' }}>
-              <span style={{ width: 22, height: 22, borderRadius: '50%', background: '#F59E0B', color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, flexShrink: 0 }}>1</span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>Find Medicine</span>
-              <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-muted)' }}>F9 to focus search</span>
+        {/* Catalog Finder Panel (Top position full-width, clean and matching wholesaler design) */}
+        <div style={{ background: 'var(--card-bg)', border: '1px solid var(--card-border)', borderRadius: 8, padding: 20 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--card-border)', paddingBottom: 10, marginBottom: 14 }}>
+            <div>
+              <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8, margin: 0 }}>
+                <Search style={{ width: 18, height: 18, color: '#F59E0B' }} /> Advanced Catalog Medicine Finder
+              </h3>
+              <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2, margin: 0 }}>Search medicines, allocate batches, verify stock, and configure transaction unit choices.</p>
             </div>
+            <div style={{ padding: '5px 12px', borderRadius: 6, background: '#FFFBEB', border: '1px solid #FDE68A', fontSize: 12, fontWeight: 600, color: '#B45309' }}>
+              Auto Recommended Batch Enabled
+            </div>
+          </div>
 
-            <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {/* Barcode row */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 0, borderRadius: 8, border: '1px solid #FDE68A', overflow: 'hidden', background: '#FFFDF7' }}>
-                <div style={{ padding: '9px 12px', borderRight: '1px solid #FDE68A', display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                  <Receipt style={{ width: 14, height: 14, color: '#D97706' }} />
-                  <span style={{ fontSize: 11, fontWeight: 700, color: '#D97706', whiteSpace: 'nowrap' }}>SCAN</span>
+          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16 }}>
+            {/* Search Input Box */}
+            <div ref={suggestionsRef} style={{ position: 'relative' }}>
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 6 }}>Search Medicine SKU or Name</label>
+              {selectedProduct ? (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--table-header-bg)', border: '1px solid var(--card-border)', borderRadius: 6, padding: '10px 14px' }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: '#D97706' }}>{selectedProduct.name} [{selectedProduct.sku}]</div>
+                  <button type="button" onClick={() => { setSelectedProductId(''); setSelectedBatchId(''); setSearchQuery(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', alignItems: 'center' }}>
+                    <X style={{ width: 16, height: 16 }} />
+                  </button>
                 </div>
-                <input
-                  type="text"
-                  placeholder="Scan barcode or type SKU, press Enter…"
-                  value={barcodeInput}
-                  onChange={(e) => setBarcodeInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      const val = barcodeInput.trim().toUpperCase();
-                      if (!val) return;
-                      const found = products.find(p => p.sku.toUpperCase() === val || p.id === val);
-                      if (found) { setSelectedProductId(found.id); setSelectedBatchId(found.batches[0]?.id || ''); setBarcodeInput(''); }
-                      else alert(`No product found for: ${val}`);
-                    }
-                  }}
-                  style={{ border: 'none', background: 'transparent', outline: 'none', flex: 1, padding: '9px 12px', fontSize: 13, fontFamily: 'monospace', fontWeight: 600, color: '#92400E' }}
-                />
-              </div>
-
-              {/* Search row */}
-              <div style={{ position: 'relative' }} ref={suggestionsRef}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 0, borderRadius: 8, border: '1px solid var(--card-border)', overflow: 'hidden', background: 'var(--card-bg)' }}>
-                  <div style={{ padding: '9px 12px', borderRight: '1px solid var(--card-border)', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
-                    <Search style={{ width: 14, height: 14, color: 'var(--text-muted)' }} />
-                  </div>
+              ) : (
+                <>
                   <input
                     ref={searchInputRef}
                     type="text"
-                    placeholder="Type medicine name or SKU to search…"
                     value={searchQuery}
                     onChange={(e) => { setSearchQuery(e.target.value); setShowSuggestions(true); }}
                     onFocus={() => setShowSuggestions(true)}
-                    style={{ border: 'none', background: 'transparent', outline: 'none', flex: 1, padding: '9px 12px', fontSize: 13, color: 'var(--text-primary)' }}
+                    placeholder="Start typing medicine name or SKU... (F9 to focus)"
+                    style={{ width: '100%', fontSize: 14, padding: '10px 14px', border: '1px solid var(--card-border)', borderRadius: 6, outline: 'none', background: 'var(--card-bg)', color: 'var(--text-primary)', boxSizing: 'border-box' }}
                   />
-                  {searchQuery && (
-                    <button onClick={() => { setSearchQuery(''); setShowSuggestions(false); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '0 10px' }}>
-                      <X style={{ width: 13, height: 13 }} />
-                    </button>
-                  )}
-                </div>
-
-                {showSuggestions && searchQuery && (
-                  <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, background: 'var(--card-bg)', border: '1px solid var(--card-border)', borderRadius: 10, zIndex: 9999, maxHeight: 300, overflowY: 'auto', boxShadow: '0 8px 24px rgba(0,0,0,0.09)' }}>
-                    {filteredProducts.length === 0 ? (
-                      <div style={{ padding: 16, fontSize: 13, color: 'var(--text-muted)', textAlign: 'center' }}>No medicines found</div>
-                    ) : filteredProducts.map((p) => {
-                      const totalUnits = p.batches.reduce((s, b) => s + b.availableBaseUnits, 0);
-                      const nearestExpiry = p.batches.reduce<string | null>((min, b) => !min ? b.expiryDate : new Date(b.expiryDate) < new Date(min) ? b.expiryDate : min, null);
-                      const racks = [...new Set(p.batches.map(b => b.rack).filter(Boolean))] as string[];
-                      const isExpiringSoon = nearestExpiry ? new Date(nearestExpiry) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) : false;
-                      return (
-                        <div key={p.id}
-                          onClick={() => { setSelectedProductId(p.id); setSelectedBatchId(p.batches[0]?.id || ''); setSearchQuery(''); setShowSuggestions(false); }}
-                          style={{ padding: '11px 14px', cursor: 'pointer', borderBottom: '1px solid var(--card-border)' }}
-                          onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--table-header-bg)')}
-                          onMouseLeave={(e) => (e.currentTarget.style.background = '')}
-                        >
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: 13 }}>{p.name}</div>
-                              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
-                                <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>{p.sku}</span>
-                                {' · '}{p.category}
-                                {' · '}{p.batches.length} batch{p.batches.length !== 1 ? 'es' : ''}
+                  {showSuggestions && searchQuery && (
+                    <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, background: 'var(--card-bg)', border: '1px solid var(--card-border)', borderRadius: 8, boxShadow: '0 6px 20px rgba(0,0,0,0.1)', zIndex: 9999, maxHeight: 240, overflowY: 'auto' }}>
+                      {filteredProducts.length === 0 ? (
+                        <div style={{ padding: '12px 14px', fontSize: 13, color: 'var(--text-muted)' }}>No medicines found</div>
+                      ) : (
+                        filteredProducts.map(p => {
+                          const totalUnits = p.batches.reduce((s, b) => s + b.availableBaseUnits, 0);
+                          return (
+                            <button
+                              key={p.id}
+                              type="button"
+                              onClick={() => { setSelectedProductId(p.id); setSearchQuery(''); setShowSuggestions(false); }}
+                              style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 14px', border: 'none', background: 'none', borderBottom: '1px solid var(--card-border)', cursor: 'pointer', fontFamily: 'inherit' }}
+                              onMouseEnter={e => (e.currentTarget.style.background = 'var(--table-header-bg)')}
+                              onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                            >
+                              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>{p.name}</div>
+                              <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
+                                SKU: {p.sku} | Category: {p.category} | Stock: {totalUnits} units ({p.batches.length} batches)
                               </div>
-                              {(nearestExpiry || racks.length > 0) && (
-                                <div style={{ display: 'flex', gap: 4, marginTop: 5, flexWrap: 'wrap' }}>
-                                  {nearestExpiry && (
-                                    <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: isExpiringSoon ? '#FFFBEB' : '#F0FDF4', color: isExpiringSoon ? '#92400E' : '#15803D', border: `1px solid ${isExpiringSoon ? '#FDE68A' : '#BBF7D0'}` }}>
-                                      Exp {new Date(nearestExpiry).toLocaleDateString()}
-                                    </span>
-                                  )}
-                                  {racks.map(r => (
-                                    <span key={r} style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: '#FEF9C3', color: '#713F12', border: '1px solid #FEF08A' }}>📍 {r}</span>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                            <div style={{ flexShrink: 0, textAlign: 'right' }}>
-                              <div style={{ fontSize: 13, fontWeight: 800, color: totalUnits > 0 ? '#D97706' : '#EF4444' }}>{totalUnits}</div>
-                              <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600 }}>units</div>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* ── STEP 2: Select Product + Batch ── */}
-          <div style={{ background: 'var(--card-bg)', borderRadius: 12, border: `1px solid ${selectedProductId ? 'var(--card-border)' : 'var(--card-border)'}`, overflow: 'hidden' }}>
-            <div style={{ padding: '11px 16px', borderBottom: '1px solid var(--card-border)', display: 'flex', alignItems: 'center', gap: 10, background: 'var(--table-header-bg)' }}>
-              <span style={{ width: 22, height: 22, borderRadius: '50%', background: selectedProductId ? '#10B981' : '#CBD5E1', color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, flexShrink: 0, transition: 'background 0.2s' }}>2</span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>Select Product &amp; Batch</span>
-              {selectedProduct && (
-                <button type="button" onClick={() => { setSelectedProductId(''); setSelectedBatchId(''); }} style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <X style={{ width: 12, height: 12 }} /> Clear
-                </button>
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                  )}
+                </>
               )}
             </div>
 
-            <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {/* Medicine dropdown */}
-              <div>
-                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 5 }}>Medicine</label>
-                <select
-                  value={selectedProductId}
-                  onChange={(e) => { setSelectedProductId(e.target.value); setSelectedBatchId(''); }}
-                  style={{ ...inputStyle, fontWeight: selectedProductId ? 700 : 400, color: selectedProductId ? 'var(--text-primary)' : 'var(--text-muted)' }}
+            {/* Batch Selection */}
+            <div>
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 6 }}>Batch Allocation (Expiry Suggested)</label>
+              <select
+                disabled={!selectedProductId}
+                value={selectedBatchId}
+                onChange={(e) => setSelectedBatchId(e.target.value)}
+                style={{ ...inputStyle, padding: '10px 14px', fontSize: 14 }}
+              >
+                <option value="">-- Choose batch --</option>
+                {selectedProduct?.batches.map((b, idx) => {
+                  return (
+                    <option key={b.id} value={b.id}>
+                      {b.batchNumber} (Exp: {new Date(b.expiryDate).toLocaleDateString()}) - {b.availableBaseUnits} units {idx === 0 ? '⭐ Recommended' : ''}
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+          </div>
+
+          {/* Selected Medicine Info Box & Actions */}
+          {selectedProduct && (
+            <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--card-border)', display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, padding: 12, fontSize: 12, display: 'flex', justifyContent: 'space-between', color: '#92400E' }}>
+                <div>Selected: <strong>{selectedProduct.name}</strong></div>
+                <div>Default Price per Box: <strong>Rs. {selectedProduct.pricePerBox || 100}</strong></div>
+                {selectedBatch && <div>Selected Batch Price: <strong>Rs. {selectedBatch.sellingPrice || selectedProduct.pricePerBox || 100}/box</strong></div>}
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 8 }}>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 6 }}>Qty</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={posQtyInput}
+                      onChange={(e) => setPosQtyInput(parseInt(e.target.value) || 1)}
+                      style={{ width: 80, padding: '8px 12px', border: '1px solid var(--card-border)', borderRadius: 6, textAlign: 'center', fontWeight: 'bold', fontSize: 14, background: 'var(--card-bg)', color: 'var(--text-primary)' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 6 }}>UOM Choice</label>
+                    <select
+                      value={posUomType}
+                      onChange={(e) => setPosUomType(e.target.value as any)}
+                      style={{ padding: '8px 12px', border: '1px solid var(--card-border)', borderRadius: 6, fontSize: 13, background: 'var(--card-bg)', color: 'var(--text-primary)' }}
+                    >
+                      <option value="box">Boxes</option>
+                      <option value="strip">Strips</option>
+                      <option value="tablet">Tablets</option>
+                    </select>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  id="add-to-basket-btn"
+                  onClick={handleAddToBasket}
+                  style={{ padding: '10px 24px', fontSize: 13, fontWeight: 600, background: '#F59E0B', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
                 >
-                  <option value="">— Choose Medicine —</option>
-                  {products.map((p) => <option key={p.id} value={p.id}>{p.name}  ·  SKU: {p.sku}</option>)}
-                </select>
+                  ➕ Add to Basket (F1)
+                </button>
               </div>
-
-              {/* Selected product info card */}
-              {selectedProduct && (
-                <div style={{ background: 'var(--table-header-bg)', borderRadius: 8, padding: '10px 14px', border: '1px solid var(--card-border)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>{selectedProduct.name}</div>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
-                        <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>{selectedProduct.sku}</span>
-                        {' · '}{selectedProduct.category}
-                        {' · '}{selectedProduct.tabletsPerStrip}t × {selectedProduct.stripsPerBox}s/box
-                      </div>
-                    </div>
-                    <span style={{ fontSize: 11, fontWeight: 700, background: 'var(--card-bg)', border: '1px solid var(--card-border)', color: 'var(--text-secondary)', padding: '3px 8px', borderRadius: 6, whiteSpace: 'nowrap' }}>
-                      {selectedProduct.batches.length} batch{selectedProduct.batches.length !== 1 ? 'es' : ''}
-                    </span>
-                  </div>
-                </div>
-              )}
-
-              {/* Batch list as clickable rows */}
-              {selectedProduct && selectedProduct.batches.length > 0 && (
-                <div>
-                  <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 6 }}>Choose Batch</label>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 200, overflowY: 'auto' }}>
-                    {selectedProduct.batches.map((b) => {
-                      const isSelected = selectedBatchId === b.id;
-                      const daysLeft = Math.ceil((new Date(b.expiryDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-                      const expColor = daysLeft < 0 ? '#EF4444' : daysLeft <= 30 ? '#D97706' : '#10B981';
-                      const expBg = daysLeft < 0 ? '#FEF2F2' : daysLeft <= 30 ? '#FFFBEB' : '#F0FDF4';
-                      const expLabel = daysLeft < 0 ? 'EXPIRED' : daysLeft <= 30 ? `${daysLeft}d left` : new Date(b.expiryDate).toLocaleDateString();
-                      return (
-                        <div
-                          key={b.id}
-                          onClick={() => setSelectedBatchId(b.id)}
-                          style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 8, cursor: 'pointer', border: `1.5px solid ${isSelected ? '#F59E0B' : 'var(--card-border)'}`, background: isSelected ? '#FFFDF7' : 'var(--card-bg)', transition: 'all 0.15s' }}
-                        >
-                          {/* Radio circle */}
-                          <div style={{ width: 16, height: 16, borderRadius: '50%', border: `2px solid ${isSelected ? '#F59E0B' : '#CBD5E1'}`, background: isSelected ? '#F59E0B' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s' }}>
-                            {isSelected && <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#fff' }} />}
-                          </div>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'monospace' }}>{b.batchNumber}</div>
-                            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>
-                              {b.availableBaseUnits.toLocaleString()} units
-                              {b.rack && <> · 📍 <span style={{ fontWeight: 700 }}>{b.rack}</span></>}
-                            </div>
-                          </div>
-                          <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                            <div style={{ fontSize: 11, fontWeight: 700, color: expColor, background: expBg, padding: '2px 7px', borderRadius: 5 }}>{expLabel}</div>
-                            {b.sellingPrice && b.sellingPrice > 0 && (
-                              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>Rs. {b.sellingPrice}/box</div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {selectedProduct && selectedProduct.batches.length === 0 && (
-                <div style={{ padding: '12px', background: '#FEF2F2', borderRadius: 8, border: '1px solid #FECACA', fontSize: 13, color: '#DC2626', fontWeight: 600 }}>No available batches for this medicine</div>
-              )}
-            </div>
-          </div>
-
-          {/* ── STEP 3: Quantity & Add ── */}
-          {selectedProduct && selectedBatch && (() => {
-            const pricePerBox = getProductPricePerBox(selectedProduct, selectedBatch.id);
-            const tabletsPerBox = selectedProduct.tabletsPerStrip * selectedProduct.stripsPerBox;
-            let baseUnitsPreview = posUomType === 'box' ? posQtyInput * tabletsPerBox : posUomType === 'strip' ? posQtyInput * selectedProduct.tabletsPerStrip : posQtyInput;
-            const lineTotal = baseUnitsPreview * (pricePerBox / tabletsPerBox);
-            const stockOk = baseUnitsPreview <= selectedBatch.availableBaseUnits;
-
-            return (
-              <div style={{ background: 'var(--card-bg)', borderRadius: 12, border: '1px solid var(--card-border)', overflow: 'hidden' }}>
-                <div style={{ padding: '11px 16px', borderBottom: '1px solid var(--card-border)', display: 'flex', alignItems: 'center', gap: 10, background: 'var(--table-header-bg)' }}>
-                  <span style={{ width: 22, height: 22, borderRadius: '50%', background: '#3B82F6', color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, flexShrink: 0 }}>3</span>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>Set Quantity &amp; Dispense</span>
-                </div>
-
-                <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-
-                  {/* UOM toggle */}
-                  <div>
-                    <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 6 }}>Unit of Measure · F2 to cycle</label>
-                    <div style={{ display: 'flex', border: '1px solid var(--card-border)', borderRadius: 8, overflow: 'hidden' }}>
-                      {([{ id: 'box', label: 'Box', sub: `=${tabletsPerBox} tabs` }, { id: 'strip', label: 'Strip', sub: `=${selectedProduct.tabletsPerStrip} tabs` }, { id: 'tablet', label: 'Tablet', sub: '=1 tab' }] as const).map((u, i) => (
-                        <button
-                          key={u.id}
-                          type="button"
-                          onClick={() => setPosUomType(u.id)}
-                          style={{
-                            flex: 1, padding: '10px 6px', border: 'none',
-                            borderRight: i < 2 ? '1px solid var(--card-border)' : 'none',
-                            fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                            background: posUomType === u.id ? '#FFFBEB' : 'var(--card-bg)',
-                            color: posUomType === u.id ? '#D97706' : 'var(--text-secondary)',
-                            transition: 'all 0.15s', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2
-                          }}
-                        >
-                          <span>{u.label}</span>
-                          <span style={{ fontSize: 10, fontWeight: 500, color: posUomType === u.id ? '#D97706' : 'var(--text-muted)', opacity: 0.8 }}>{u.sub}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Qty stepper */}
-                  <div>
-                    <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 6 }}>Quantity · F3 to focus</label>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 0, border: '1px solid var(--card-border)', borderRadius: 8, overflow: 'hidden' }}>
-                      <button
-                        type="button"
-                        onClick={() => setPosQtyInput(q => Math.max(1, q - 1))}
-                        style={{ padding: '10px 16px', border: 'none', borderRight: '1px solid var(--card-border)', background: 'var(--table-header-bg)', cursor: 'pointer', fontSize: 18, fontWeight: 700, color: 'var(--text-secondary)', transition: 'background 0.15s' }}
-                        onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--card-border)')}
-                        onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--table-header-bg)')}
-                      >−</button>
-                      <input
-                        id="pos-qty-input"
-                        type="number"
-                        min="1"
-                        value={posQtyInput}
-                        onChange={(e) => setPosQtyInput(parseInt(e.target.value) || 1)}
-                        style={{ flex: 1, border: 'none', outline: 'none', textAlign: 'center', fontSize: 18, fontWeight: 800, padding: '10px 0', background: 'var(--card-bg)', color: 'var(--text-primary)' }}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setPosQtyInput(q => q + 1)}
-                        style={{ padding: '10px 16px', border: 'none', borderLeft: '1px solid var(--card-border)', background: 'var(--table-header-bg)', cursor: 'pointer', fontSize: 18, fontWeight: 700, color: 'var(--text-secondary)', transition: 'background 0.15s' }}
-                        onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--card-border)')}
-                        onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--table-header-bg)')}
-                      >+</button>
-                    </div>
-                  </div>
-
-                  {/* Price preview */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: stockOk ? 'var(--table-header-bg)' : '#FEF2F2', borderRadius: 8, border: `1px solid ${stockOk ? 'var(--card-border)' : '#FECACA'}` }}>
-                    <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-                      <span style={{ fontWeight: 700 }}>{posQtyInput} {posUomType}{posQtyInput > 1 ? 's' : ''}</span>
-                      {' = '}<span style={{ fontFamily: 'monospace', fontWeight: 600 }}>{baseUnitsPreview}</span> tabs
-                      {!stockOk && <span style={{ color: '#DC2626', fontWeight: 700, marginLeft: 8 }}>⚠ Exceeds stock</span>}
-                    </div>
-                    <div style={{ fontSize: 15, fontWeight: 800, color: stockOk ? '#D97706' : '#DC2626' }}>Rs. {lineTotal.toFixed(2)}</div>
-                  </div>
-
-                  {/* Quick presets */}
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    {[1, 2, 5, 10].map(n => (
-                      <button key={n} type="button" onClick={() => setPosQtyInput(n)} style={{ flex: 1, padding: '6px 4px', borderRadius: 7, border: `1px solid ${posQtyInput === n ? '#F59E0B' : 'var(--card-border)'}`, background: posQtyInput === n ? '#FFFBEB' : 'var(--card-bg)', fontSize: 12, fontWeight: 700, cursor: 'pointer', color: posQtyInput === n ? '#D97706' : 'var(--text-secondary)' }}>{n}</button>
-                    ))}
-                  </div>
-
-                  {/* CTA */}
-                  <button
-                    id="add-to-basket-btn"
-                    type="button"
-                    onClick={handleAddToBasket}
-                    disabled={!stockOk}
-                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '13px', borderRadius: 8, background: stockOk ? '#F59E0B' : '#CBD5E1', color: '#FFFFFF', border: 'none', fontSize: 14, fontWeight: 700, cursor: stockOk ? 'pointer' : 'not-allowed', transition: 'background 0.15s' }}
-                  >
-                    <Plus style={{ width: 16, height: 16 }} />
-                    Add to Cart &nbsp;<kbd style={{ background: 'rgba(0,0,0,0.15)', borderRadius: 4, padding: '1px 6px', fontSize: 11, fontFamily: 'monospace' }}>F1</kbd>
-                  </button>
-                </div>
-              </div>
-            );
-          })()}
-
-          {/* Error */}
-          {error && (
-            <div style={{ display: 'flex', gap: 8, padding: '10px 14px', background: '#FEF2F2', borderRadius: 8, border: '1px solid #FECACA', color: '#DC2626', fontSize: 13, fontWeight: 600 }}>
-              <AlertCircle style={{ width: 15, height: 15, flexShrink: 0 }} /> <span>{error}</span>
             </div>
           )}
         </div>
 
-        {/* ── RIGHT: Cart & Checkout ── */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-
-          {cart.length === 0 ? (
-            <div style={{ background: 'var(--card-bg)', borderRadius: 10, border: '1px solid var(--card-border)', padding: '60px 24px', textAlign: 'center', flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
-              <ShoppingBag style={{ width: 40, height: 40, color: '#E2E8F0' }} />
-              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>Cart is Empty</div>
-              <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Search and select medicines on the left to bill a patient</div>
+        {/* BOTTOM ROW: Cart & Checkout Basket side by side */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.1fr', gap: 16 }}>
+          {/* Patient Info Card */}
+          <div style={{ background: 'var(--card-bg)', border: '1px solid var(--card-border)', borderRadius: 8, padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <h3 style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6, borderBottom: '1px solid var(--card-border)', paddingBottom: 8, margin: 0 }}>
+              <User style={{ width: 14, height: 14, color: '#F59E0B' }} /> Patient Details (F4)
+            </h3>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 4 }}>Patient Name</label>
+                <input id="patient-name-input" type="text" placeholder="Walk-in Patient" value={customerName} onChange={(e) => setCustomerName(e.target.value)} style={inputStyle} />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 4 }}>Phone Number</label>
+                <input type="text" placeholder="N/A" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} style={inputStyle} />
+              </div>
             </div>
-          ) : (
-            <form id="pos-checkout-form" onSubmit={handleCheckout} style={{ background: 'var(--card-bg)', borderRadius: 10, border: '1px solid var(--card-border)', display: 'flex', flexDirection: 'column', flex: 1 }}>
+          </div>
 
-              {/* Cart header */}
-              <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--card-border)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <ShoppingBag style={{ width: 16, height: 16, color: '#D97706' }} />
-                <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>Cart ({cart.length} item{cart.length > 1 ? 's' : ''})</span>
-                <button type="button" onClick={() => setCart([])} style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 600, color: '#EF4444', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <Trash2 style={{ width: 12, height: 12 }} /> Clear All
-                </button>
-              </div>
-
-              {/* Cart items */}
-              <div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 240, overflowY: 'auto' }}>
-                {cart.map((item, idx) => (
-                  <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: 'var(--table-header-bg)', borderRadius: 8, border: '1px solid var(--card-border)', fontSize: 13 }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</div>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>
-                        Batch: <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>{item.batchNumber}</span>
-                        {item.rack && <> · <span style={{ color: '#D97706' }}>📍 {item.rack}</span></>}
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, marginLeft: 10 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, border: '1px solid var(--card-border)', borderRadius: 6, padding: '2px 2px', background: 'var(--card-bg)' }}>
-                        <button type="button" onClick={() => adjustCartItemQty(item.productId, item.batchNumber, item.packaging, -1)} style={{ border: 'none', background: 'none', cursor: 'pointer', padding: '2px 6px', fontWeight: 700, color: 'var(--text-secondary)', fontSize: 14 }}>−</button>
-                        <span style={{ fontSize: 12, fontWeight: 700, minWidth: 28, textAlign: 'center', color: 'var(--text-primary)' }}>{item.qty}{item.packaging[0]}</span>
-                        <button type="button" onClick={() => adjustCartItemQty(item.productId, item.batchNumber, item.packaging, 1)} style={{ border: 'none', background: 'none', cursor: 'pointer', padding: '2px 6px', fontWeight: 700, color: 'var(--text-secondary)', fontSize: 14 }}>+</button>
-                      </div>
-                      <span style={{ fontWeight: 700, color: 'var(--text-primary)', minWidth: 72, textAlign: 'right', fontSize: 13 }}>Rs. {item.totalAmount.toFixed(0)}</span>
-                      <button type="button" onClick={() => removeFromCart(item.productId, item.batchNumber, item.packaging)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#EF4444', padding: 2 }}>
-                        <X style={{ width: 14, height: 14 }} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Totals + adjustments */}
-              <div style={{ padding: '12px 18px', borderTop: '1px solid var(--card-border)', display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--text-secondary)' }}>
-                  <span>Subtotal</span><span style={{ fontWeight: 600 }}>Rs. {subtotal.toLocaleString()}</span>
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  <div>
-                    <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>DISCOUNT (%)</label>
-                    <input type="number" value={discountPercent} onChange={(e) => setDiscountPercent(e.target.value)} style={inputStyle} />
-                  </div>
-                  <div>
-                    <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>TAX / VAT (%)</label>
-                    <input type="number" value={taxPercent} onChange={(e) => setTaxPercent(e.target.value)} style={inputStyle} />
-                  </div>
-                </div>
-                {discountAmount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#10B981' }}><span>Discount</span><span>−Rs. {discountAmount.toFixed(2)}</span></div>}
-                {taxAmount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--text-secondary)' }}><span>Tax</span><span>+Rs. {taxAmount.toFixed(2)}</span></div>}
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', paddingTop: 8, borderTop: '1px solid var(--card-border)' }}>
-                  <span>Net Payable</span><span style={{ color: '#D97706' }}>Rs. {netAmount.toFixed(2)}</span>
-                </div>
-              </div>
-
-              {/* Customer + payment */}
-              <div style={{ padding: '12px 18px', borderTop: '1px solid var(--card-border)', display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  <div>
-                    <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>PATIENT (F4)</label>
-                    <input id="patient-name-input" type="text" placeholder="Walk-in Patient" value={customerName} onChange={(e) => setCustomerName(e.target.value)} style={inputStyle} />
-                  </div>
-                  <div>
-                    <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>PHONE</label>
-                    <input type="text" placeholder="N/A" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} style={inputStyle} />
-                  </div>
-                </div>
-
-                {/* Payment state toggle */}
-                <div>
-                  <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>PAYMENT STATE (F7)</label>
-                  <div style={{ display: 'flex', gap: 4 }}>
-                    {([{ id: 'FULL', label: 'Full', color: '#10B981' }, { id: 'HALF', label: 'Half', color: '#F59E0B' }, { id: 'UNPAID', label: 'Credit', color: '#EF4444' }] as const).map((pay) => (
-                      <button key={pay.id} type="button" onClick={() => setPaymentStatusType(pay.id)} style={{ flex: 1, padding: '7px', borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: `1px solid ${paymentStatusType === pay.id ? pay.color : 'var(--card-border)'}`, background: paymentStatusType === pay.id ? `${pay.color}12` : 'var(--card-bg)', color: paymentStatusType === pay.id ? pay.color : 'var(--text-secondary)', transition: 'all 0.15s' }}>
-                        {pay.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 10 }}>
-                  <div>
-                    <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>METHOD (F8)</label>
-                    <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} style={inputStyle}>
-                      <option value="CASH">Cash</option>
-                      <option value="MOBILE_BANKING">Mobile / QR</option>
-                      <option value="CARD">Card</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>PAID (Rs.)</label>
-                    <input type="number" value={paidAmountInput} onChange={(e) => setPaidAmountInput(e.target.value)} style={{ ...inputStyle, fontWeight: 700, color: '#10B981' }} />
-                  </div>
-                </div>
-
-                {paidAmountInput && parseFloat(paidAmountInput) < netAmount && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#EF4444', fontWeight: 700 }}>
-                    <span>Due Amount</span><span>Rs. {(netAmount - parseFloat(paidAmountInput)).toFixed(2)}</span>
-                  </div>
-                )}
-
-                <button type="submit" disabled={loading} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px', borderRadius: 8, background: loading ? '#CBD5E1' : '#10B981', color: '#FFFFFF', border: 'none', fontSize: 14, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer' }}>
-                  <CheckCircle style={{ width: 16, height: 16 }} />
-                  {loading ? 'Processing…' : 'Finalize Checkout (Ctrl+Enter)'}
-                </button>
-              </div>
+          {/* Barcode Quick Scan */}
+          <div style={{ background: 'var(--card-bg)', border: '1px solid var(--card-border)', borderRadius: 8, padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <h3 style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6, borderBottom: '1px solid var(--card-border)', paddingBottom: 8, margin: 0 }}>
+              <Barcode style={{ width: 14, height: 14, color: '#F59E0B' }} /> Barcode Scan / SKU Quick Ingest
+            </h3>
+            <form onSubmit={e => {
+              e.preventDefault();
+              const val = barcodeInput.trim().toUpperCase();
+              if (!val) return;
+              const found = products.find(p => p.sku.toUpperCase() === val || p.id === val);
+              if (found) { setSelectedProductId(found.id); setSelectedBatchId(found.batches[0]?.id || ''); setBarcodeInput(''); }
+              else alert(`No product found for: ${val}`);
+            }} style={{ display: 'flex', gap: 8 }}>
+              <input
+                type="text"
+                value={barcodeInput}
+                onChange={(e) => setBarcodeInput(e.target.value)}
+                placeholder="Scan barcode or type exact SKU..."
+                style={{ flexGrow: 1, fontFamily: 'monospace', fontSize: 13, padding: '8px 12px', border: '1px solid var(--card-border)', borderRadius: 6, outline: 'none', background: 'var(--card-bg)', color: 'var(--text-primary)' }}
+              />
+              <button type="submit" style={{ padding: '8px 16px', fontSize: 12, fontWeight: 600, background: '#F59E0B', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>Ingest</button>
             </form>
-          )}
+          </div>
+        </div>
+
+        {/* BOTTOM ROW: Items Table & Checkout summary panel side by side */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 16, alignItems: 'start' }}>
+          
+          {/* Cart Table Container */}
+          <div style={{ background: 'var(--card-bg)', border: '1px solid var(--card-border)', borderRadius: 8, padding: 18, minHeight: 280 }}>
+            <h3 style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6, borderBottom: '1px solid var(--card-border)', paddingBottom: 10, marginBottom: 14, margin: 0 }}>
+              <ShoppingBag style={{ width: 14, height: 14, color: '#F59E0B' }} /> Items in Basket
+            </h3>
+            {cart.length === 0 ? (
+              <div style={{ padding: '48px 16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+                <ShoppingBag style={{ width: 24, height: 24, color: 'var(--card-border)', margin: '0 auto 10px' }} />
+                <div>Basket is empty. Scan a barcode or search medicines above.</div>
+              </div>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 13 }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid var(--card-border)' }}>
+                      <th style={{ padding: '8px 4px' }}>Medicine Name</th>
+                      <th style={{ padding: '8px 4px' }}>Batch</th>
+                      <th style={{ padding: '8px 4px', width: 100, textAlign: 'center' }}>Qty</th>
+                      <th style={{ padding: '8px 4px', textAlign: 'right' }}>Price/Box</th>
+                      <th style={{ padding: '8px 4px', textAlign: 'right' }}>Total</th>
+                      <th style={{ padding: '8px 4px', width: 40 }}></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cart.map((item) => (
+                      <tr key={`${item.productId}-${item.batchNumber}-${item.packaging}`} style={{ borderBottom: '1px solid var(--card-border)' }}>
+                        <td style={{ padding: '8px 4px', fontWeight: 600 }}>{item.name}</td>
+                        <td style={{ padding: '8px 4px', fontFamily: 'monospace', fontSize: 11 }}>{item.batchNumber}</td>
+                        <td style={{ padding: '8px 4px', textAlign: 'center' }}>
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, border: '1px solid var(--card-border)', borderRadius: 6, padding: '2px 4px', background: 'var(--card-bg)' }}>
+                            <button type="button" onClick={() => adjustCartItemQty(item.productId, item.batchNumber, item.packaging, -1)} style={{ border: 'none', background: 'none', cursor: 'pointer', padding: '0 4px', fontWeight: 700, color: 'var(--text-secondary)' }}>−</button>
+                            <span style={{ fontSize: 12, fontWeight: 700 }}>{item.qty}{item.packaging[0]}</span>
+                            <button type="button" onClick={() => adjustCartItemQty(item.productId, item.batchNumber, item.packaging, 1)} style={{ border: 'none', background: 'none', cursor: 'pointer', padding: '0 4px', fontWeight: 700, color: 'var(--text-secondary)' }}>+</button>
+                          </div>
+                        </td>
+                        <td style={{ padding: '8px 4px', textAlign: 'right', fontFamily: 'monospace' }}>Rs. {item.pricePerBox.toFixed(2)}</td>
+                        <td style={{ padding: '8px 4px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 700 }}>Rs. {item.totalAmount.toLocaleString()}</td>
+                        <td style={{ padding: '8px 4px', textAlign: 'center' }}>
+                          <button type="button" onClick={() => removeFromCart(item.productId, item.batchNumber, item.packaging)} style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer', padding: 4 }}>
+                            <Trash2 style={{ width: 13, height: 13 }} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* Checkout Basket Controls Panel */}
+          <div style={{ background: 'var(--card-bg)', border: '1px solid var(--card-border)', borderRadius: 8, overflow: 'hidden' }}>
+            <div style={{ background: 'var(--table-header-bg)', borderBottom: '1px solid var(--card-border)', padding: '12px 18px', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <ShoppingBag style={{ width: 16, height: 16, color: '#F59E0B' }} />
+              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Checkout Summary</span>
+            </div>
+
+            <form id="pos-checkout-form" onSubmit={handleCheckout} style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {cart.length === 0 ? (
+                <div style={{ padding: '36px 16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+                  <div>Basket is empty.</div>
+                </div>
+              ) : (
+                <>
+                  {/* Discount & Tax */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 4 }}>Discount %</label>
+                      <input type="number" min="0" value={discountPercent} onChange={e => setDiscountPercent(e.target.value)} style={inputStyle} />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 4 }}>VAT / Tax %</label>
+                      <input type="number" min="0" value={taxPercent} onChange={e => setTaxPercent(e.target.value)} style={inputStyle} />
+                    </div>
+                  </div>
+
+                  {/* Payment Method & Settle type */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 8 }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 4 }}>Pay Method (F8)</label>
+                      <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)} style={inputStyle}>
+                        <option value="CASH">💵 Cash</option>
+                        <option value="MOBILE_BANKING">📱 Mobile / QR</option>
+                        <option value="CARD">💳 Card Payment</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 4 }}>Settle State (F7)</label>
+                      <select value={paymentStatusType} onChange={e => setPaymentStatusType(e.target.value as any)} style={inputStyle}>
+                        <option value="FULL">Fully Paid</option>
+                        <option value="HALF">Half Paid</option>
+                        <option value="UNPAID">Credit / Unpaid</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 4 }}>Amount Paid Today (Rs.)</label>
+                    <input type="number" value={paidAmountInput} onChange={e => setPaidAmountInput(e.target.value)} style={{ ...inputStyle, color: '#10B981', fontWeight: 700 }} />
+                  </div>
+
+                  {/* Order Summary */}
+                  <div style={{ background: 'var(--table-header-bg)', border: '1px solid var(--card-border)', borderRadius: 6, padding: '12px 14px', fontSize: 11, fontFamily: 'monospace', display: 'flex', flexDirection: 'column', gap: 5 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
+                      <span>Subtotal:</span><span>Rs. {subtotal.toFixed(2)}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#10B981' }}>
+                      <span>Discount ({discountPercent}%):</span><span>− Rs. {discountAmount.toFixed(2)}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
+                      <span>Tax/VAT ({taxPercent}%):</span><span>+ Rs. {taxAmount.toFixed(2)}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, fontWeight: 750, color: 'var(--text-primary)', borderTop: '1px solid var(--card-border)', paddingTop: 6, marginTop: 2 }}>
+                      <span>NET DUE:</span><span>Rs. {netAmount.toFixed(2)}</span>
+                    </div>
+                    {parseFloat(paidAmountInput) < netAmount && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, fontWeight: 750, color: '#EF4444', borderTop: '1px dashed var(--card-border)', paddingTop: 4, marginTop: 2 }}>
+                        <span>DUE BALANCE:</span><span>Rs. {(netAmount - (parseFloat(paidAmountInput) || 0)).toFixed(2)}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    style={{ width: '100%', padding: '11px', fontSize: 13, fontWeight: 600, background: '#10B981', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                  >
+                    {loading ? 'Processing…' : 'Finalize Counter Sale (Ctrl+Enter)'}
+                  </button>
+                </>
+              )}
+            </form>
+          </div>
         </div>
       </div>
 

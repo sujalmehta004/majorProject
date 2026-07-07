@@ -58,24 +58,36 @@ export async function POST(request: Request) {
       const tabletsPerBox = product.tabletsPerStrip * product.stripsPerBox;
       const baseUnitsOrdered = item.qtyBoxes * tabletsPerBox;
 
-      // Evaluate tiered pricing per Box
-      // tierPricingJson example: [{"minQty": 1, "maxQty": 49, "pricePerBox": 10}, {"minQty": 50, "maxQty": 999, "pricePerBox": 9}]
-      let pricePerBox = 100; // default backup price if no tiers defined
+      // Evaluate price: prefer selected batch price, then tier pricing, then fallback to active batch
+      let pricePerBox = 100; // default backup price if no other source
       try {
-        const activeBatch = await db.inventoryBatch.findFirst({
-          where: {
-            productId: product.id,
-            expiryDate: { gt: new Date() },
-            availableBaseUnits: { gt: 0 },
-          },
-          orderBy: { expiryDate: 'asc' },
-        });
-        if (activeBatch) {
-          pricePerBox = activeBatch.sellingPricePerBox;
+        if (item.batchId) {
+          // Use specifically selected batch price
+          const selectedBatch = await db.inventoryBatch.findUnique({
+            where: { id: item.batchId },
+          });
+          if (selectedBatch && selectedBatch.productId === product.id) {
+            pricePerBox = selectedBatch.sellingPricePerBox;
+          }
+        } else {
+          // Fallback to nearest-expiry active batch
+          const activeBatch = await db.inventoryBatch.findFirst({
+            where: {
+              productId: product.id,
+              expiryDate: { gt: new Date() },
+              availableBaseUnits: { gt: 0 },
+            },
+            orderBy: { expiryDate: 'asc' },
+          });
+          if (activeBatch) {
+            pricePerBox = activeBatch.sellingPricePerBox;
+          }
         }
       } catch (e) {
-        console.error('Failed to retrieve active batch price:', e);
+        console.error('Failed to retrieve batch price:', e);
       }
+
+      // Apply tier pricing if defined (overrides batch price when quantity matches a tier)
       try {
         const tiers = JSON.parse(product.tierPricingJson || '[]');
         const matchingTier = tiers.find(
@@ -83,10 +95,8 @@ export async function POST(request: Request) {
         );
         if (matchingTier) {
           pricePerBox = matchingTier.pricePerBox;
-        } else if (tiers.length > 0) {
-          // Fallback to first tier price
-          pricePerBox = tiers[0].pricePerBox;
         }
+        // If tiers exist but no match, keep the batch price (not first tier fallback)
       } catch (e) {
         console.error('Failed to parse pricing tiers:', e);
       }
@@ -100,6 +110,7 @@ export async function POST(request: Request) {
         quantity: baseUnitsOrdered,
         pricePerUnit: pricePerBaseUnit,
         productName: product.name,
+        batchId: item.batchId || null, // pass through for targeted allocation
       });
     }
 
@@ -269,16 +280,29 @@ export async function POST(request: Request) {
           },
         });
 
-        // FIFO Ingestion query with Row Locking (FOR UPDATE)
-        // Select active batches expiring in future, ordered by expiry date ascending
-        const batches = await tx.$queryRaw<any[]>`
-          SELECT * FROM "InventoryBatch" 
-          WHERE "productId" = ${item.productId}
-            AND "expiryDate" > NOW() 
-            AND "availableBaseUnits" > 0 
-          ORDER BY "expiryDate" ASC 
-          FOR UPDATE
-        `;
+        // Batch allocation: if a specific batch was selected, allocate from it first, then overflow to FIFO
+        let batches: any[];
+        if (item.batchId) {
+          // Prioritize selected batch first, then FIFO for any remainder
+          batches = await tx.$queryRaw<any[]>`
+            SELECT * FROM "InventoryBatch" 
+            WHERE "productId" = ${item.productId}
+              AND "expiryDate" > NOW() 
+              AND "availableBaseUnits" > 0 
+            ORDER BY CASE WHEN "id" = ${item.batchId} THEN 0 ELSE 1 END, "expiryDate" ASC 
+            FOR UPDATE
+          `;
+        } else {
+          // Standard FIFO across all active batches
+          batches = await tx.$queryRaw<any[]>`
+            SELECT * FROM "InventoryBatch" 
+            WHERE "productId" = ${item.productId}
+              AND "expiryDate" > NOW() 
+              AND "availableBaseUnits" > 0 
+            ORDER BY "expiryDate" ASC 
+            FOR UPDATE
+          `;
+        }
 
         let remainingToAllocate = item.quantity;
 

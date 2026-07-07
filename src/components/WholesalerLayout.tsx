@@ -236,6 +236,12 @@ export default function WholesalerLayout({ children, user, profile }: Wholesaler
     const savedFontScale = localStorage.getItem('font_scale') || 'md';
     document.body.classList.remove('font-xs', 'font-sm', 'font-md', 'font-lg', 'font-xl');
     document.body.classList.add(`font-${savedFontScale}`);
+
+    // Restore fullscreen if it was active before navigation
+    const wantsFullscreen = localStorage.getItem('app_fullscreen') === 'true';
+    if (wantsFullscreen && !document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
+    }
     
     logActivity('VIEW_PAGE', `Opened page: ${pathname}`);
   }, [pathname]);
@@ -259,8 +265,10 @@ export default function WholesalerLayout({ children, user, profile }: Wholesaler
         e.preventDefault();
         if (!document.fullscreenElement) {
           document.documentElement.requestFullscreen().catch(() => {});
+          localStorage.setItem('app_fullscreen', 'true');
         } else {
           document.exitFullscreen().catch(() => {});
+          localStorage.setItem('app_fullscreen', 'false');
         }
       }
       if (e.key === 'Escape') {
@@ -290,6 +298,17 @@ export default function WholesalerLayout({ children, user, profile }: Wholesaler
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [showSearch, flatResults, activeIndex, router]);
+
+  // Sync fullscreen: if user exits via Esc or browser chrome, clear the preference
+  useEffect(() => {
+    const handleFsChange = () => {
+      if (!document.fullscreenElement) {
+        localStorage.setItem('app_fullscreen', 'false');
+      }
+    };
+    document.addEventListener('fullscreenchange', handleFsChange);
+    return () => document.removeEventListener('fullscreenchange', handleFsChange);
+  }, []);
 
   // Load live DB results dynamically on query change
   useEffect(() => {
