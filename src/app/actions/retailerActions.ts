@@ -1,6 +1,7 @@
 'use server';
 
 import { db } from '@/lib/db';
+import { formatDateNPT, formatTimeNPT, formatDateTimeNPT } from '@/lib/timezone';
 import { getSessionUser } from '@/lib/auth';
 import { OrderStatus, Role } from '@prisma/client';
 import bcrypt from 'bcryptjs';
@@ -50,6 +51,7 @@ export async function ingestInventoryBatchAction(data: {
   category?: string;
   tabletsPerStrip?: number;
   stripsPerBox?: number;
+  medicineClass?: string;
   batchNumber: string;
   quantity: number;
   expiryDate: string;
@@ -83,6 +85,7 @@ export async function ingestInventoryBatchAction(data: {
         name: data.name,
         sku: data.sku,
         category: data.category || 'Uncategorized',
+        medicineClass: data.medicineClass || 'CLASS_NORMAL',
         tabletsPerStrip: data.tabletsPerStrip || 10,
         stripsPerBox: data.stripsPerBox || 10,
       },
@@ -714,7 +717,7 @@ export async function settleB2CDueAction(orderId: string, settleAmount: number) 
       .replace(/Due:\s*Rs\.\s*[\d.]+/, `Due: Rs.${newDue.toFixed(2)}`);
 
     if (newDue === 0) {
-      justification += ` | Settled: Rs.${settleAmount.toFixed(2)} on ${new Date().toLocaleDateString()}`;
+      justification += ` | Settled: Rs.${settleAmount.toFixed(2)} on ${formatDateNPT(new Date())}`;
     }
   }
 

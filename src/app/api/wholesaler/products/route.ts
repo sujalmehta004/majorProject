@@ -70,7 +70,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { name, sku, tabletsPerStrip, stripsPerBox, tierPricing, category } = body;
+    const { name, sku, tabletsPerStrip, stripsPerBox, tierPricing, category, medicineClass } = body;
 
     if (!name || !sku) {
       return NextResponse.json({ error: 'Product name and SKU are required' }, { status: 400 });
@@ -101,6 +101,7 @@ export async function POST(request: Request) {
         stripsPerBox: sPerBox,
         tierPricingJson: pricingJson,
         category: category || 'Uncategorized',
+        medicineClass: medicineClass || 'CLASS_NORMAL',
       },
     });
 
@@ -128,7 +129,7 @@ export async function PUT(request: Request) {
     }
 
     const body = await request.json();
-    const { id, name, sku, tabletsPerStrip, stripsPerBox, tierPricing, category } = body;
+    const { id, name, sku, tabletsPerStrip, stripsPerBox, tierPricing, category, medicineClass } = body;
 
     if (!id) {
       return NextResponse.json({ error: 'Missing product ID' }, { status: 400 });
@@ -145,6 +146,7 @@ export async function PUT(request: Request) {
         stripsPerBox: stripsPerBox !== undefined ? parseInt(stripsPerBox, 10) : undefined,
         tierPricingJson: pricingJson,
         category: category !== undefined ? category : undefined,
+        medicineClass: medicineClass !== undefined ? medicineClass : undefined,
       },
     });
 

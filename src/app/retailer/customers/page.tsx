@@ -59,6 +59,8 @@ export default async function RetailerCustomersPage() {
         role: user.role,
         fullName: dbUser.fullName || user.email.split('@')[0],
         allowedFeatures: dbUser.allowedFeatures,
+        isVerified: dbUser.isVerified,
+        verificationStatus: dbUser.verificationStatus,
       }}
       profile={{
         id: profile.id,

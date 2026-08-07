@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer';
+import { formatDateNPT } from '@/lib/timezone';
 
 const transporter = nodemailer.createTransport({
   service: 'gmail',
@@ -85,7 +86,7 @@ export async function sendInvoiceEmail(to: string, order: any) {
           </div>
           <div style="text-align: right;">
             <p style="margin: 0; font-size: 13px; font-weight: 700; color: #1e293b;">Invoice: #${order.id.substring(0, 8).toUpperCase()}</p>
-            <p style="margin: 3px 0 0; font-size: 11px; color: #64748b;">Date: ${new Date(order.createdAt).toLocaleDateString('en-US', { dateStyle: 'long' })}</p>
+            <p style="margin: 3px 0 0; font-size: 11px; color: #64748b;">Date: ${formatDateNPT(order.createdAt, { dateStyle: 'long' })}</p>
           </div>
         </div>
 

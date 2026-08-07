@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
+import { formatDateNPT, formatTimeNPT, formatDateTimeNPT } from '@/lib/timezone';
 import {
   Search, MapPin, Phone, Building, Trash2,
   CheckCircle, X, Package, Plus,
@@ -412,7 +413,7 @@ export default function SuppliersClient({ profile, initialWholesalers, initialCu
                       >
                         <div>
                           <span style={{ fontFamily: 'monospace', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>#{p.id.substring(0, 8).toUpperCase()}</span>
-                          <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 8 }}>{new Date(p.createdAt).toLocaleDateString()}</span>
+                          <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 8 }}>{formatDateNPT(p.createdAt)}</span>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                           <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 7px', borderRadius: 5, background: p.status === 'DELIVERED' ? '#F0FDF4' : '#FFFBEB', color: p.status === 'DELIVERED' ? '#10B981' : '#D97706' }}>{p.status}</span>
@@ -483,8 +484,8 @@ export default function SuppliersClient({ profile, initialWholesalers, initialCu
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                   <div style={{ background: 'var(--table-header-bg)', borderRadius: 8, padding: 10 }}>
                     <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Order Date</div>
-                    <div style={{ fontSize: 13, fontWeight: 700, marginTop: 3 }}>{new Date(p.createdAt).toLocaleDateString()}</div>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{new Date(p.createdAt).toLocaleTimeString()}</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, marginTop: 3 }}>{formatDateNPT(p.createdAt)}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{formatTimeNPT(p.createdAt)}</div>
                   </div>
                   <div style={{ background: 'var(--table-header-bg)', borderRadius: 8, padding: 10 }}>
                     <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Delivery Status</div>
@@ -573,7 +574,7 @@ export default function SuppliersClient({ profile, initialWholesalers, initialCu
                           <div style={{ flex: 1 }}>
                             <div style={{ fontSize: 12, fontWeight: 700, fontFamily: 'monospace' }}>{fmtRs(s.amount)}</div>
                             <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>
-                              {s.method || 'CASH'} · {new Date(s.createdAt).toLocaleDateString()} {new Date(s.createdAt).toLocaleTimeString()}
+                              {s.method || 'CASH'} · {formatDateNPT(s.createdAt)} {formatTimeNPT(s.createdAt)}
                             </div>
                           </div>
                           <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6, background: s.status === 'VERIFIED' ? '#F0FDF4' : s.status === 'PENDING' ? '#FFFBEB' : '#FEF2F2', color: s.status === 'VERIFIED' ? '#10B981' : s.status === 'PENDING' ? '#D97706' : '#EF4444' }}>

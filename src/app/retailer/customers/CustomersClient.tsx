@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
+import { formatDateNPT, formatTimeNPT, formatDateTimeNPT } from '@/lib/timezone';
 import {
   Search, Plus, User, Mail, Phone, Calendar, X,
   AlertCircle, ChevronRight, Hash, Clock, Users,
@@ -220,7 +221,7 @@ export default function CustomersClient({ initialCustomers }: CustomersClientPro
                 <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 12, borderTop: '1px solid #F8FAFC' }}>
                   <div style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
                     <Calendar style={{ width: 10, height: 10 }} />
-                    {new Date(c.createdAt).toLocaleDateString()}
+                    {formatDateNPT(c.createdAt)}
                   </div>
                   <div style={{ fontSize: 12, fontWeight: 700, color: avatarColor, background: `${avatarColor}10`, padding: '2px 8px', borderRadius: 20 }}>
                     REGISTERED
@@ -259,7 +260,7 @@ export default function CustomersClient({ initialCustomers }: CustomersClientPro
                 {[
                   { icon: Mail, label: 'Email', val: selectedCustomer.email },
                   { icon: Hash, label: 'Patient ID', val: selectedCustomer.id.substring(0, 12).toUpperCase(), mono: true },
-                  { icon: Calendar, label: 'Registered On', val: new Date(selectedCustomer.createdAt).toLocaleString() },
+                  { icon: Calendar, label: 'Registered On', val: formatDateTimeNPT(selectedCustomer.createdAt) },
                 ].map((row) => {
                   const RowIcon = row.icon;
                   return (

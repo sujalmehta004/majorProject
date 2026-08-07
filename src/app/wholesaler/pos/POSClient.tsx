@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import { formatDateNPT, formatTimeNPT, formatDateTimeNPT } from '@/lib/timezone';
 import { 
   Receipt, ShoppingBag, User, Phone, Search, Plus, Trash2, Printer, 
   CheckCircle, AlertCircle, RefreshCw, Barcode, Minimize2, ArrowLeft, ArrowRight, X, Percent, DollarSign, Bookmark, Layers
@@ -498,7 +499,7 @@ export default function POSClient({ profile, products }: POSClientProps) {
     <div>
       <strong>Invoice details:</strong>
       <div>Ref: POS-${order.id.substring(0, 8).toUpperCase()}</div>
-      <div>Date: ${new Date(order.createdAt).toLocaleString()}</div>
+      <div>Date: ${formatDateTimeNPT(order.createdAt)}</div>
     </div>
   </div>
   <table>
@@ -647,7 +648,7 @@ export default function POSClient({ profile, products }: POSClientProps) {
                                     const remaining = b.availableBaseUnits % tabletsPerBox;
                                     const st = Math.floor(remaining / p.tabletsPerStrip);
                                     const tb = remaining % p.tabletsPerStrip;
-                                    const expStr = new Date(b.expiryDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+                                    const expStr = formatDateNPT(b.expiryDate, { month: 'short', year: 'numeric' });
                                     return (
                                       <span key={b.id} style={{ fontSize: 10, color: 'var(--text-secondary)' }}>
                                         Batch: <strong>{b.batchNumber}</strong> | Stock: {bx} Bx, {st} St, {tb} Tb | Exp: {expStr}
@@ -682,7 +683,7 @@ export default function POSClient({ profile, products }: POSClientProps) {
                   const totalBox = Math.floor(b.availableBaseUnits / (selectedProduct!.tabletsPerStrip * selectedProduct!.stripsPerBox));
                   return (
                     <option key={b.id} value={b.id}>
-                      {b.batchNumber} (Exp: {new Date(b.expiryDate).toLocaleDateString()}) - {totalBox} boxes {idx === 0 ? '⭐ Recommended' : ''}
+                      {b.batchNumber} (Exp: {formatDateNPT(b.expiryDate)}) - {totalBox} boxes {idx === 0 ? '⭐ Recommended' : ''}
                     </option>
                   );
                 })}
@@ -1121,7 +1122,7 @@ export default function POSClient({ profile, products }: POSClientProps) {
                   <div>
                     <span style={{ fontSize: 9, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Invoice details</span>
                     <div style={{ marginTop: 2 }}>Ref: POS-{finalizedOrder.id.substring(0, 8).toUpperCase()}</div>
-                    <div style={{ color: 'var(--text-secondary)' }}>Date: {new Date(finalizedOrder.createdAt).toLocaleString()}</div>
+                    <div style={{ color: 'var(--text-secondary)' }}>Date: {formatDateTimeNPT(finalizedOrder.createdAt)}</div>
                   </div>
                 </div>
 

@@ -13,10 +13,19 @@ export default async function WholesalerBillingPage() {
     redirect('/');
   }
 
-  let profile = null;
   let dbUser = await db.user.findUnique({
     where: { id: user.userId },
   });
+
+  if (!dbUser) {
+    redirect('/');
+  }
+
+  if (!dbUser.isVerified || dbUser.verificationStatus !== 'VERIFIED') {
+    redirect('/wholesaler/dashboard');
+  }
+
+  let profile = null;
 
   if (user.role === 'WHOLESALER') {
     profile = await db.wholesalerProfile.findUnique({
@@ -82,6 +91,8 @@ export default async function WholesalerBillingPage() {
         role: user.role,
         fullName: dbUser?.fullName,
         allowedFeatures: dbUser?.allowedFeatures,
+        isVerified: dbUser?.isVerified,
+        verificationStatus: dbUser?.verificationStatus,
       }}
       profile={{
         id: profile.id,

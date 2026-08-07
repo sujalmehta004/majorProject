@@ -31,6 +31,10 @@ export async function GET(request: NextRequest) {
 
     const customers = await db.retailerProfile.findMany({
       where: {
+        user: {
+          isVerified: true,
+          verificationStatus: 'VERIFIED',
+        },
         OR: [
           { wholesalerId: wholesalerProfileId },
           { orders: { some: { wholesalerId: wholesalerProfileId } } }

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import { formatDateNPT, formatTimeNPT, formatDateTimeNPT } from '@/lib/timezone';
 import {
   ShoppingBag, Search, Plus, Trash2, Printer, CheckCircle,
   AlertCircle, Layers, X, DollarSign, User, Phone, Check,
@@ -233,7 +234,7 @@ export default function POSClient({ products }: POSClientProps) {
       const product = products.find(p => p.id === item.productId) || item.product;
       return `<tr><td style="padding:4px 0">${product?.name || 'Medicine'}<br/><span style="font-size:9px;color:#555">SKU: ${product?.sku}</span></td><td style="text-align:right;padding:4px 0">${item.quantity} Tab</td><td style="text-align:right;padding:4px 0">Rs. ${(item.quantity * item.pricePerUnit).toLocaleString()}</td></tr>`;
     }).join('');
-    win.document.write(`<!DOCTYPE html><html><head><title>Receipt</title><style>body{font-family:monospace;font-size:11px;padding:10px;color:#000;line-height:1.4}.center{text-align:center}.bold{font-weight:bold}.dashed{border-top:1px dashed #000;margin:8px 0}table{width:100%;border-collapse:collapse}td,th{text-align:left;vertical-align:top;font-size:10px}.right{text-align:right}</style></head><body><div class="center bold" style="font-size:12px">MEDHUB RETAIL PHARMACY</div><div class="center">B2C Sales Receipt</div><div class="dashed"></div><div><strong>Ref #:</strong> ${receiptData.order.id.substring(0,12).toUpperCase()}</div><div><strong>Date:</strong> ${new Date(receiptData.order.createdAt).toLocaleString()}</div><div><strong>Customer:</strong> ${receiptData.customerName}</div><div><strong>Phone:</strong> ${receiptData.customerPhone}</div><div class="dashed"></div><table><thead><tr style="border-bottom:1px dashed #000"><th>Item</th><th class="right">Qty</th><th class="right">Total</th></tr></thead><tbody>${itemRows}</tbody></table><div class="dashed"></div><div class="right"><div>Subtotal: Rs. ${receiptData.subtotal.toLocaleString()}</div>${receiptData.discountAmount > 0 ? `<div>Discount: -Rs. ${receiptData.discountAmount.toLocaleString()}</div>` : ''}${receiptData.taxAmount > 0 ? `<div>Tax: Rs. ${receiptData.taxAmount.toLocaleString()}</div>` : ''}<div class="bold" style="font-size:12px">Net: Rs. ${receiptData.netAmount.toLocaleString()}</div><div>Paid: Rs. ${receiptData.paidAmount.toLocaleString()}</div>${receiptData.dueAmount > 0 ? `<div class="bold">Due: Rs. ${receiptData.dueAmount.toLocaleString()}</div>` : ''}</div><div class="dashed"></div><div class="center" style="font-size:9px">Thank you! · MedHub Pharmacy POS</div><script>window.onload=function(){window.print();window.close();}<\/script></body></html>`);
+    win.document.write(`<!DOCTYPE html><html><head><title>Receipt</title><style>body{font-family:monospace;font-size:11px;padding:10px;color:#000;line-height:1.4}.center{text-align:center}.bold{font-weight:bold}.dashed{border-top:1px dashed #000;margin:8px 0}table{width:100%;border-collapse:collapse}td,th{text-align:left;vertical-align:top;font-size:10px}.right{text-align:right}</style></head><body><div class="center bold" style="font-size:12px">MEDHUB RETAIL PHARMACY</div><div class="center">B2C Sales Receipt</div><div class="dashed"></div><div><strong>Ref #:</strong> ${receiptData.order.id.substring(0,12).toUpperCase()}</div><div><strong>Date:</strong> ${formatDateTimeNPT(receiptData.order.createdAt)}</div><div><strong>Customer:</strong> ${receiptData.customerName}</div><div><strong>Phone:</strong> ${receiptData.customerPhone}</div><div class="dashed"></div><table><thead><tr style="border-bottom:1px dashed #000"><th>Item</th><th class="right">Qty</th><th class="right">Total</th></tr></thead><tbody>${itemRows}</tbody></table><div class="dashed"></div><div class="right"><div>Subtotal: Rs. ${receiptData.subtotal.toLocaleString()}</div>${receiptData.discountAmount > 0 ? `<div>Discount: -Rs. ${receiptData.discountAmount.toLocaleString()}</div>` : ''}${receiptData.taxAmount > 0 ? `<div>Tax: Rs. ${receiptData.taxAmount.toLocaleString()}</div>` : ''}<div class="bold" style="font-size:12px">Net: Rs. ${receiptData.netAmount.toLocaleString()}</div><div>Paid: Rs. ${receiptData.paidAmount.toLocaleString()}</div>${receiptData.dueAmount > 0 ? `<div class="bold">Due: Rs. ${receiptData.dueAmount.toLocaleString()}</div>` : ''}</div><div class="dashed"></div><div class="center" style="font-size:9px">Thank you! · MedHub Pharmacy POS</div><script>window.onload=function(){window.print();window.close();}<\/script></body></html>`);
     win.document.close();
   };
 
@@ -339,7 +340,7 @@ export default function POSClient({ products }: POSClientProps) {
                 {selectedProduct?.batches.map((b, idx) => {
                   return (
                     <option key={b.id} value={b.id}>
-                      {b.batchNumber} (Exp: {new Date(b.expiryDate).toLocaleDateString()}) - {b.availableBaseUnits} units {idx === 0 ? '⭐ Recommended' : ''}
+                      {b.batchNumber} (Exp: {formatDateNPT(b.expiryDate)}) - {b.availableBaseUnits} units {idx === 0 ? '⭐ Recommended' : ''}
                     </option>
                   );
                 })}
@@ -610,7 +611,7 @@ export default function POSClient({ products }: POSClientProps) {
                 <div style={{ textAlign: 'center', fontSize: 11, borderBottom: '1px dashed #94A3B8', paddingBottom: 6, marginBottom: 10 }}>B2C Counter Invoice</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginBottom: 8, fontSize: 11 }}>
                   <div><strong>Ref:</strong> {receipt.order.id.substring(0, 12).toUpperCase()}</div>
-                  <div><strong>Date:</strong> {new Date(receipt.order.createdAt).toLocaleString()}</div>
+                  <div><strong>Date:</strong> {formatDateTimeNPT(receipt.order.createdAt)}</div>
                   <div><strong>Patient:</strong> {receipt.customerName}</div>
                   <div><strong>Phone:</strong> {receipt.customerPhone}</div>
                   <div><strong>Method:</strong> {receipt.paymentMethod}</div>

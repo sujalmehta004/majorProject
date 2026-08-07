@@ -21,6 +21,10 @@ export default async function RetailerSuppliersPage() {
     redirect('/');
   }
 
+  if (!dbUser.isVerified || dbUser.verificationStatus !== 'VERIFIED') {
+    redirect('/retailer/dashboard');
+  }
+
   let profile = null;
   if (user.role === 'RETAILER') {
     profile = await db.retailerProfile.findUnique({
@@ -41,6 +45,12 @@ export default async function RetailerSuppliersPage() {
   }
 
   const wholesalers = await db.wholesalerProfile.findMany({
+    where: {
+      user: {
+        isVerified: true,
+        verificationStatus: 'VERIFIED',
+      },
+    },
     include: {
       products: {
         include: {
@@ -87,6 +97,8 @@ export default async function RetailerSuppliersPage() {
         role: user.role,
         fullName: dbUser.fullName || user.email.split('@')[0],
         allowedFeatures: dbUser.allowedFeatures,
+        isVerified: dbUser.isVerified,
+        verificationStatus: dbUser.verificationStatus,
       }}
       profile={{
         id: profile.id,

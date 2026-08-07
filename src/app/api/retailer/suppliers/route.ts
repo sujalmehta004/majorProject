@@ -11,6 +11,12 @@ export async function GET(request: Request) {
 
     // Fetch all wholesalers and their products containing batches with available stock
     const wholesalers = await db.wholesalerProfile.findMany({
+      where: {
+        user: {
+          isVerified: true,
+          verificationStatus: 'VERIFIED',
+        },
+      },
       include: {
         products: {
           include: {

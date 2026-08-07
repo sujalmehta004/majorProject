@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import { formatDateNPT, formatTimeNPT, formatDateTimeNPT } from '@/lib/timezone';
 import {
   Search, Plus, AlertTriangle,
   Edit2, Trash2, X, Package, Printer, Eye,
@@ -19,6 +20,7 @@ interface Product {
   name: string;
   sku: string;
   category: string;
+  medicineClass?: string;
   tabletsPerStrip: number;
   stripsPerBox: number;
 }
@@ -112,6 +114,7 @@ export default function InventoryClient({ profileId, allProducts: initialProduct
   const [intakeUom, setIntakeUom] = useState<'box' | 'strip' | 'tablet'>('tablet');
   const [showNewCategoryInput, setShowNewCategoryInput] = useState(false);
   const [customCategory, setCustomCategory] = useState('');
+  const [newProdClass, setNewProdClass] = useState('CLASS_NORMAL');
 
   const [editingItem, setEditingItem] = useState<RetailerInventory | null>(null);
   const [editQty, setEditQty] = useState('');
@@ -175,14 +178,17 @@ export default function InventoryClient({ profileId, allProducts: initialProduct
 
   const fetchProducts = async () => {
     try {
-      const res = await fetch('/api/retailer/search?q=&retailerId=' + profileId);
+      const res = await fetch('/api/retailer/products');
       const data = await res.json();
-      if (data.medicines) setProducts(data.medicines);
+      if (data.success && data.products) {
+        setProducts(data.products);
+      }
     } catch (e) { console.error(e); }
   };
 
   useEffect(() => {
     fetchInventory();
+    fetchProducts();
     const interval = setInterval(fetchInventory, 5000);
     return () => clearInterval(interval);
   }, []);
@@ -218,14 +224,14 @@ export default function InventoryClient({ profileId, allProducts: initialProduct
       const calculatedQty = parseInt(quantity) * factor;
       const payload: any = { batchNumber, quantity: calculatedQty, expiryDate, rack: rack || undefined, buyingPrice: parseFloat(buyingPrice) || 0, sellingPrice: parseFloat(sellingPrice) || 0 };
       if (intakeMode === 'select') payload.productId = selectedProdId;
-      else { payload.name = newProdName; payload.sku = newProdSku; payload.category = showNewCategoryInput ? customCategory : newProdCategory; payload.tabletsPerStrip = tabletsPerStripVal; payload.stripsPerBox = stripsPerBoxVal; }
+      else { payload.name = newProdName; payload.sku = newProdSku; payload.category = showNewCategoryInput ? customCategory : newProdCategory; payload.medicineClass = newProdClass; payload.tabletsPerStrip = tabletsPerStripVal; payload.stripsPerBox = stripsPerBoxVal; }
       const res = await ingestInventoryBatchAction(payload);
       if (res.success) {
         setShowAddModal(false);
         setSelectedProdId(''); setNewProdName(''); setNewProdSku('');
         setBatchNumber(''); setQuantity(''); setExpiryDate(''); setRack('');
         setBuyingPrice(''); setSellingPrice('');
-        setShowNewCategoryInput(false); setCustomCategory('');
+        setShowNewCategoryInput(false); setCustomCategory(''); setNewProdClass('CLASS_NORMAL');
         broadcastUpdate('INVENTORY_UPDATE');
       }
     } catch (err: any) { setFormError(err.message || 'Failed to save inventory'); } finally { setSubmitting(false); }
@@ -253,7 +259,7 @@ export default function InventoryClient({ profileId, allProducts: initialProduct
       const barcodeText = `MED-${item.product.sku.toUpperCase()}-${item.batchNumber.toUpperCase()}`;
       const tabletsPerBox = item.product.tabletsPerStrip * item.product.stripsPerBox;
       const boxes = Math.floor(item.quantity / tabletsPerBox);
-      return `<div class="label-page"><div class="header">MedHub Pharmacy Stock</div><div class="med">${item.product.name}</div><div class="details"><span>BATCH: ${item.batchNumber}</span><span>SKU: ${item.product.sku}</span></div><div class="details"><span>CATEGORY: ${item.product.category}</span><span>${boxes} BOXES (${item.quantity} Units)</span></div><div class="barcode-text">${barcodeText}</div><div class="footer">EXPIRY: ${new Date(item.expiryDate).toLocaleDateString()}</div></div>`;
+      return `<div class="label-page"><div class="header">MedHub Pharmacy Stock</div><div class="med">${item.product.name}</div><div class="details"><span>BATCH: ${item.batchNumber}</span><span>SKU: ${item.product.sku}</span></div><div class="details"><span>CATEGORY: ${item.product.category}</span><span>${boxes} BOXES (${item.quantity} Units)</span></div><div class="barcode-text">${barcodeText}</div><div class="footer">EXPIRY: ${formatDateNPT(item.expiryDate)}</div></div>`;
     }).join('');
     const win = window.open('', '_blank', 'width=800,height=600');
     if (!win) return;
@@ -268,7 +274,7 @@ export default function InventoryClient({ profileId, allProducts: initialProduct
         const barcodeText = `MED-${item.product.sku.toUpperCase()}-${item.batchNumber.toUpperCase()}`;
         const tabletsPerBox = item.product.tabletsPerStrip * item.product.stripsPerBox;
         const boxes = Math.floor(item.quantity / tabletsPerBox);
-        return `<div class="label-page"><div class="header">MedHub Pharmacy Stock</div><div class="med">${item.product.name}</div><div class="details"><span>BATCH: ${item.batchNumber}</span><span>SKU: ${item.product.sku}</span></div><div class="details"><span>${item.product.category}</span><span>${boxes} BOXES</span></div><div class="barcode-text">${barcodeText}</div><div class="footer">EXPIRY: ${new Date(item.expiryDate).toLocaleDateString()}</div></div>`;
+        return `<div class="label-page"><div class="header">MedHub Pharmacy Stock</div><div class="med">${item.product.name}</div><div class="details"><span>BATCH: ${item.batchNumber}</span><span>SKU: ${item.product.sku}</span></div><div class="details"><span>${item.product.category}</span><span>${boxes} BOXES</span></div><div class="barcode-text">${barcodeText}</div><div class="footer">EXPIRY: ${formatDateNPT(item.expiryDate)}</div></div>`;
       })
     ).join('');
     if (!pagesHtml) return;
@@ -434,6 +440,9 @@ export default function InventoryClient({ profileId, allProducts: initialProduct
                     <td style={{ padding: '13px 16px' }}>
                       <span style={{ fontFamily: 'monospace', fontSize: 12, color: 'var(--text-secondary)', background: 'var(--table-header-bg)', padding: '2px 6px', borderRadius: 4, border: '1px solid var(--card-border)' }}>{item.product.sku}</span>
                       <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{item.product.category}</div>
+                      <div style={{ fontSize: 10, fontWeight: 600, marginTop: 2, color: item.product.medicineClass === 'CLASS_A' ? '#EF4444' : '#10B981' }}>
+                        {item.product.medicineClass === 'CLASS_A' ? 'Class A (Rx Required)' : 'Class Normal'}
+                      </div>
                     </td>
                     <td style={{ padding: '13px 16px' }}>
                       <span style={{ fontWeight: 600, color: 'var(--text-secondary)', fontFamily: 'monospace', fontSize: 12 }}>{item.batchNumber}</span>
@@ -453,7 +462,7 @@ export default function InventoryClient({ profileId, allProducts: initialProduct
                     </td>
                     <td style={{ padding: '13px 16px' }}>
                       <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6, background: expiryStatus.bg, color: expiryStatus.color, whiteSpace: 'nowrap' }}>{expiryStatus.label}</span>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>{new Date(item.expiryDate).toLocaleDateString()}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>{formatDateNPT(item.expiryDate)}</div>
                     </td>
                     <td style={{ padding: '13px 16px', textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
                       <div style={{ display: 'flex', justifyContent: 'center', gap: 6 }}>
@@ -496,14 +505,15 @@ export default function InventoryClient({ profileId, allProducts: initialProduct
             </div>
             <div style={{ padding: '18px 22px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
               <span style={{ fontSize: 12, fontWeight: 700, padding: '4px 10px', borderRadius: 6, background: expiryStatus.bg, color: expiryStatus.color, display: 'inline-block', width: 'fit-content' }}>
-                {expiryStatus.label} · {new Date(detailBatch.expiryDate).toLocaleDateString()}
+                {expiryStatus.label} · {formatDateNPT(detailBatch.expiryDate)}
               </span>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                 {[
                   { label: 'SKU', val: detailBatch.product.sku, mono: true },
                   { label: 'Category', val: detailBatch.product.category },
+                  { label: 'Medicine Class', val: detailBatch.product.medicineClass === 'CLASS_A' ? 'Class A (Prescription Required)' : 'Class Normal (Prescription Not Required)' },
                   { label: 'Tablet Structure', val: `${detailBatch.product.tabletsPerStrip}t × ${detailBatch.product.stripsPerBox}s = ${tabletsPerBox}/box` },
-                  { label: 'Ingested', val: new Date(detailBatch.createdAt).toLocaleDateString() },
+                  { label: 'Ingested', val: formatDateNPT(detailBatch.createdAt) },
                   { label: 'Buying Price', val: `Rs. ${detailBatch.buyingPrice?.toFixed(2) || '0.00'}`, mono: true },
                   { label: 'Selling Price', val: `Rs. ${detailBatch.sellingPrice?.toFixed(2) || '0.00'}`, mono: true },
                   { label: 'Rack', val: detailBatch.rack || '— Not assigned' },
@@ -572,7 +582,7 @@ export default function InventoryClient({ profileId, allProducts: initialProduct
           <div style={{ padding: '18px 22px', display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div style={{ background: 'var(--table-header-bg)', borderRadius: 8, padding: '12px 14px' }}>
               <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{printPreviewBatch.product.name}</div>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>Batch: {printPreviewBatch.batchNumber} · Exp: {new Date(printPreviewBatch.expiryDate).toLocaleDateString()}</div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>Batch: {printPreviewBatch.batchNumber} · Exp: {formatDateNPT(printPreviewBatch.expiryDate)}</div>
             </div>
             <Field label="Number of Copies">
               <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
@@ -691,7 +701,7 @@ export default function InventoryClient({ profileId, allProducts: initialProduct
                     <Field label="Medicine Name"><input type="text" value={newProdName} onChange={(e) => setNewProdName(e.target.value)} placeholder="e.g. Paracetamol 500mg" style={inputStyle} /></Field>
                     <Field label="SKU Code"><input type="text" value={newProdSku} onChange={(e) => setNewProdSku(e.target.value)} placeholder="e.g. PARA-500" style={inputStyle} /></Field>
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: 12 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     <Field label="Category">
                       <div style={{ display: 'flex', gap: 6 }}>
                         <select value={showNewCategoryInput ? 'NEW' : newProdCategory} onChange={(e) => { if (e.target.value === 'NEW') setShowNewCategoryInput(true); else { setShowNewCategoryInput(false); setNewProdCategory(e.target.value); } }} style={{ ...inputStyle, flex: 1 }}>
@@ -701,6 +711,14 @@ export default function InventoryClient({ profileId, allProducts: initialProduct
                         {showNewCategoryInput && <input type="text" value={customCategory} onChange={(e) => setCustomCategory(e.target.value)} placeholder="Category name" style={{ ...inputStyle, flex: 1 }} />}
                       </div>
                     </Field>
+                    <Field label="Medicine Class">
+                      <select value={newProdClass} onChange={(e) => setNewProdClass(e.target.value)} style={inputStyle}>
+                        <option value="CLASS_NORMAL">Class Normal (Prescription Not Required)</option>
+                        <option value="CLASS_A">Class A (Prescription Required)</option>
+                      </select>
+                    </Field>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     <Field label="Tablets / Strip"><input type="number" value={newTabletsPerStrip} onChange={(e) => setNewTabletsPerStrip(e.target.value)} style={inputStyle} /></Field>
                     <Field label="Strips / Box"><input type="number" value={newStripsPerBox} onChange={(e) => setNewStripsPerBox(e.target.value)} style={inputStyle} /></Field>
                   </div>

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { formatDateNPT, formatTimeNPT, formatDateTimeNPT } from '@/lib/timezone';
 import Link from 'next/link';
 import {
   Package, ShoppingBag, ShieldAlert, TrendingUp,
@@ -35,6 +36,8 @@ interface DashboardClientProps {
     consumerOrderPending?: number;
     consumerOrderShipped?: number;
     consumerOrderDelivered?: number;
+    verificationStatus?: string;
+    verificationRejectReason?: string | null;
   };
   auditLogs: AuditLog[];
   rejectedSettlements?: any[];
@@ -138,6 +141,41 @@ export default function DashboardClient({ profileId, metrics, auditLogs, rejecte
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
 
+      {/* Account Verification Alert Banner */}
+      {metrics.verificationStatus === 'PENDING' && (
+        <div style={{ background: '#FFFBEB', border: '1.5px solid #FDE68A', borderRadius: 14, padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#FEF3C7', border: '1px solid #FCD34D', color: '#D97706', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>⏳</div>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 800, color: '#92400E' }}>Account Verification Pending Review</div>
+              <div style={{ fontSize: 12, color: '#B45309', marginTop: 2 }}>
+                Your pharmacy registration details and document images are currently under review by Superadmin. POS Billing & Ordering features will activate automatically once verified.
+              </div>
+            </div>
+          </div>
+          <Link href="/retailer/settings" style={{ padding: '8px 16px', background: '#D97706', color: '#FFFFFF', borderRadius: 8, fontSize: 12, fontWeight: 800, textDecoration: 'none', flexShrink: 0 }}>
+            View Settings ➔
+          </Link>
+        </div>
+      )}
+
+      {metrics.verificationStatus === 'REJECTED' && (
+        <div style={{ background: '#FEF2F2', border: '1.5px solid #FECACA', borderRadius: 14, padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#FEE2E2', border: '1px solid #FCA5A5', color: '#DC2626', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>✕</div>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 800, color: '#991B1B' }}>Account Verification Rejected</div>
+              <div style={{ fontSize: 12, color: '#7F1D1D', marginTop: 2, background: 'rgba(220,38,38,0.06)', padding: '6px 10px', borderRadius: 6, borderLeft: '3px solid #DC2626' }}>
+                <strong>Reason:</strong> {metrics.verificationRejectReason || 'Incomplete registration documents.'}
+              </div>
+            </div>
+          </div>
+          <Link href="/retailer/settings" style={{ padding: '10px 18px', background: '#DC2626', color: '#FFFFFF', borderRadius: 8, fontSize: 12, fontWeight: 800, textDecoration: 'none', flexShrink: 0 }}>
+            ✏️ Reapply / Update Information
+          </Link>
+        </div>
+      )}
+
       {/* Pending Return Verification Alert */}
       {returnAlerts.length > 0 && (
         <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 12, overflow: 'hidden' }}>
@@ -156,7 +194,7 @@ export default function DashboardClient({ profileId, metrics, auditLogs, rejecte
               <div key={r.id} style={{ padding: '14px 20px', borderBottom: idx < returnAlerts.length - 1 ? '1px solid #FEF3C7' : 'none', display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' as const }}>
                 <div style={{ minWidth: 200, flex: 1 }}>
                   <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>{r.wholesaler?.companyName}</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>Order #{r.orderId.substring(0, 8).toUpperCase()} &middot; {new Date(r.createdAt).toLocaleDateString()}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>Order #{r.orderId.substring(0, 8).toUpperCase()} &middot; {formatDateNPT(r.createdAt)}</div>
                   <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 4 }}>Reason: {r.reason || 'None specified'}</div>
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
@@ -425,7 +463,7 @@ export default function DashboardClient({ profileId, metrics, auditLogs, rejecte
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap' as const, overflow: 'hidden', textOverflow: 'ellipsis' }}>{log.action}</div>
                       <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1, whiteSpace: 'nowrap' as const, overflow: 'hidden', textOverflow: 'ellipsis' }}>{log.details}</div>
-                      <div style={{ fontSize: 10, color: '#CBD5E1', marginTop: 1 }}>{new Date(log.timestamp).toLocaleTimeString()}</div>
+                      <div style={{ fontSize: 10, color: '#CBD5E1', marginTop: 1 }}>{formatTimeNPT(log.timestamp)}</div>
                     </div>
                   </button>
                 ))
@@ -491,7 +529,7 @@ export default function DashboardClient({ profileId, metrics, auditLogs, rejecte
               {[
                 { label: 'Action', val: selectedLog.action, mono: false },
                 { label: 'Details', val: selectedLog.details, mono: false },
-                { label: 'Timestamp', val: new Date(selectedLog.timestamp).toLocaleString(), mono: true },
+                { label: 'Timestamp', val: formatDateTimeNPT(selectedLog.timestamp), mono: true },
                 { label: 'Log ID', val: selectedLog.id, mono: true },
               ].map(({ label, val, mono }) => (
                 <div key={label}>

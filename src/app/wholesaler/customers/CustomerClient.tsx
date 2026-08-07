@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { formatDateNPT, formatTimeNPT, formatDateTimeNPT } from '@/lib/timezone';
 import { 
   Users, Search, ChevronRight, ShoppingBag, CreditCard, Mail, Phone, 
   MapPin, Calendar, Receipt, TrendingUp, Info, Plus, X, UserPlus, CheckCircle, AlertCircle, FileText, Filter, SlidersHorizontal
@@ -560,7 +561,7 @@ export default function CustomerClient({ customers: initialCustomers, wholesaler
                           const isFullyPaid = oPaid >= o.netAmount;
                           return (
                             <tr key={o.id}>
-                              <td style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{new Date(o.createdAt).toLocaleDateString()}</td>
+                              <td style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{formatDateNPT(o.createdAt)}</td>
                               <td>
                                 <button onClick={() => setActiveInvoice(o)} style={{ background: 'none', border: 'none', color: '#0EA5E9', fontWeight: 800, cursor: 'pointer', fontFamily: 'monospace', textDecoration: 'underline' }}>
                                   ORD-{o.id.substring(0, 8).toUpperCase()}
@@ -731,7 +732,7 @@ export default function CustomerClient({ customers: initialCustomers, wholesaler
                   </div>
                   <div>
                     <div style={{ fontSize: 9, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Date</div>
-                    <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{new Date(activeInvoice.createdAt).toLocaleString()}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{formatDateTimeNPT(activeInvoice.createdAt)}</div>
                   </div>
                   <div>
                     <div style={{ fontSize: 9, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Final Net Amount</div>
@@ -818,7 +819,7 @@ export default function CustomerClient({ customers: initialCustomers, wholesaler
                         {verifiedSettlements.map((log: any, idx: number) => (
                           <div key={log.id || idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, borderBottom: '1px solid #F1F5F9', paddingBottom: 6 }}>
                             <div>
-                              <span style={{ color: 'var(--text-secondary)' }}>{new Date(log.createdAt || log.date).toLocaleString()}</span>
+                              <span style={{ color: 'var(--text-secondary)' }}>{formatDateTimeNPT(log.createdAt || log.date)}</span>
                               {log.method && <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 1 }}>{log.method}</div>}
                             </div>
                             <span style={{ fontWeight: 800, color: '#059669' }}>+ Rs. {(log.amount || 0).toLocaleString()}</span>
@@ -854,7 +855,7 @@ export default function CustomerClient({ customers: initialCustomers, wholesaler
                           <div class="header">
                             <h1>SALES INVOICE</h1>
                             <p>Invoice ID: ORD-${activeInvoice.id.toUpperCase()}</p>
-                            <p>Date: ${new Date(activeInvoice.createdAt).toLocaleString()}</p>
+                            <p>Date: ${formatDateTimeNPT(activeInvoice.createdAt)}</p>
                           </div>
                           <hr/>
                           <h3>Items:</h3>

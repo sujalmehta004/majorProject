@@ -26,12 +26,35 @@ export async function POST(request: Request) {
       contactPerson, 
       latitude, 
       longitude,
-      customFieldsJson
+      customFieldsJson,
+      registrationImages,
+      phoneOnly,
     } = body;
+
+    // Phone-only update: just update phone, no verification status change
+    if (phoneOnly) {
+      await db.wholesalerProfile.update({
+        where: { id: profile.id },
+        data: { phone },
+      });
+      await db.systemAuditLog.create({
+        data: {
+          action: 'UPDATE_WHOLESALER_PHONE',
+          userId: user.userId,
+          details: `Updated company phone number to: ${phone}`,
+        },
+      });
+      return NextResponse.json({ success: true });
+    }
 
     if (!companyName || !taxId || !address || !phone) {
       return NextResponse.json({ error: 'Company Name, Tax ID, address, and phone are required.' }, { status: 400 });
     }
+
+    const currentDbUser = await db.user.findUnique({
+      where: { id: user.userId },
+    });
+    const isVerified = currentDbUser?.isVerified && currentDbUser?.verificationStatus === 'VERIFIED';
 
     const updatedProfile = await db.wholesalerProfile.update({
       where: { id: profile.id },
@@ -48,12 +71,30 @@ export async function POST(request: Request) {
       },
     });
 
+    const userUpdateData: any = {};
+    if (Array.isArray(registrationImages) && registrationImages.length > 0) {
+      userUpdateData.registrationImagesJson = JSON.stringify(registrationImages);
+    }
+
+    if (!isVerified || (Array.isArray(registrationImages) && registrationImages.length > 0)) {
+      userUpdateData.isVerified = false;
+      userUpdateData.verificationStatus = 'PENDING';
+      userUpdateData.verificationRejectReason = null;
+    }
+
+    if (Object.keys(userUpdateData).length > 0) {
+      await db.user.update({
+        where: { id: user.userId },
+        data: userUpdateData,
+      });
+    }
+
     // Record audit log
     await db.systemAuditLog.create({
       data: {
         action: 'UPDATE_PROFILE',
         userId: user.userId,
-        details: `Updated distributor profile details. Location: [${latitude || 'N/A'}, ${longitude || 'N/A'}]. Custom Fields size: ${customFieldsJson ? (typeof customFieldsJson === 'string' ? JSON.parse(customFieldsJson).length : customFieldsJson.length) : 0}`,
+        details: `Updated distributor profile. Reset status to PENDING for verification. Company: ${companyName}, Tax ID: ${taxId}`,
       },
     });
 

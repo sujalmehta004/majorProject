@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { formatDateNPT, formatTimeNPT, formatDateTimeNPT } from '@/lib/timezone';
 import {
   FileText, Search, Filter, RefreshCw, XCircle, Activity
 } from 'lucide-react';
@@ -180,7 +181,7 @@ export default function LogsClient({ initialLogs }: LogsClientProps) {
               ) : (
                 filteredLogs.map((log) => {
                   const isStaff = log.user?.role === 'WHOLESALER_STAFF';
-                  const timestampStr = new Date(log.timestamp).toLocaleString();
+                  const timestampStr = formatDateTimeNPT(log.timestamp);
 
                   return (
                     <tr key={log.id}>

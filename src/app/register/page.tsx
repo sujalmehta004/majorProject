@@ -30,6 +30,9 @@ export default function RegisterPage() {
   const [clinicAddress, setClinicAddress] = useState('');
   const [clinicPhone, setClinicPhone] = useState('');
 
+  const [registrationImages, setRegistrationImages] = useState<string[]>([]);
+  const [uploadingImages, setUploadingImages] = useState(false);
+
   const [otpCode, setOtpCode] = useState('');
 
   const [loading, setLoading] = useState(false);
@@ -72,7 +75,7 @@ export default function RegisterPage() {
     if (!otpCode) { setError('Please enter the 6-digit verification code.'); return; }
     setLoading(true);
     setError('');
-    const payload: Record<string, any> = { email, password, role, otpCode };
+    const payload: Record<string, any> = { email, password, role, otpCode, registrationImages };
     if (role === 'WHOLESALER') { payload.companyName = companyName; payload.taxId = taxId; payload.address = wholesalerAddress; payload.phone = wholesalerPhone; }
     else if (role === 'RETAILER') { payload.pharmacyName = pharmacyName; payload.registrationNumber = registrationNumber; payload.address = retailerAddress; payload.phone = retailerPhone; payload.latitude = parseFloat(latitude); payload.longitude = parseFloat(longitude); }
     else if (role === 'CLINIC') { payload.clinicName = clinicName; payload.licenseNumber = licenseNumber; payload.address = clinicAddress; payload.phone = clinicPhone; }
@@ -357,6 +360,81 @@ export default function RegisterPage() {
                       </div>
                     </div>
                   )}
+                  {/* Registration Document Images Upload (Up to 10 images, max 500MB each) */}
+                  <div style={{ borderTop: '1px solid #F1F5F9', paddingTop: 16, marginTop: 12 }}>
+                    <div style={{ fontSize: 11, fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>
+                      📷 Business Registration & License Images (Up to 10 photos)
+                    </div>
+                    <div style={{ fontSize: 11, color: '#64748B', marginBottom: 10 }}>
+                      Upload photos of your DDA registration certificate, VAT/PAN certificate, citizenship, or store license (Max 500MB per image).
+                    </div>
+
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      id="registration-image-input"
+                      style={{ display: 'none' }}
+                      onChange={async (e) => {
+                        const files = e.target.files;
+                        if (!files || files.length === 0) return;
+                        const maxAllowed = 10;
+                        setUploadingImages(true);
+                        const { compressImageToBase64 } = await import('@/lib/imageCompressor');
+
+                        for (let i = 0; i < files.length; i++) {
+                          const file = files[i];
+                          if (registrationImages.length + i >= maxAllowed) {
+                            alert('You can upload up to 10 registration images maximum.');
+                            break;
+                          }
+                          if (file.size > 500 * 1024 * 1024) {
+                            alert(`File "${file.name}" exceeds the 500MB size limit.`);
+                            continue;
+                          }
+                          try {
+                            const compressed = await compressImageToBase64(file);
+                            setRegistrationImages(prev => {
+                              if (prev.length >= maxAllowed) return prev;
+                              return [...prev, compressed];
+                            });
+                          } catch (err) {
+                            console.error('Failed to compress image:', err);
+                          }
+                        }
+                        setUploadingImages(false);
+                        e.target.value = '';
+                      }}
+                    />
+
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
+                      {registrationImages.map((imgSrc, idx) => (
+                        <div key={idx} style={{ width: 64, height: 64, borderRadius: 8, overflow: 'hidden', border: '1.5px solid #CBD5E1', position: 'relative', background: '#000' }}>
+                          <img src={imgSrc} alt={`Doc ${idx + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          <button
+                            type="button"
+                            onClick={() => setRegistrationImages(prev => prev.filter((_, i) => i !== idx))}
+                            style={{ position: 'absolute', top: 2, right: 2, background: 'rgba(0,0,0,0.75)', color: '#FFFFFF', border: 'none', borderRadius: '50%', width: 18, height: 18, fontSize: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))}
+
+                      {registrationImages.length < 10 && (
+                        <label
+                          htmlFor="registration-image-input"
+                          style={{
+                            width: 64, height: 64, borderRadius: 8, border: '2px dashed #0EA5E9', background: '#F0F9FF',
+                            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                            cursor: 'pointer', color: '#0EA5E9', fontSize: 11, fontWeight: 800, textAlign: 'center', padding: 2
+                          }}
+                        >
+                          {uploadingImages ? '...' : `+ Photo\n(${registrationImages.length}/10)`}
+                        </label>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
                 <button type="submit" className="btn-primary" style={{ justifyContent: 'center', padding: '13px', width: '100%', fontSize: 12 }}>
@@ -410,8 +488,11 @@ export default function RegisterPage() {
                   </button>
                 </div>
 
-                {/* Paid Plan */}
-                <div style={{ border: '1.5px solid #E2E8F0', background: 'rgba(248,250,252,0.7)', borderRadius: 16, padding: 24, opacity: 0.65 }}>
+                {/* Paid Plan (Disabled by default) */}
+                <div style={{ border: '1.5px solid #E2E8F0', background: 'rgba(248,250,252,0.7)', borderRadius: 16, padding: 24, opacity: 0.55, position: 'relative' }}>
+                  <div style={{ position: 'absolute', top: 0, right: 0, background: '#94A3B8', color: 'white', fontSize: 8, fontWeight: 800, fontFamily: 'monospace', padding: '3px 10px', borderBottomLeftRadius: 8, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                    Currently Disabled
+                  </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                     <Building style={{ width: 18, height: 18, color: '#94A3B8' }} />
                     <span style={{ fontSize: 13, fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.03em' }}>Paid Package</span>
@@ -428,8 +509,8 @@ export default function RegisterPage() {
                       </li>
                     ))}
                   </ul>
-                  <button type="button" onClick={handleSendOtpRequest} disabled={loading} className="btn-secondary" style={{ width: '100%', justifyContent: 'center', padding: '11px' }}>
-                    Select Paid Plan
+                  <button type="button" disabled style={{ width: '100%', justifyContent: 'center', padding: '11px', background: '#E2E8F0', color: '#94A3B8', border: 'none', borderRadius: 10, cursor: 'not-allowed', fontWeight: 700, fontSize: 12 }}>
+                    Plan Currently Unavailable
                   </button>
                 </div>
               </div>

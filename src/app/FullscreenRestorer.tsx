@@ -13,8 +13,8 @@ export default function FullscreenRestorer() {
       // Run with standard micro-delay to let the DOM settle on new route mount
       const timer = setTimeout(() => {
         if (!document.fullscreenElement) {
-          document.documentElement.requestFullscreen().catch((err) => {
-            console.warn("Fullscreen request bypassed:", err);
+          document.documentElement.requestFullscreen().catch(() => {
+            // Browsers block programmatic fullscreen without explicit user gesture
           });
         }
       }, 150);

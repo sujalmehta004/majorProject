@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { formatDateNPT, formatTimeNPT, formatDateTimeNPT } from '@/lib/timezone';
 import {
   Receipt, DollarSign, Clock, ArrowUpRight,
   Printer, Send, Bell, Check, AlertCircle, CheckCircle, TrendingUp,
@@ -252,7 +253,7 @@ export default function BillingClient({ profileId, initialOrders, initialSupplie
     const companyAddress = profile?.address || '';
     const companyPhone = profile?.phone || '';
 
-    const billDateStr = new Date(bill.billDate).toLocaleDateString();
+    const billDateStr = formatDateNPT(bill.billDate);
     const itemsRows = itemsArray.map((item: any) => {
       const prod = products.find(p => p.id === item.productId);
       const cost = item.pricePerBox || getProductBuyingPrice(item.productId) || 0;
@@ -268,7 +269,7 @@ export default function BillingClient({ profileId, initialOrders, initialSupplie
 
     const settlementRows = bill.settlements.map((settle: any) => `
       <tr>
-        <td style="padding: 8px 10px; border-bottom: 1px dashed #E2E8F0;">\${new Date(settle.date).toLocaleString()}</td>
+        <td style="padding: 8px 10px; border-bottom: 1px dashed #E2E8F0;">\${formatDateTimeNPT(settle.date)}</td>
         <td style="padding: 8px 10px; border-bottom: 1px dashed #E2E8F0;">\${settle.paymentMethod}</td>
         <td style="padding: 8px 10px; border-bottom: 1px dashed #E2E8F0; color: #64748B;">\${settle.notes || 'N/A'}</td>
         <td style="padding: 8px 10px; border-bottom: 1px dashed #E2E8F0; text-align: right; color: #059669; font-weight: bold;">Rs. \${settle.amount.toLocaleString()}</td>
@@ -383,7 +384,7 @@ export default function BillingClient({ profileId, initialOrders, initialSupplie
           </table>
 
           <div class="footer">
-            Generated on \${new Date().toLocaleString()} · System voucher powered by MedHub
+            Generated on \${formatDateTimeNPT(new Date())} · System voucher powered by MedHub
           </div>
 
           <script>
@@ -520,7 +521,7 @@ export default function BillingClient({ profileId, initialOrders, initialSupplie
       setTimeout(() => setSuccessMsg(''), 3000);
       const targetOrder = orders.find(o => o.id === orderId);
       const retailerName = targetOrder ? targetOrder.retailer.pharmacyName : 'Walk-in';
-      logActivity('SETTLE_PAYMENT', `Settle Order INV-${orderId.substring(0, 8).toUpperCase()} for Rs. ${inputPaid.toLocaleString()} (Customer: ${retailerName}). Verified at: ${new Date().toLocaleString()}`);
+      logActivity('SETTLE_PAYMENT', `Settle Order INV-${orderId.substring(0, 8).toUpperCase()} for Rs. ${inputPaid.toLocaleString()} (Customer: ${retailerName}). Verified at: ${formatDateTimeNPT(new Date())}`);
     } catch (err: any) {
       alert(err.message || 'Error recording payment settlement in database');
     }
@@ -551,7 +552,7 @@ export default function BillingClient({ profileId, initialOrders, initialSupplie
       setSuccessMsg(`Supplier payment of Rs. ${amt.toLocaleString()} recorded successfully.`);
       const targetBill = supplierBills.find(b => b.id === billId);
       const supplierName = targetBill ? targetBill.supplier.name : 'Unknown';
-      logActivity('SETTLE_SUPPLIER_BILL', `Settle Supplier Bill #${targetBill?.billNumber} with Rs. ${amt.toLocaleString()} for ${supplierName} via ${method}. Time: ${new Date().toLocaleString()}`);
+      logActivity('SETTLE_SUPPLIER_BILL', `Settle Supplier Bill #${targetBill?.billNumber} with Rs. ${amt.toLocaleString()} for ${supplierName} via ${method}. Time: ${formatDateTimeNPT(new Date())}`);
       setTimeout(() => setSuccessMsg(''), 3000);
     } catch (err: any) {
       setError(err.message || 'An error occurred.');
@@ -695,7 +696,7 @@ export default function BillingClient({ profileId, initialOrders, initialSupplie
     const rows = fiscalOrders.map(o => {
       const itemsDetail = o.items.map(item => `${item.product.name} (${item.quantity} units)`).join('; ');
       return [
-        new Date(o.createdAt).toLocaleDateString(),
+        formatDateNPT(o.createdAt),
         `INV-${o.id.substring(0, 8).toUpperCase()}`,
         o.retailer.pharmacyName === "Walk-in Customer (POS)" ? getWalkInName(o.overrideJustification) : o.retailer.pharmacyName,
         o.status,
@@ -792,7 +793,7 @@ export default function BillingClient({ profileId, initialOrders, initialSupplie
   <div>
     <h1>${customInvoiceTitle}</h1>
     <div style="font-family:monospace;font-weight:700;color:#475569;margin-top:4px">INV-${order.id.substring(0, 12).toUpperCase()}</div>
-    <div style="font-size:10px;color:#94A3B8;font-family:monospace;margin-top:2px">Date: ${new Date(order.createdAt).toLocaleDateString()}</div>
+    <div style="font-size:10px;color:#94A3B8;font-family:monospace;margin-top:2px">Date: ${formatDateNPT(order.createdAt)}</div>
   </div>
   <div style="text-align:right">
     <h2>${profile?.companyName || 'MedHub Distributor'}</h2>
@@ -855,7 +856,7 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
       const custName = o.retailer.pharmacyName === 'Walk-in Customer (POS)' ? getWalkInName(o.overrideJustification) : o.retailer.pharmacyName;
       const profit = o.status === 'DELIVERED' ? getOrderProfit(o) : 0;
       return `<tr>
-        <td>${new Date(o.createdAt).toLocaleDateString()}</td>
+        <td>${formatDateNPT(o.createdAt)}</td>
         <td style="font-family:monospace;font-weight:700;color:#F97316">INV-${o.id.substring(0,8).toUpperCase()}</td>
         <td style="font-weight:700">${custName}</td>
         <td>${o.status}</td>
@@ -889,7 +890,7 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
 </style></head>
 <body>
 <h1>Fiscal Audit Report — ${fiscalYear}</h1>
-<div class="sub">Generated on ${new Date().toLocaleString()} &nbsp;|&nbsp; ${profile?.companyName || 'MedHub Distributor'}</div>
+<div class="sub">Generated on ${formatDateTimeNPT(new Date())} &nbsp;|&nbsp; ${profile?.companyName || 'MedHub Distributor'}</div>
 <div class="kpi-grid">
   <div class="kpi"><div class="kpi-label">Net Revenue</div><div class="kpi-val" style="color:#0369A1">Rs. ${fiscalRevenue.toLocaleString()}</div></div>
   <div class="kpi"><div class="kpi-label">Gross Profit</div><div class="kpi-val" style="color:#047857">Rs. ${fiscalProfit.toLocaleString()}</div></div>
@@ -1137,7 +1138,7 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
                             onMouseEnter={e => e.currentTarget.style.background = '#F8FAFC'}
                             onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                           >
-                            <td style={{ padding: '14px 16px', fontSize: 14, color: 'var(--text-secondary)' }}>{new Date(order.createdAt).toLocaleDateString()}</td>
+                            <td style={{ padding: '14px 16px', fontSize: 14, color: 'var(--text-secondary)' }}>{formatDateNPT(order.createdAt)}</td>
                             <td style={{ padding: '14px 16px', fontFamily: 'monospace', fontWeight: 700, color: '#3B82F6', fontSize: 14 }}>
                               INV-{order.id.substring(0, 8).toUpperCase()}
                             </td>
@@ -1274,7 +1275,7 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
                     const isFullyPaid = bill.paidAmount >= bill.totalAmount;
                     return (
                       <tr key={bill.id} onClick={() => setDetailSupplierBill(bill)} style={{ cursor: 'pointer' }}>
-                        <td style={{ fontFamily: 'monospace', fontSize: 11, color: 'var(--text-secondary)' }}>{new Date(bill.billDate).toLocaleDateString()}</td>
+                        <td style={{ fontFamily: 'monospace', fontSize: 11, color: 'var(--text-secondary)' }}>{formatDateNPT(bill.billDate)}</td>
                         <td style={{ fontFamily: 'monospace', fontWeight: 800, color: '#0EA5E9' }}>{bill.billNumber}</td>
                         <td style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{bill.supplier.name}</td>
                         <td>
@@ -1524,7 +1525,7 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
                   <>
                     {fiscalOrders.map(o => (
                       <tr key={o.id} style={{ cursor: 'pointer' }} onClick={() => setDetailOrder(o)}>
-                        <td style={{ fontFamily: 'monospace', fontSize: 11 }}>{new Date(o.createdAt).toLocaleDateString()}</td>
+                        <td style={{ fontFamily: 'monospace', fontSize: 11 }}>{formatDateNPT(o.createdAt)}</td>
                         <td style={{ fontFamily: 'monospace', fontWeight: 700, color: '#0EA5E9' }}>INV-{o.id.substring(0, 8).toUpperCase()}</td>
                         <td style={{ fontWeight: 700 }}>
                           {o.retailer.pharmacyName === "Walk-in Customer (POS)" ? (
@@ -1575,7 +1576,7 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
                         const due = Math.max(b.totalAmount - b.paidAmount, 0);
                         return (
                           <tr key={b.id} style={{ cursor: 'pointer' }} onClick={() => setDetailSupplierBill(b)}>
-                            <td style={{ fontFamily: 'monospace', fontSize: 11 }}>{new Date(b.billDate).toLocaleDateString()}</td>
+                            <td style={{ fontFamily: 'monospace', fontSize: 11 }}>{formatDateNPT(b.billDate)}</td>
                             <td style={{ fontFamily: 'monospace', fontWeight: 700, color: '#BE123C' }}>{b.billNumber}</td>
                             <td style={{ fontWeight: 700 }}>{b.supplier?.name}</td>
                             <td>
@@ -1628,7 +1629,7 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
                     <Receipt style={{ width: 18, height: 18, color: '#0EA5E9' }} /> Supplier Bill Details
                   </h3>
                   <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4 }}>
-                    Bill No: {detailSupplierBill.billNumber} · Date: {new Date(detailSupplierBill.billDate).toLocaleDateString()}
+                    Bill No: {detailSupplierBill.billNumber} · Date: {formatDateNPT(detailSupplierBill.billDate)}
                   </p>
                 </div>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -1723,7 +1724,7 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
                         {detailSupplierBill.settlements.map((settle) => (
                           <div key={settle.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, borderBottom: '1px solid #F1F5F9', paddingBottom: 6 }}>
                             <div>
-                              <span style={{ color: 'var(--text-secondary)' }}>{new Date(settle.date).toLocaleString()}</span>
+                              <span style={{ color: 'var(--text-secondary)' }}>{formatDateTimeNPT(settle.date)}</span>
                               {settle.notes && <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 1 }}>{settle.notes}</div>}
                             </div>
                             <span style={{ fontWeight: 800, color: '#059669' }}>+ Rs. {settle.amount.toLocaleString()} ({settle.paymentMethod})</span>
@@ -1816,7 +1817,7 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
                   ) : (
                     invoiceModalOrder.retailer.pharmacyName
                   )}
-                  {' · '}{new Date(invoiceModalOrder.createdAt).toLocaleString()}
+                  {' · '}{formatDateTimeNPT(invoiceModalOrder.createdAt)}
                 </p>
               </div>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -1898,7 +1899,7 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
                             imoVerifiedSettlements.map((entry: any, i: number) => (
                               <div key={entry.id || i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 8 }}>
                                 <div>
-                                  <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{new Date(entry.createdAt || entry.date).toLocaleString()}</div>
+                                  <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{formatDateTimeNPT(entry.createdAt || entry.date)}</div>
                                   {entry.method && <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 1 }}>{entry.method}</div>}
                                 </div>
                                 <div style={{ fontSize: 14, fontWeight: 800, color: '#059669', fontFamily: 'monospace' }}>+ Rs. {(entry.amount || 0).toLocaleString()}</div>
@@ -1909,7 +1910,7 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
                           {(imoOrder.b2bSettlements || []).filter((s: any) => s.status === 'PENDING').map((entry: any, i: number) => (
                             <div key={`pending-${entry.id || i}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 8 }}>
                               <div>
-                                <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{new Date(entry.createdAt || entry.date).toLocaleString()}</div>
+                                <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{formatDateTimeNPT(entry.createdAt || entry.date)}</div>
                                 <div style={{ fontSize: 9, color: '#C2410C', fontWeight: 700 }}>⏳ AWAITING APPROVAL</div>
                               </div>
                               <div style={{ fontSize: 14, fontWeight: 800, color: '#EA580C', fontFamily: 'monospace' }}>Rs. {(entry.amount || 0).toLocaleString()}</div>
@@ -2026,7 +2027,7 @@ ${customNotes ? `<div class="terms" style="margin-top:8px"><strong>Notes:</stron
                   <div>
                     <h1 style={{ fontSize: 22, fontWeight: 900, textTransform: 'uppercase' }}>{customInvoiceTitle}</h1>
                     <div style={{ fontFamily: 'monospace', fontWeight: 700, color: 'var(--text-secondary)', marginTop: 4 }}>INV-{selectedOrderForPrint.id.substring(0, 12).toUpperCase()}</div>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'monospace', marginTop: 2 }}>Date: {new Date(selectedOrderForPrint.createdAt).toLocaleDateString()}</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'monospace', marginTop: 2 }}>Date: {formatDateNPT(selectedOrderForPrint.createdAt)}</div>
                   </div>
                   <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', gap: 2 }}>
                     <h2 style={{ fontSize: 14, fontWeight: 900, textTransform: 'uppercase' }}>{profile?.companyName || 'MedHub Distributor'}</h2>

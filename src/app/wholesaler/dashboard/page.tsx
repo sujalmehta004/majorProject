@@ -178,6 +178,8 @@ export default async function WholesalerDashboard() {
         role: user.role,
         fullName: dbUser?.fullName,
         allowedFeatures: dbUser?.allowedFeatures,
+        isVerified: dbUser?.isVerified,
+        verificationStatus: dbUser?.verificationStatus,
       }}
       profile={{
         id: profile.id,
@@ -199,6 +201,8 @@ export default async function WholesalerDashboard() {
           latitude: profile.latitude,
           longitude: profile.longitude,
           companyName: profile.companyName,
+          verificationStatus: dbUser?.verificationStatus || 'PENDING',
+          verificationRejectReason: dbUser?.verificationRejectReason || null,
         }}
         auditLogs={serializedLogs}
         pendingSettlements={serializedSettlements}

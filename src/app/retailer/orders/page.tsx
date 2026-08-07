@@ -21,6 +21,10 @@ export default async function RetailerOrdersPage() {
     redirect('/');
   }
 
+  if (!dbUser.isVerified || dbUser.verificationStatus !== 'VERIFIED') {
+    redirect('/retailer/dashboard');
+  }
+
   let profile = null;
   if (user.role === 'RETAILER') {
     profile = await db.retailerProfile.findUnique({
@@ -111,8 +115,10 @@ export default async function RetailerOrdersPage() {
         userId: user.userId,
         email: user.email,
         role: user.role,
-        fullName: dbUser.fullName || user.email.split('@')[0],
+        fullName: dbUser.fullName,
         allowedFeatures: dbUser.allowedFeatures,
+        isVerified: dbUser.isVerified,
+        verificationStatus: dbUser.verificationStatus,
       }}
       profile={{
         id: profile.id,

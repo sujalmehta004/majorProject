@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { formatDateNPT, formatTimeNPT, formatDateTimeNPT } from '@/lib/timezone';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
@@ -17,6 +18,8 @@ interface WholesalerLayoutProps {
     role: string;
     fullName?: string | null;
     allowedFeatures?: string;
+    isVerified?: boolean;
+    verificationStatus?: string;
   };
   profile: {
     id: string;
@@ -195,7 +198,7 @@ export default function WholesalerLayout({ children, user, profile }: Wholesaler
     flatResults.push({
       type: 'transaction',
       title: `INV-${t.id.substring(0, 8).toUpperCase()}`,
-      subtitle: `Rs. ${t.netAmount?.toLocaleString()} · ${t.retailer?.pharmacyName || 'Walk-in'} · ${new Date(t.createdAt).toLocaleDateString()}`,
+      subtitle: `Rs. ${t.netAmount?.toLocaleString()} · ${t.retailer?.pharmacyName || 'Walk-in'} · ${formatDateNPT(t.createdAt)}`,
       url: `/wholesaler/billing?invoiceId=${t.id}`,
       icon: Receipt
     });
@@ -531,6 +534,24 @@ export default function WholesalerLayout({ children, user, profile }: Wholesaler
               {group.items.map((item) => {
                 const isActive = pathname === item.href;
                 const Icon = item.icon;
+                const isUnverified = user.isVerified === false || user.verificationStatus === 'REJECTED';
+                const isRestrictedTab = item.name === 'POS B2C' || item.name === 'Orders' || item.name === 'Customers' || item.name === 'Suppliers' || item.name === 'Billing';
+                const isDisabled = isUnverified && isRestrictedTab;
+
+                if (isDisabled) {
+                  return (
+                    <div
+                      key={item.href}
+                      className="sidebar-nav-item"
+                      style={{ opacity: 0.45, cursor: 'not-allowed', filter: 'grayscale(100%)' }}
+                      title="🔒 Account Verification Pending / Rejected — POS B2C & B2B Orders features are disabled until verified by Superadmin."
+                    >
+                      <Icon className="nav-icon" />
+                      <span className="sidebar-nav-label">{item.name} 🔒</span>
+                    </div>
+                  );
+                }
+
                 return (
                   <Link
                     key={item.href}
@@ -688,55 +709,6 @@ export default function WholesalerLayout({ children, user, profile }: Wholesaler
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Theme & Font controls inside Search Modal */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: '8px 12px', gap: 10 }}>
-              <div style={{ display: 'flex', gap: 4 }}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    localStorage.setItem('theme', 'light');
-                    document.body.classList.remove('dark-mode');
-                  }}
-                  style={{ padding: '3px 8px', fontSize: 10, fontWeight: 700, borderRadius: 4, border: '1px solid #CBD5E1', cursor: 'pointer', background: '#fff' }}
-                >
-                  ☀️ Light
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    localStorage.setItem('theme', 'dark');
-                    document.body.classList.add('dark-mode');
-                  }}
-                  style={{ padding: '3px 8px', fontSize: 10, fontWeight: 700, borderRadius: 4, border: '1px solid #CBD5E1', cursor: 'pointer', background: '#0F172A', color: '#fff' }}
-                >
-                  🌙 Dark
-                </button>
-              </div>
-
-              <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
-                <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600 }}>Scale:</span>
-                {([
-                  { k: 'xs', l: 'XS' },
-                  { k: 'sm', l: 'S' },
-                  { k: 'md', l: 'M' },
-                  { k: 'lg', l: 'L' },
-                  { k: 'xl', l: 'XL' }
-                ] as const).map(item => (
-                  <button
-                    key={item.k}
-                    type="button"
-                    onClick={() => {
-                      localStorage.setItem('font_scale', item.k);
-                      document.body.classList.remove('font-xs', 'font-sm', 'font-md', 'font-lg', 'font-xl');
-                      document.body.classList.add(`font-${item.k}`);
-                    }}
-                    style={{ padding: '3px 6px', fontSize: 10, fontWeight: 700, borderRadius: 4, border: '1px solid #CBD5E1', cursor: 'pointer', background: '#fff' }}
-                  >
-                    {item.l}
-                  </button>
-                ))}
-              </div>
-            </div>
 
             {/* Input */}
             <div className="search-bar">

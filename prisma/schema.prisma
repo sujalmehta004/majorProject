@@ -61,6 +61,23 @@ model User {
   forceResetPassword  Boolean            @default(false)
   packageName         String             @default("Free Plan")
   packagePrice        Float              @default(0)
+  
+  // Verification Fields
+  isVerified               Boolean            @default(false)
+  verificationStatus       String             @default("PENDING") // PENDING, VERIFIED, REJECTED
+  verificationRejectReason String?
+  registrationImagesJson   String             @default("[]")
+}
+
+model SubscriptionPackage {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  price       Float    @default(0)
+  description String?
+  features    String   @default("Dashboard,Medicines,Orders,Billing,POS,Profile,Logs")
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 model WholesalerProfile {
@@ -143,6 +160,7 @@ model Product {
   tierPricingJson String             @default("[]") 
   
   category        String             @default("Uncategorized")
+  medicineClass   String             @default("CLASS_NORMAL") // CLASS_A (Prescription Required) or CLASS_NORMAL (Prescription Not Required)
   
   createdAt       DateTime           @default(now())
   updatedAt       DateTime           @updatedAt
@@ -388,6 +406,11 @@ model ConsumerOrder {
   longitude       Float?
   paymentMethod   String              @default("COD") // e.g. "COD" (Cash on Delivery)
   status          String              @default("PENDING") // PENDING, SHIPPED, DELIVERED, FAILED
+  prescriptionImagesJson String     @default("[]") // Base64 image strings JSON array
+  oldPrescriptionImagesJson String  @default("[]") // Previous prescription images prior to re-upload
+  prescriptionStatus     String     @default("NOT_REQUIRED") // NOT_REQUIRED, PENDING, APPROVED, REJECTED
+  prescriptionRejectReason String?
+  doctorNmcNumber String?
   totalAmount     Float
   deliveryFee     Float               @default(0)
   createdAt       DateTime            @default(now())

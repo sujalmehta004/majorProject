@@ -17,10 +17,19 @@ export default async function WholesalerCustomers() {
     redirect("/");
   }
 
-  let profile = null;
   const dbUser = await db.user.findUnique({
     where: { id: user.userId },
   });
+
+  if (!dbUser) {
+    redirect("/");
+  }
+
+  if (!dbUser.isVerified || dbUser.verificationStatus !== 'VERIFIED') {
+    redirect('/wholesaler/dashboard');
+  }
+
+  let profile = null;
 
   if (user.role === "WHOLESALER") {
     profile = await db.wholesalerProfile.findUnique({
@@ -39,6 +48,10 @@ export default async function WholesalerCustomers() {
   // Load registered customer pharmacies belonging to this wholesaler OR who have placed orders with this wholesaler
   const retailers = await db.retailerProfile.findMany({
     where: {
+      user: {
+        isVerified: true,
+        verificationStatus: 'VERIFIED',
+      },
       OR: [
         { wholesalerId: profile.id },
         { orders: { some: { wholesalerId: profile.id } } }
@@ -91,6 +104,8 @@ export default async function WholesalerCustomers() {
         role: user.role,
         fullName: dbUser?.fullName,
         allowedFeatures: dbUser?.allowedFeatures,
+        isVerified: dbUser?.isVerified,
+        verificationStatus: dbUser?.verificationStatus,
       }}
       profile={{
         id: profile.id,

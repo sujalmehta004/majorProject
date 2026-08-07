@@ -19,6 +19,14 @@ export default async function WholesalerPOSPage() {
     where: { id: user.userId },
   });
 
+  if (!dbUser) {
+    redirect('/');
+  }
+
+  if (!dbUser.isVerified || dbUser.verificationStatus !== 'VERIFIED') {
+    redirect('/wholesaler/dashboard');
+  }
+
   if (user.role === 'WHOLESALER') {
     profile = await db.wholesalerProfile.findUnique({
       where: { userId: user.userId },
@@ -59,6 +67,8 @@ export default async function WholesalerPOSPage() {
         role: user.role,
         fullName: dbUser?.fullName,
         allowedFeatures: dbUser?.allowedFeatures,
+        isVerified: dbUser?.isVerified,
+        verificationStatus: dbUser?.verificationStatus,
       }}
       profile={{
         id: profile.id,

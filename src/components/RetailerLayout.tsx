@@ -24,6 +24,8 @@ interface RetailerLayoutProps {
     role: string;
     fullName?: string | null;
     allowedFeatures?: string;
+    isVerified?: boolean;
+    verificationStatus?: string;
   };
   profile: {
     id: string;
@@ -437,6 +439,24 @@ export default function RetailerLayout({ children, user, profile }: RetailerLayo
               {group.items.map((item) => {
                 const isActive = pathname === item.href;
                 const Icon = item.icon;
+                const isUnverified = user.isVerified === false || user.verificationStatus === 'REJECTED';
+                const isRestrictedTab = item.name === 'POS Billing' || item.name === 'Orders' || item.name === 'Suppliers' || item.name === 'Billing History';
+                const isDisabled = isUnverified && isRestrictedTab;
+
+                if (isDisabled) {
+                  return (
+                    <div
+                      key={item.href}
+                      className="sidebar-nav-item"
+                      style={{ opacity: 0.45, cursor: 'not-allowed', filter: 'grayscale(100%)' }}
+                      title="🔒 Account Verification Pending / Rejected — POS Billing & Ordering features are disabled until verified."
+                    >
+                      <Icon className="nav-icon" />
+                      <span className="sidebar-nav-label">{item.name} 🔒</span>
+                    </div>
+                  );
+                }
+
                 return (
                   <Link
                     key={item.href}
@@ -520,56 +540,6 @@ export default function RetailerLayout({ children, user, profile }: RetailerLayo
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Theme & Scale Controls */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, paddingBottom: 8, borderBottom: '1px solid var(--card-border)', gap: 10, flexWrap: 'wrap' }}>
-              <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
-                <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600 }}>Theme:</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    localStorage.setItem('theme', 'light');
-                    document.body.classList.remove('dark-mode');
-                  }}
-                  style={{ padding: '3px 8px', fontSize: 10, fontWeight: 700, borderRadius: 4, border: '1px solid #CBD5E1', cursor: 'pointer', background: '#fff', color: '#000' }}
-                >
-                  ☀️ Light
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    localStorage.setItem('theme', 'dark');
-                    document.body.classList.add('dark-mode');
-                  }}
-                  style={{ padding: '3px 8px', fontSize: 10, fontWeight: 700, borderRadius: 4, border: '1px solid #CBD5E1', cursor: 'pointer', background: '#0F172A', color: '#fff' }}
-                >
-                  🌙 Dark
-                </button>
-              </div>
-
-              <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
-                <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600 }}>Scale:</span>
-                {([
-                  { k: 'xs', l: 'XS' },
-                  { k: 'sm', l: 'S' },
-                  { k: 'md', l: 'M' },
-                  { k: 'lg', l: 'L' },
-                  { k: 'xl', l: 'XL' }
-                ] as const).map(item => (
-                  <button
-                    key={item.k}
-                    type="button"
-                    onClick={() => {
-                      localStorage.setItem('font_scale', item.k);
-                      document.body.classList.remove('font-xs', 'font-sm', 'font-md', 'font-lg', 'font-xl');
-                      document.body.classList.add(`font-${item.k}`);
-                    }}
-                    style={{ padding: '3px 6px', fontSize: 10, fontWeight: 700, borderRadius: 4, border: '1px solid #CBD5E1', cursor: 'pointer', background: '#fff' }}
-                  >
-                    {item.l}
-                  </button>
-                ))}
-              </div>
-            </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, borderBottom: '1px solid #E2E8F0', paddingBottom: 10 }}>
               <Search style={{ width: 18, height: 18, color: '#F59E0B' }} />

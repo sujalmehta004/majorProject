@@ -1,40 +1,14 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import { formatDateNPT, formatDateTimeNPT } from '@/lib/timezone';
 import {
-  User,
-  Building,
-  FileText,
-  Phone,
-  MapPin,
-  Calendar,
-  CheckCircle,
-  AlertCircle,
-  RefreshCw,
-  Key,
-  ShieldAlert,
-  Navigation,
-  Plus,
-  Trash,
-  Users,
-  UserPlus,
-  Trash2,
-  Eye,
-  EyeOff,
-  Clock,
-  ShieldCheck,
-  Edit,
-  X,
-  ToggleLeft,
-  ToggleRight,
-  Filter,
-  XCircle,
-  ChevronRight,
-  Lock,
-  Bell,
-  AlertTriangle,
-  Search,
-} from "lucide-react";
+  Building, Calendar, ShieldCheck, Save,
+  AlertCircle, CheckCircle, Search, Trash2, Plus, 
+  User, ShieldAlert, Edit2, Lock, X, MapPin, Navigation,
+  Eye, FileImage, ChevronLeft, ChevronRight, Upload,
+  Phone, Send, ZoomIn, Check, Trash
+} from 'lucide-react';
 import { logActivity } from "@/components/WholesalerLayout";
 
 interface WholesalerProfile {
@@ -81,6 +55,11 @@ interface SettingsClientProps {
   subscriptionEnd: string;
   initialStaff: StaffUser[];
   initialLogs: AuditLog[];
+  registrationData?: {
+    verificationStatus: string;
+    verificationRejectReason: string | null;
+    registrationImagesJson: string;
+  };
 }
 
 const AVAILABLE_FEATURES = [
@@ -93,6 +72,59 @@ const AVAILABLE_FEATURES = [
   { key: "Logs", label: "Activity Logs" },
 ];
 
+const inputStyle: React.CSSProperties = {
+  padding: '10px 12px',
+  borderRadius: 8,
+  border: '1px solid var(--card-border)',
+  outline: 'none',
+  fontSize: 14,
+  width: '100%',
+  background: 'var(--card-bg)',
+  color: 'var(--text-primary)',
+  boxSizing: 'border-box' as const,
+};
+
+const lockedInputStyle: React.CSSProperties = {
+  ...inputStyle,
+  background: 'var(--table-header-bg)',
+  cursor: 'not-allowed',
+  opacity: 0.7,
+};
+
+const btnStyle: React.CSSProperties = {
+  padding: '10px 16px',
+  borderRadius: 8,
+  border: 'none',
+  background: '#0EA5E9',
+  color: '#FFFFFF',
+  fontSize: 14,
+  fontWeight: 600,
+  cursor: 'pointer',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 8,
+  transition: 'background 0.15s',
+};
+
+const labelStyle: React.CSSProperties = {
+  fontSize: 11,
+  fontWeight: 700,
+  color: 'var(--text-secondary)',
+  textTransform: 'uppercase',
+  marginBottom: 6,
+  display: 'block',
+};
+
+const thStyle: React.CSSProperties = {
+  padding: '12px 18px',
+  color: 'var(--text-muted)',
+  fontWeight: 600,
+  fontSize: 12,
+  textTransform: 'uppercase',
+  letterSpacing: '0.04em',
+};
+
 export default function SettingsClient({
   userRole,
   allowedFeaturesList,
@@ -100,10 +132,15 @@ export default function SettingsClient({
   subscriptionEnd,
   initialStaff,
   initialLogs,
+  registrationData,
 }: SettingsClientProps) {
   const isOwner = userRole === "WHOLESALER";
 
-  // Decide starting tab
+  const verificationStatus = registrationData?.verificationStatus || 'PENDING';
+  const isPending = verificationStatus === 'PENDING';
+  const isVerified = verificationStatus === 'VERIFIED';
+  const isRejected = verificationStatus === 'REJECTED';
+
   const hasProfileAccess = isOwner || allowedFeaturesList.includes("Profile");
   const hasLogsAccess = isOwner || allowedFeaturesList.includes("Logs");
 
@@ -114,248 +151,226 @@ export default function SettingsClient({
     return "security";
   };
 
-  const [activeTab, setActiveTab] = useState<
-    "profile" | "staff" | "logs" | "security" | "alerts"
-  >(getInitialTab());
-
-  // Theme Mode Settings
-  const [themeMode, setThemeMode] = useState<'light' | 'dark'>('light');
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('theme') as 'light' | 'dark' || 'light';
-      setThemeMode(saved);
-      // Check URL param for direct tab navigation (e.g. from command palette ?tab=logs)
-      const params = new URLSearchParams(window.location.search);
-      const tabParam = params.get('tab');
-      const validTabs = ['profile', 'staff', 'logs', 'security', 'alerts'] as const;
-      if (tabParam && (validTabs as readonly string[]).includes(tabParam)) {
-        const t = tabParam as typeof validTabs[number];
-        if (t === 'logs' && hasLogsAccess) setActiveTab('logs');
-        else if (t === 'staff' && isOwner) setActiveTab('staff');
-        else if (t === 'profile' && hasProfileAccess) setActiveTab('profile');
-        else if (t === 'security') setActiveTab('security');
-        else if (t === 'alerts') setActiveTab('alerts');
-      }
-    }
-  }, []);
-
-  const handleToggleTheme = (mode: 'light' | 'dark') => {
-    setThemeMode(mode);
-    localStorage.setItem('theme', mode);
-    if (mode === 'dark') {
-      document.body.classList.add('dark-mode');
-    } else {
-      document.body.classList.remove('dark-mode');
-    }
-  };
-
-  // Font Scale Settings
-  const fontScaleLevels = ['xs', 'sm', 'md', 'lg', 'xl'] as const;
-  type FontScale = typeof fontScaleLevels[number];
-  const [fontScale, setFontScale] = useState<FontScale>('md');
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const saved = (localStorage.getItem('font_scale') || 'md') as FontScale;
-      setFontScale(fontScaleLevels.includes(saved) ? saved : 'md');
-    }
-  }, []);
-
-  const handleToggleFontScale = (scale: FontScale) => {
-    setFontScale(scale);
-    localStorage.setItem('font_scale', scale);
-    document.body.classList.remove('font-xs', 'font-sm', 'font-md', 'font-lg', 'font-xl');
-    document.body.classList.add(`font-${scale}`);
-  };
-
+  const [activeTab, setActiveTab] = useState<'profile' | 'staff' | 'security' | 'logs' | 'theme'>(getInitialTab());
   const [loading, setLoading] = useState(false);
-  const [isFetchingLocation, setIsFetchingLocation] = useState(false);
-  const [error, setError] = useState("");
-  const [successMsg, setSuccessMsg] = useState("");
+  const [phoneLoading, setPhoneLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
 
-  // ----------------------------------------------------
-  // PROFILE TAB STATE
-  // ----------------------------------------------------
-  const [profile, setProfile] = useState<WholesalerProfile>(initialProfile);
-  const [companyName, setCompanyName] = useState(profile.companyName);
-  const [taxId, setTaxId] = useState(profile.taxId);
-  const [address, setAddress] = useState(profile.address);
-  const [phone, setPhone] = useState(profile.phone);
-  const [registrationNumber, setRegistrationNumber] = useState(
-    profile.registrationNumber || "",
-  );
-  const [contactPerson, setContactPerson] = useState(
-    profile.contactPerson || "",
-  );
-  const [latitude, setLatitude] = useState(
-    profile.latitude ? profile.latitude.toString() : "27.7172",
-  );
-  const [longitude, setLongitude] = useState(
-    profile.longitude ? profile.longitude.toString() : "85.3240",
-  );
+  // Profile Form Fields State
+  const [companyName, setCompanyName] = useState(initialProfile.companyName);
+  const [taxId, setTaxId] = useState(initialProfile.taxId);
+  const [address, setAddress] = useState(initialProfile.address);
+  const [phone, setPhone] = useState(initialProfile.phone);
+  const [registrationNumber, setRegistrationNumber] = useState(initialProfile.registrationNumber || "");
+  const [contactPerson, setContactPerson] = useState(initialProfile.contactPerson || "");
+  const [latitude, setLatitude] = useState(initialProfile.latitude ? String(initialProfile.latitude) : "27.7172");
+  const [longitude, setLongitude] = useState(initialProfile.longitude ? String(initialProfile.longitude) : "85.3240");
 
-  const [customFields, setCustomFields] = useState<
-    Array<{ label: string; value: string }>
-  >(() => {
-    try {
-      return JSON.parse(profile.customFieldsJson || "[]");
-    } catch (e) {
-      return [];
-    }
+  // Edit Mode state
+  const [isEditingVerifiedDetails, setIsEditingVerifiedDetails] = useState(false);
+
+  // Document Uploads State
+  const initialImages: string[] = (() => {
+    try { return JSON.parse(registrationData?.registrationImagesJson || '[]'); } catch { return []; }
+  })();
+  const [registrationImages, setRegistrationImages] = useState<string[]>(initialImages);
+  const [uploadingDoc, setUploadingDoc] = useState(false);
+
+  // Map Modal State
+  const [showMapModal, setShowMapModal] = useState(false);
+  const [mapPickedLat, setMapPickedLat] = useState<number | null>(null);
+  const [mapPickedLng, setMapPickedLng] = useState<number | null>(null);
+  const [mapSearchQuery, setMapSearchQuery] = useState('');
+  const [mapSearchResults, setMapSearchResults] = useState<any[]>([]);
+  const [mapSearchLoading, setMapSearchLoading] = useState(false);
+  const [leafletLoaded, setLeafletLoaded] = useState(false);
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const mapInstanceRef = useRef<any>(null);
+  const mapMarkerRef = useRef<any>(null);
+
+  // Document Viewer Modal State
+  const [showDocViewer, setShowDocViewer] = useState(false);
+  const [docViewerIndex, setDocViewerIndex] = useState(0);
+  const [docZoomed, setDocZoomed] = useState(false);
+
+  // Custom Fields
+  const [customFields, setCustomFields] = useState<Array<{ label: string; value: string }>>(() => {
+    try { return JSON.parse(initialProfile.customFieldsJson || "[]"); } catch { return []; }
   });
   const [newFieldLabel, setNewFieldLabel] = useState("");
   const [newFieldValue, setNewFieldValue] = useState("");
   const [showAddFieldForm, setShowAddFieldForm] = useState(false);
 
-  // ----------------------------------------------------
-  // STAFF TAB STATE
-  // ----------------------------------------------------
-  const [staff, setStaff] = useState<StaffUser[]>(initialStaff);
-  const [staffSearch, setStaffSearch] = useState("");
-  const [staffStatusFilter, setStaffStatusFilter] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [showRegisterPassword, setShowRegisterPassword] = useState(false);
-  const [fullName, setFullName] = useState("");
-  const [allowedFeatures, setAllowedFeatures] = useState<string[]>(
-    AVAILABLE_FEATURES.map((f) => f.key),
-  );
+  // Security / Alerts State
+  const [themeMode, setThemeMode] = useState<'light' | 'dark'>('light');
+  const [fontScale, setFontScale] = useState<'sm' | 'md' | 'lg'>('md');
+  const [inactivityTimeout, setInactivityTimeout] = useState('60');
+  const [lowStockBoxes, setLowStockBoxes] = useState(10);
+  const [lowStockStrips, setLowStockStrips] = useState(0);
+  const [lowStockTablets, setLowStockTablets] = useState(0);
+  const [expiryAlertDays, setExpiryAlertDays] = useState(30);
 
+  // Staff State
+  const [staffList, setStaffList] = useState<StaffUser[]>(initialStaff);
+  const [showStaffModal, setShowStaffModal] = useState(false);
   const [editingStaff, setEditingStaff] = useState<StaffUser | null>(null);
-  const [editEmail, setEditEmail] = useState("");
-  const [editPassword, setEditPassword] = useState("");
-  const [showEditPassword, setShowEditPassword] = useState(false);
-  const [editFullName, setEditFullName] = useState("");
-  const [editAllowedFeatures, setEditAllowedFeatures] = useState<string[]>([]);
-  const [editIsActive, setEditIsActive] = useState(true);
+  const [staffEmail, setStaffEmail] = useState("");
+  const [staffPassword, setStaffPassword] = useState("");
+  const [staffFullName, setStaffFullName] = useState("");
+  const [staffFeatures, setStaffFeatures] = useState<string[]>(AVAILABLE_FEATURES.map(f => f.key));
+  const [staffIsActive, setStaffIsActive] = useState(true);
 
-  // ----------------------------------------------------
-  // LOGS TAB STATE
-  // ----------------------------------------------------
+  // Logs State
   const [logs, setLogs] = useState<AuditLog[]>(initialLogs);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [actionFilter, setActionFilter] = useState("");
-  const [userFilter, setUserFilter] = useState("");
+  const [searchTerm, setSearchTerm] = useState('');
+  const [actionFilter, setActionFilter] = useState('');
 
-  const uniqueActions = Array.from(new Set(logs.map((log) => log.action)));
-  const uniqueUsers = Array.from(
-    new Set(logs.map((log) => log.user?.email).filter(Boolean)),
-  );
+  // Lock status check
+  const fieldsLocked = !isOwner || ((isPending || isVerified) && !isEditingVerifiedDetails);
 
-  // ----------------------------------------------------
-  // SECURITY TIMEOUT TAB STATE
-  // ----------------------------------------------------
-  const [inactivityTimeout, setInactivityTimeout] = useState("60");
-  const [lowStockBoxes, setLowStockBoxes] = useState<number>(10);
-  const [lowStockStrips, setLowStockStrips] = useState<number>(0);
-  const [lowStockTablets, setLowStockTablets] = useState<number>(0);
-  const [expiryAlertDays, setExpiryAlertDays] = useState<number>(30);
+  // Load Leaflet Script
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if ((window as any).L) { setLeafletLoaded(true); return; }
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+    document.head.appendChild(link);
+    const script = document.createElement('script');
+    script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+    script.onload = () => setLeafletLoaded(true);
+    document.head.appendChild(script);
+  }, []);
+
+  // Initialize Leaflet Map in Modal
+  useEffect(() => {
+    if (!showMapModal || !leafletLoaded || !mapContainerRef.current) return;
+    if (mapInstanceRef.current) { mapInstanceRef.current.remove(); mapInstanceRef.current = null; }
+
+    const L = (window as any).L;
+    const initLat = parseFloat(latitude) || 27.7172;
+    const initLng = parseFloat(longitude) || 85.3240;
+    setMapPickedLat(initLat);
+    setMapPickedLng(initLng);
+
+    setTimeout(() => {
+      if (!mapContainerRef.current) return;
+      const map = L.map(mapContainerRef.current, { zoomControl: true }).setView([initLat, initLng], 15);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+      }).addTo(map);
+
+      const icon = L.divIcon({
+        html: `<div style="background:#0EA5E9;width:24px;height:24px;border-radius:50%;border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.3)"></div>`,
+        className: '',
+        iconSize: [24, 24],
+        iconAnchor: [12, 12],
+      });
+
+      const marker = L.marker([initLat, initLng], { draggable: true, icon }).addTo(map);
+      marker.on('dragend', (e: any) => {
+        const pos = e.target.getLatLng();
+        setMapPickedLat(parseFloat(pos.lat.toFixed(6)));
+        setMapPickedLng(parseFloat(pos.lng.toFixed(6)));
+      });
+      map.on('click', (e: any) => {
+        const { lat: cLat, lng: cLng } = e.latlng;
+        marker.setLatLng([cLat, cLng]);
+        setMapPickedLat(parseFloat(cLat.toFixed(6)));
+        setMapPickedLng(parseFloat(cLng.toFixed(6)));
+      });
+
+      mapInstanceRef.current = map;
+      mapMarkerRef.current = marker;
+      map.invalidateSize();
+    }, 120);
+  }, [showMapModal, leafletLoaded]);
+
+  // OpenStreetMap Nominatim place search
+  const handleMapSearch = async () => {
+    if (!mapSearchQuery.trim()) return;
+    setMapSearchLoading(true);
+    try {
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(mapSearchQuery)}&limit=5`);
+      const data = await res.json();
+      setMapSearchResults(data);
+    } catch { }
+    setMapSearchLoading(false);
+  };
+
+  const handleSelectMapResult = (result: any) => {
+    const lat = parseFloat(result.lat);
+    const lng = parseFloat(result.lon);
+    setMapPickedLat(lat);
+    setMapPickedLng(lng);
+    setMapSearchResults([]);
+    setMapSearchQuery(result.display_name.split(',')[0]);
+    if (mapInstanceRef.current && mapMarkerRef.current) {
+      mapInstanceRef.current.setView([lat, lng], 16);
+      mapMarkerRef.current.setLatLng([lat, lng]);
+    }
+  };
+
+  const handleConfirmMapLocation = () => {
+    if (mapPickedLat !== null && mapPickedLng !== null) {
+      setLatitude(String(mapPickedLat));
+      setLongitude(String(mapPickedLng));
+    }
+    setShowMapModal(false);
+    setMapSearchQuery('');
+    setMapSearchResults([]);
+    if (mapInstanceRef.current) { mapInstanceRef.current.remove(); mapInstanceRef.current = null; }
+  };
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const storedTimeout = localStorage.getItem(
-        "wholesaler_inactivity_timeout",
-      );
-      if (storedTimeout) {
-        setInactivityTimeout(storedTimeout);
-      }
-      const storedLowStockBoxes = localStorage.getItem("medhub_low_stock_threshold_boxes");
-      if (storedLowStockBoxes) {
-        setLowStockBoxes(parseInt(storedLowStockBoxes, 10));
-      } else {
-        const storedOld = localStorage.getItem("medhub_low_stock_threshold");
-        if (storedOld) {
-          setLowStockBoxes(parseInt(storedOld, 10));
-        }
-      }
-      const storedLowStockStrips = localStorage.getItem("medhub_low_stock_threshold_strips");
-      if (storedLowStockStrips) {
-        setLowStockStrips(parseInt(storedLowStockStrips, 10));
-      }
-      const storedLowStockTablets = localStorage.getItem("medhub_low_stock_threshold_tablets");
-      if (storedLowStockTablets) {
-        setLowStockTablets(parseInt(storedLowStockTablets, 10));
-      }
-      const storedExpiry = localStorage.getItem("medhub_expiry_alert_days");
-      if (storedExpiry) {
-        setExpiryAlertDays(parseInt(storedExpiry, 10));
-      }
+    if (typeof window !== 'undefined') {
+      const savedTheme = localStorage.getItem('theme') as 'light' | 'dark' || 'light';
+      setThemeMode(savedTheme);
+      const savedFontScale = localStorage.getItem('font_scale') as 'sm' | 'md' | 'lg' || 'md';
+      setFontScale(savedFontScale);
+      const savedTimeout = localStorage.getItem("wholesaler_inactivity_timeout");
+      if (savedTimeout) setInactivityTimeout(savedTimeout);
+      const savedBoxes = localStorage.getItem("medhub_low_stock_threshold_boxes");
+      if (savedBoxes) setLowStockBoxes(parseInt(savedBoxes, 10));
+      const savedStrips = localStorage.getItem("medhub_low_stock_threshold_strips");
+      if (savedStrips) setLowStockStrips(parseInt(savedStrips, 10));
+      const savedTablets = localStorage.getItem("medhub_low_stock_threshold_tablets");
+      if (savedTablets) setLowStockTablets(parseInt(savedTablets, 10));
+      const savedExpiry = localStorage.getItem("medhub_expiry_alert_days");
+      if (savedExpiry) setExpiryAlertDays(parseInt(savedExpiry, 10));
+
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get('tab');
+      if (tabParam === 'logs' && hasLogsAccess) setActiveTab('logs');
+      else if (tabParam === 'staff' && isOwner) setActiveTab('staff');
+      else if (tabParam === 'security') setActiveTab('security');
     }
   }, []);
 
-  const handleSaveTimeout = (val: string) => {
-    setInactivityTimeout(val);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("wholesaler_inactivity_timeout", val);
-      setSuccessMsg(
-        `Client inactivity timeout threshold updated to ${val === "never" ? "Never (Disabled)" : `${val} minutes`}.`,
-      );
-      logActivity(
-        "UPDATE_TIMEOUT_PREFERENCE",
-        `Changed client session inactivity timeout to ${val} minutes`,
-      );
+  // Save phone number standalone
+  const handleSavePhoneOnly = async () => {
+    if (!phone.trim()) return;
+    setPhoneLoading(true);
+    setError(''); setSuccessMsg('');
+    try {
+      const res = await fetch('/api/wholesaler/profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, phoneOnly: true }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update phone');
+      setSuccessMsg('Contact phone number updated successfully.');
+      logActivity("UPDATE_WHOLESALER_PHONE", `Updated phone to ${phone}`);
+    } catch (err: any) {
+      setError(err.message || 'Error updating phone');
+    } finally {
+      setPhoneLoading(false);
     }
   };
 
-  const handleSaveAlerts = (boxes: number, strips: number, tablets: number, expiryDays: number) => {
-    setLowStockBoxes(boxes);
-    setLowStockStrips(strips);
-    setLowStockTablets(tablets);
-    setExpiryAlertDays(expiryDays);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("medhub_low_stock_threshold_boxes", boxes.toString());
-      localStorage.setItem("medhub_low_stock_threshold_strips", strips.toString());
-      localStorage.setItem("medhub_low_stock_threshold_tablets", tablets.toString());
-      localStorage.setItem("medhub_expiry_alert_days", expiryDays.toString());
-      setSuccessMsg(
-        `Alert thresholds updated. Low stock threshold: ${boxes} boxes, ${strips} strips, ${tablets} tablets. Expiry warnings: ${expiryDays} days.`,
-      );
-      logActivity(
-        "UPDATE_ALERT_THRESHOLDS",
-        `Changed low stock thresholds to ${boxes} boxes, ${strips} strips, ${tablets} tablets and expiry warning to ${expiryDays} days`,
-      );
-    }
-  };
-
-  // ----------------------------------------------------
-  // PROFILE HANDLERS
-  // ----------------------------------------------------
-  const handleGetLocation = () => {
-    if (!isOwner) return;
-    setError("");
-    setSuccessMsg("");
-    setIsFetchingLocation(true);
-
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setLatitude(position.coords.latitude.toString());
-          setLongitude(position.coords.longitude.toString());
-          setSuccessMsg(
-            "GPS coordinates captured from browser geolocation API!",
-          );
-          setIsFetchingLocation(false);
-          logActivity(
-            "FETCH_GPS_LOCATION",
-            `Retrieved browser coordinates: [${position.coords.latitude}, ${position.coords.longitude}]`,
-          );
-        },
-        (err) => {
-          console.error(err);
-          setError(
-            "Browser Geolocation request rejected. Please verify browser location permissions.",
-          );
-          setIsFetchingLocation(false);
-        },
-        { enableHighAccuracy: true, timeout: 5000 },
-      );
-    } else {
-      setError("Geolocation services not supported in this browser version.");
-      setIsFetchingLocation(false);
-    }
-  };
-
+  // Full Profile Submit
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isOwner) return;
@@ -378,17 +393,20 @@ export default function SettingsClient({
           latitude: parseFloat(latitude) || null,
           longitude: parseFloat(longitude) || null,
           customFieldsJson: JSON.stringify(customFields),
+          registrationImages,
         }),
       });
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to update profile.");
 
-      setSuccessMsg("Distributor Profile settings updated successfully.");
-      setProfile(data.profile);
+      setSuccessMsg("Company Profile & registration documents submitted successfully. Verification status set to PENDING.");
+      if (typeof window !== "undefined") {
+        setTimeout(() => { window.location.reload(); }, 1400);
+      }
       logActivity(
         "UPDATE_PROFILE",
-        `Modified distributor profile info. Coordinates set to [${latitude}, ${longitude}]`,
+        `Updated company profile & submitted for verification. Company: ${companyName}, Tax ID: ${taxId}`,
       );
     } catch (err: any) {
       setError(err.message || "Failed to update profile.");
@@ -397,2752 +415,701 @@ export default function SettingsClient({
     }
   };
 
-  const handleGridSelect = (loc: {
-    name: string;
-    lat: number;
-    lng: number;
-  }) => {
-    if (!isOwner) return;
-    setLatitude(loc.lat.toString());
-    setLongitude(loc.lng.toString());
-    logActivity(
-      "CLICK_MAP_GRID",
-      `Selected Kathmandu map area: ${loc.name} ([${loc.lat}, ${loc.lng}])`,
-    );
+  const handleToggleTheme = (mode: 'light' | 'dark') => {
+    setThemeMode(mode);
+    localStorage.setItem('theme', mode);
+    if (mode === 'dark') document.body.classList.add('dark-mode');
+    else document.body.classList.remove('dark-mode');
+  };
+
+  const handleToggleFontScale = (scale: 'sm' | 'md' | 'lg') => {
+    setFontScale(scale);
+    localStorage.setItem('font_scale', scale);
+    document.body.classList.remove('font-sm', 'font-md', 'font-lg');
+    document.body.classList.add(`font-${scale}`);
+  };
+
+  const handleSaveTimeout = (val: string) => {
+    setInactivityTimeout(val);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("wholesaler_inactivity_timeout", val);
+      setSuccessMsg(`Session inactivity timeout updated to ${val === "never" ? "Never" : `${val} minutes`}.`);
+    }
+  };
+
+  const handleSaveAlerts = () => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("medhub_low_stock_threshold_boxes", lowStockBoxes.toString());
+      localStorage.setItem("medhub_low_stock_threshold_strips", lowStockStrips.toString());
+      localStorage.setItem("medhub_low_stock_threshold_tablets", lowStockTablets.toString());
+      localStorage.setItem("medhub_expiry_alert_days", expiryAlertDays.toString());
+      setSuccessMsg("Alert threshold settings saved successfully.");
+    }
   };
 
   const handleAddCustomField = () => {
     if (!newFieldLabel.trim()) return;
-    if (
-      customFields.some(
-        (f) => f.label.toLowerCase() === newFieldLabel.toLowerCase().trim(),
-      )
-    ) {
-      setError(`A custom field named "${newFieldLabel}" already exists.`);
-      return;
-    }
-
-    setCustomFields([
-      ...customFields,
-      { label: newFieldLabel.trim(), value: newFieldValue.trim() },
-    ]);
+    setCustomFields([...customFields, { label: newFieldLabel.trim(), value: newFieldValue.trim() }]);
     setNewFieldLabel("");
     setNewFieldValue("");
     setShowAddFieldForm(false);
-    logActivity(
-      "ADD_CUSTOM_FIELD",
-      `Added dynamic custom field: "${newFieldLabel.trim()}"`,
-    );
   };
 
   const handleDeleteCustomField = (label: string) => {
     setCustomFields(customFields.filter((f) => f.label !== label));
-    logActivity(
-      "DELETE_CUSTOM_FIELD",
-      `Removed dynamic custom field: "${label}"`,
-    );
   };
 
-  const handleCustomFieldValueChange = (label: string, newValue: string) => {
-    setCustomFields(
-      customFields.map((f) =>
-        f.label === label ? { ...f, value: newValue } : f,
-      ),
-    );
+  // Staff Handlers
+  const handleOpenCreateStaff = () => {
+    setEditingStaff(null); setStaffEmail(""); setStaffPassword(""); setStaffFullName("");
+    setStaffFeatures(AVAILABLE_FEATURES.map(f => f.key)); setStaffIsActive(true); setError(""); setSuccessMsg("");
+    setShowStaffModal(true);
   };
 
-  // ----------------------------------------------------
-  // STAFF HANDLERS
-  // ----------------------------------------------------
-  const handleCreateStaff = async (e: React.FormEvent) => {
+  const handleOpenEditStaff = (emp: StaffUser) => {
+    setEditingStaff(emp); setStaffEmail(emp.email); setStaffPassword(""); setStaffFullName(emp.fullName || "");
+    setStaffFeatures(emp.allowedFeatures.split(",")); setStaffIsActive(emp.isActive);
+    setError(""); setSuccessMsg(""); setShowStaffModal(true);
+  };
+
+  const handleSaveStaff = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError("");
-    setSuccessMsg("");
-
-    if (!email || !password || !fullName) {
-      setError("Please fill in all employee credentials.");
-      return;
+    setError(""); setSuccessMsg("");
+    if (!staffEmail || !staffFullName || (!editingStaff && !staffPassword)) {
+      setError("Please fill all required staff fields"); return;
     }
-
-    if (allowedFeatures.length === 0) {
-      setError("Please select at least one allowed feature for the employee.");
-      return;
-    }
-
-    setLoading(true);
     try {
-      const res = await fetch("/api/wholesaler/staff", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email,
-          password,
-          fullName,
-          allowedFeatures,
-        }),
-      });
+      setLoading(true);
+      const url = editingStaff ? `/api/wholesaler/staff/${editingStaff.id}` : '/api/wholesaler/staff';
+      const method = editingStaff ? 'PUT' : 'POST';
+      const payload: any = { email: staffEmail, fullName: staffFullName, allowedFeatures: staffFeatures.join(','), isActive: staffIsActive };
+      if (staffPassword) payload.password = staffPassword;
 
+      const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to create account.");
-
-      setSuccessMsg(`Employee account created for "${fullName}" successfully.`);
-      setEmail("");
-      setPassword("");
-      setFullName("");
-      setAllowedFeatures(AVAILABLE_FEATURES.map((f) => f.key));
-
-      const staffRes = await fetch("/api/wholesaler/staff");
-      const staffData = await staffRes.json();
-      if (staffRes.ok) {
-        setStaff(staffData.staff);
-      }
+      if (!res.ok) throw new Error(data.error || 'Failed to save staff member');
+      setSuccessMsg(editingStaff ? 'Staff account updated' : 'New staff member registered');
+      setShowStaffModal(false);
+      if (typeof window !== 'undefined') setTimeout(() => window.location.reload(), 1200);
     } catch (err: any) {
-      setError(err.message || "Failed to create staff.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleOpenEdit = (emp: StaffUser) => {
-    setEditingStaff(emp);
-    setEditEmail(emp.email);
-    setEditFullName(emp.fullName || "");
-    setEditPassword("");
-    setEditIsActive(emp.isActive);
-    setEditAllowedFeatures(
-      emp.allowedFeatures ? emp.allowedFeatures.split(",") : [],
-    );
-  };
-
-  const handleUpdateStaff = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingStaff) return;
-    setError("");
-    setSuccessMsg("");
-    setLoading(true);
-
-    try {
-      const res = await fetch(`/api/wholesaler/staff/${editingStaff.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: editEmail,
-          fullName: editFullName,
-          password: editPassword || undefined,
-          isActive: editIsActive,
-          allowedFeatures: editAllowedFeatures,
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok)
-        throw new Error(data.error || "Failed to update employee account.");
-
-      setSuccessMsg(`Updated settings for "${editFullName}" successfully.`);
-      setEditingStaff(null);
-
-      const staffRes = await fetch("/api/wholesaler/staff");
-      const staffData = await staffRes.json();
-      if (staffRes.ok) {
-        setStaff(staffData.staff);
-      }
-    } catch (err: any) {
-      setError(err.message || "Failed to update employee.");
-    } finally {
-      setLoading(false);
-    }
+      setError(err.message || 'Error saving staff');
+    } finally { setLoading(false); }
   };
 
   const handleDeleteStaff = async (id: string, name: string) => {
-    if (
-      !confirm(
-        `Are you absolutely sure you want to delete staff account: "${name}"? This action cannot be undone.`,
-      )
-    ) {
-      return;
-    }
-
-    setError("");
-    setSuccessMsg("");
-    setLoading(true);
-
+    if (!confirm(`Delete employee: "${name}"?`)) return;
     try {
-      const res = await fetch(`/api/wholesaler/staff/${id}`, {
-        method: "DELETE",
-      });
-
+      const res = await fetch(`/api/wholesaler/staff/${id}`, { method: 'DELETE' });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to delete account.");
-
-      setSuccessMsg(`Staff account "${name}" has been deleted.`);
-
-      const staffRes = await fetch("/api/wholesaler/staff");
-      const staffData = await staffRes.json();
-      if (staffRes.ok) {
-        setStaff(staffData.staff);
-      }
-    } catch (err: any) {
-      setError(err.message || "Failed to delete employee.");
-    } finally {
-      setLoading(false);
-    }
+      if (res.ok) { setSuccessMsg(`Account "${name}" deleted.`); setTimeout(() => window.location.reload(), 1200); }
+      else setError(data.error || 'Failed to delete staff account');
+    } catch (err: any) { setError(err.message || 'Error deleting staff account'); }
   };
 
-  const handleToggleFeature = (key: string, isEditMode = false) => {
-    if (isEditMode) {
-      if (editAllowedFeatures.includes(key)) {
-        setEditAllowedFeatures(editAllowedFeatures.filter((f) => f !== key));
-      } else {
-        setEditAllowedFeatures([...editAllowedFeatures, key]);
-      }
-    } else {
-      if (allowedFeatures.includes(key)) {
-        setAllowedFeatures(allowedFeatures.filter((f) => f !== key));
-      } else {
-        setAllowedFeatures([...allowedFeatures, key]);
-      }
-    }
+  const toggleFeature = (key: string) => {
+    setStaffFeatures(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
   };
 
-  // ----------------------------------------------------
-  // LOGS FILTERING
-  // ----------------------------------------------------
   const filteredLogs = logs.filter((log) => {
     const matchesSearch =
       log.details.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      log.action.toLowerCase().includes(searchTerm.toLowerCase());
-
+      log.action.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (log.user?.email || '').toLowerCase().includes(searchTerm.toLowerCase());
     const matchesAction = actionFilter ? log.action === actionFilter : true;
-    const matchesUser = userFilter ? log.user?.email === userFilter : true;
-
-    return matchesSearch && matchesAction && matchesUser;
+    return matchesSearch && matchesAction;
   });
 
-  const clearFilters = () => {
-    setSearchTerm("");
-    setActionFilter("");
-    setUserFilter("");
-  };
+  const uniqueActions = Array.from(new Set(logs.map((log) => log.action)));
+
+  const verStatusBadge = isVerified ? { bg: '#F0FDF4', border: '#BBF7D0', color: '#059669', icon: '✅', text: 'VERIFIED & ACTIVE' }
+    : isPending ? { bg: '#FFFBEB', border: '#FDE68A', color: '#D97706', icon: '⏳', text: 'PENDING REVIEW' }
+    : isRejected ? { bg: '#FEF2F2', border: '#FECACA', color: '#DC2626', icon: '❌', text: 'REJECTED' }
+    : { bg: '#F0F9FF', border: '#BAE6FD', color: '#0369A1', icon: '📝', text: 'NOT SUBMITTED' };
 
   return (
-    <div className="space-y-6 animate-fadeIn max-w-5xl mx-auto">
-      {/* Page Header — matches dashboard/billing/staff/logs style */}
-      <div
-        style={{
-          background: "rgba(255,255,255,0.80)",
-          backdropFilter: "blur(16px)",
-          border: "1.5px solid rgba(186,230,253,0.5)",
-          borderRadius: 20,
-          padding: "20px 24px",
-          boxShadow: "none",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            justifyContent: "space-between",
-            alignItems: "center",
-            gap: 16,
-            marginBottom: 20,
-          }}
-        >
-          <div>
-            <h1
-              style={{
-                fontSize: 22,
-                fontWeight: 800,
-                color: "var(--text-primary)",
-                letterSpacing: "-0.02em",
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-              }}
-            >
-              <Building style={{ width: 22, height: 22, color: "#0EA5E9" }} />
-              Registry Console &amp; Settings
-            </h1>
-            <p style={{ fontSize: 14, color: "var(--text-secondary)", marginTop: 4 }}>
-              Configure profile details, staff permissions, audit logs, and
-              security controls.
-            </p>
-          </div>
-          {/* Subscription Lease Badge */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              background: "#F0F9FF",
-              border: "1px solid #BAE6FD",
-              borderRadius: 12,
-              padding: "8px 14px",
-            }}
-          >
-            <Calendar
-              style={{ width: 16, height: 16, color: "#0EA5E9", flexShrink: 0 }}
-            />
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20, minHeight: '100vh', width: '100%' }}>
+
+      {/* Header Banner */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12, borderBottom: '1px solid var(--card-border)', paddingBottom: 16 }}>
+        <div>
+          <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>Distributor Control & Profile Settings</h1>
+          <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '2px 0 0' }}>Manage company registration, warehouse GPS, staff accounts, alert thresholds & audit logs.</p>
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 20, fontSize: 11, fontWeight: 800, background: verStatusBadge.bg, color: verStatusBadge.color, border: `1px solid ${verStatusBadge.border}` }}>
+            {verStatusBadge.icon} {verStatusBadge.text}
+          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--table-header-bg)', border: '1px solid var(--card-border)', borderRadius: 8, padding: '8px 12px' }}>
+            <Calendar style={{ width: 15, height: 15, color: '#0EA5E9' }} />
             <div>
-              <div
-                style={{
-                  fontSize: 9,
-                  fontWeight: 800,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.06em",
-                  color: "var(--text-muted)",
-                }}
-              >
-                Store Lease Expiry
-              </div>
-              <div
-                style={{
-                  fontSize: 14,
-                  fontWeight: 700,
-                  fontFamily: "monospace",
-                  color: "var(--text-primary)",
-                  marginTop: 2,
-                }}
-              >
-                {subscriptionEnd
-                  ? new Date(subscriptionEnd).toLocaleDateString()
-                  : "N/A"}
+              <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)' }}>License Expiry</div>
+              <div style={{ fontSize: 12, fontWeight: 700, fontFamily: 'monospace', color: 'var(--text-primary)', marginTop: 1 }}>
+                {subscriptionEnd ? formatDateNPT(subscriptionEnd) : 'N/A'}
               </div>
             </div>
           </div>
         </div>
+      </div>
 
-        {/* Tab Navigation */}
-        <div
+      {/* Tab Buttons */}
+      <div style={{ display: 'flex', gap: 6, background: 'var(--table-header-bg)', padding: 4, borderRadius: 8, border: '1px solid var(--card-border)', flexWrap: 'wrap' }}>
+        {hasProfileAccess && (
+          <button
+            onClick={() => { setActiveTab('profile'); setError(''); setSuccessMsg(''); }}
+            style={{
+              padding: '8px 16px', borderRadius: 6, border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+              transition: 'all 0.15s',
+              background: activeTab === 'profile' ? 'var(--card-bg)' : 'transparent',
+              color: activeTab === 'profile' ? '#0EA5E9' : 'var(--text-secondary)',
+              boxShadow: activeTab === 'profile' ? '0 1px 3px rgba(0,0,0,0.05)' : 'none',
+            }}
+          >
+            🏢 Profile & Registration
+          </button>
+        )}
+        {isOwner && (
+          <button
+            onClick={() => { setActiveTab('staff'); setError(''); setSuccessMsg(''); }}
+            style={{
+              padding: '8px 16px', borderRadius: 6, border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+              transition: 'all 0.15s',
+              background: activeTab === 'staff' ? 'var(--card-bg)' : 'transparent',
+              color: activeTab === 'staff' ? '#0EA5E9' : 'var(--text-secondary)',
+              boxShadow: activeTab === 'staff' ? '0 1px 3px rgba(0,0,0,0.05)' : 'none',
+            }}
+          >
+            👥 Staff Accounts ({staffList.length})
+          </button>
+        )}
+        <button
+          onClick={() => { setActiveTab('security'); setError(''); setSuccessMsg(''); }}
           style={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: 8,
-            paddingTop: 16,
-            borderTop: "1px solid #F1F5F9",
+            padding: '8px 16px', borderRadius: 6, border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+            transition: 'all 0.15s',
+            background: activeTab === 'security' ? 'var(--card-bg)' : 'transparent',
+            color: activeTab === 'security' ? '#0EA5E9' : 'var(--text-secondary)',
+            boxShadow: activeTab === 'security' ? '0 1px 3px rgba(0,0,0,0.05)' : 'none',
           }}
         >
-          {hasProfileAccess && (
-            <button
-              onClick={() => {
-                setActiveTab("profile");
-                setError("");
-                setSuccessMsg("");
-              }}
-              style={{
-                padding: "8px 18px",
-                borderRadius: 10,
-                fontSize: 14,
-                fontWeight: 700,
-                textTransform: "uppercase",
-                letterSpacing: "0.04em",
-                border: "none",
-                cursor: "pointer",
-                fontFamily: "inherit",
-                transition: "all 0.2s",
-                background:
-                  activeTab === "profile"
-                    ? "linear-gradient(135deg, #0EA5E9, #38BDF8)"
-                    : "transparent",
-                color: activeTab === "profile" ? "white" : "#64748B",
-                boxShadow:
-                  activeTab === "profile"
-                    ? "0 2px 8px rgba(249,115,22,0.3)"
-                    : "none",
-              }}
-            >
-              Profile Settings
-            </button>
-          )}
-          {isOwner && (
-            <button
-              onClick={() => {
-                setActiveTab("staff");
-                setError("");
-                setSuccessMsg("");
-              }}
-              style={{
-                padding: "8px 18px",
-                borderRadius: 10,
-                fontSize: 14,
-                fontWeight: 700,
-                textTransform: "uppercase",
-                letterSpacing: "0.04em",
-                border: "none",
-                cursor: "pointer",
-                fontFamily: "inherit",
-                transition: "all 0.2s",
-                background:
-                  activeTab === "staff"
-                    ? "linear-gradient(135deg, #0EA5E9, #38BDF8)"
-                    : "transparent",
-                color: activeTab === "staff" ? "white" : "#64748B",
-                boxShadow:
-                  activeTab === "staff"
-                    ? "0 2px 8px rgba(249,115,22,0.3)"
-                    : "none",
-              }}
-            >
-              Staff Directory
-            </button>
-          )}
-          {hasLogsAccess && (
-            <button
-              onClick={() => {
-                setActiveTab("logs");
-                setError("");
-                setSuccessMsg("");
-              }}
-              style={{
-                padding: "8px 18px",
-                borderRadius: 10,
-                fontSize: 14,
-                fontWeight: 700,
-                textTransform: "uppercase",
-                letterSpacing: "0.04em",
-                border: "none",
-                cursor: "pointer",
-                fontFamily: "inherit",
-                transition: "all 0.2s",
-                background:
-                  activeTab === "logs"
-                    ? "linear-gradient(135deg, #0EA5E9, #38BDF8)"
-                    : "transparent",
-                color: activeTab === "logs" ? "white" : "#64748B",
-                boxShadow:
-                  activeTab === "logs"
-                    ? "0 2px 8px rgba(249,115,22,0.3)"
-                    : "none",
-              }}
-            >
-              Activity Logs
-            </button>
-          )}
+          🔒 Security & Alerts
+        </button>
+        {hasLogsAccess && (
           <button
-            onClick={() => {
-              setActiveTab("security");
-              setError("");
-              setSuccessMsg("");
-            }}
+            onClick={() => { setActiveTab('logs'); setError(''); setSuccessMsg(''); }}
             style={{
-              padding: "8px 18px",
-              borderRadius: 10,
-              fontSize: 14,
-              fontWeight: 700,
-              textTransform: "uppercase",
-              letterSpacing: "0.04em",
-              border: "none",
-              cursor: "pointer",
-              fontFamily: "inherit",
-              transition: "all 0.2s",
-              background:
-                activeTab === "security"
-                  ? "linear-gradient(135deg, #0EA5E9, #38BDF8)"
-                  : "transparent",
-              color: activeTab === "security" ? "white" : "#64748B",
-              boxShadow:
-                activeTab === "security"
-                  ? "0 2px 8px rgba(249,115,22,0.3)"
-                  : "none",
+              padding: '8px 16px', borderRadius: 6, border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+              transition: 'all 0.15s',
+              background: activeTab === 'logs' ? 'var(--card-bg)' : 'transparent',
+              color: activeTab === 'logs' ? '#0EA5E9' : 'var(--text-secondary)',
+              boxShadow: activeTab === 'logs' ? '0 1px 3px rgba(0,0,0,0.05)' : 'none',
             }}
           >
-            Security Prefs
+            📋 Activity Logs
           </button>
-          <button
-            onClick={() => {
-              setActiveTab("alerts");
-              setError("");
-              setSuccessMsg("");
-            }}
-            style={{
-              padding: "8px 18px",
-              borderRadius: 10,
-              fontSize: 14,
-              fontWeight: 700,
-              textTransform: "uppercase",
-              letterSpacing: "0.04em",
-              border: "none",
-              cursor: "pointer",
-              fontFamily: "inherit",
-              transition: "all 0.2s",
-              background:
-                activeTab === "alerts"
-                  ? "linear-gradient(135deg, #0EA5E9, #38BDF8)"
-                  : "transparent",
-              color: activeTab === "alerts" ? "white" : "#64748B",
-              boxShadow:
-                activeTab === "alerts"
-                  ? "0 2px 8px rgba(249,115,22,0.3)"
-                  : "none",
-            }}
-          >
-            Alert Thresholds
-          </button>
-        </div>
+        )}
+        <button
+          onClick={() => { setActiveTab('theme'); setError(''); setSuccessMsg(''); }}
+          style={{
+            padding: '8px 16px', borderRadius: 6, border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+            transition: 'all 0.15s',
+            background: activeTab === 'theme' ? 'var(--card-bg)' : 'transparent',
+            color: activeTab === 'theme' ? '#0EA5E9' : 'var(--text-secondary)',
+            boxShadow: activeTab === 'theme' ? '0 1px 3px rgba(0,0,0,0.05)' : 'none',
+          }}
+        >
+          🎨 Appearance
+        </button>
       </div>
 
       {/* Messages */}
-      {error && (
-        <div className="alert alert-error animate-scaleIn">
-          <AlertCircle className="w-4 h-4 shrink-0" />
-          <span>{error}</span>
+      {successMsg && (
+        <div style={{ display: 'flex', gap: 8, padding: '10px 14px', background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 8, color: '#10B981', fontSize: 13, fontWeight: 600 }}>
+          <CheckCircle style={{ width: 16, height: 16 }} /><span>{successMsg}</span>
         </div>
       )}
-      {successMsg && (
-        <div className="alert alert-success animate-scaleIn">
-          <CheckCircle className="w-4 h-4 shrink-0" />
-          <span>{successMsg}</span>
+      {error && (
+        <div style={{ display: 'flex', gap: 8, padding: '10px 14px', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, color: '#EF4444', fontSize: 13, fontWeight: 600 }}>
+          <AlertCircle style={{ width: 16, height: 16 }} /><span>{error}</span>
         </div>
       )}
 
-      {/* View Panels */}
-      <div className="space-y-6">
-        {/* PANEL: DISTRIBUTOR PROFILE */}
-        {activeTab === "profile" && hasProfileAccess && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-            {/* Distributor Form */}
-            <div
-              className="lg:col-span-7 card bg-white/85 backdrop-blur-xl p-6 space-y-6"
-              style={{
-                border: "1.5px solid rgba(251,146,60,0.12)",
-                boxShadow: "none",
-              }}
-            >
-              <div>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 10,
-                    marginBottom: 4,
-                  }}
-                >
-                  <div
-                    style={{
-                      width: 32,
-                      height: 32,
-                      borderRadius: 10,
-                      background: "linear-gradient(135deg,#0EA5E9,#38BDF8)",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      flexShrink: 0,
-                      boxShadow: "none",
-                    }}
-                  >
-                    <Building
-                      style={{ width: 15, height: 15, color: "white" }}
-                    />
-                  </div>
-                  <div>
-                    <h3
-                      style={{
-                        fontSize: 14,
-                        fontWeight: 800,
-                        color: "var(--text-primary)",
-                        letterSpacing: "-0.01em",
-                      }}
-                    >
-                      Distributor Registry Form
-                    </h3>
-                    <p style={{ fontSize: 14, color: "var(--text-muted)", marginTop: 1 }}>
-                      Company identity &amp; contact information
-                    </p>
-                  </div>
+      {/* ── PROFILE & REGISTRATION TAB ── */}
+      {activeTab === 'profile' && hasProfileAccess && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+          {/* Verification Status Banners */}
+          {isVerified && !isEditingVerifiedDetails && (
+            <div style={{ background: 'linear-gradient(135deg,#F0FDF4,#ECFDF5)', border: '1.5px solid #86EFAC', borderRadius: 12, padding: '14px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <span style={{ fontSize: 26 }}>✅</span>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: '#065F46' }}>Distributor Account Verified & Active</div>
+                  <div style={{ fontSize: 12, color: '#059669', marginTop: 2 }}>Company details are locked. Contact phone number can be updated anytime. To edit other company information, click <strong>Unlock & Re-verify</strong>.</div>
                 </div>
               </div>
+              {isOwner && (
+                <button onClick={() => setIsEditingVerifiedDetails(true)}
+                  style={{ padding: '8px 16px', background: '#D97706', color: 'white', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                  <Lock style={{ width: 13, height: 13 }} /> Unlock & Re-verify
+                </button>
+              )}
+            </div>
+          )}
 
-              {!isOwner && (
-                <div className="alert alert-warning text-xs">
-                  <ShieldAlert className="w-4.5 h-4.5 shrink-0" />
-                  <span>
-                    Staff accounts are read-only. Ask the store owner to update
-                    registration parameters.
-                  </span>
+          {isVerified && isEditingVerifiedDetails && (
+            <div style={{ background: '#FFFBEB', border: '1.5px solid #FDE68A', borderRadius: 12, padding: '12px 18px', fontSize: 12, color: '#92400E', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 10 }}>
+              <AlertCircle style={{ width: 16, height: 16, flexShrink: 0 }} />
+              <span>⚠ <strong>Edit Mode Active:</strong> Saving changes to company profile details or license images will set your status to <strong>PENDING</strong> for Superadmin re-review.</span>
+            </div>
+          )}
+
+          {isPending && (
+            <div style={{ background: 'linear-gradient(135deg,#FFFBEB,#FEF9C3)', border: '1.5px solid #FDE68A', borderRadius: 12, padding: '14px 20px', display: 'flex', alignItems: 'center', gap: 14 }}>
+              <span style={{ fontSize: 26 }}>⏳</span>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 800, color: '#92400E' }}>Verification Under Review</div>
+                <div style={{ fontSize: 12, color: '#B45309', marginTop: 2 }}>Superadmin is reviewing your registration documents. Profile fields are locked. You can still update your <strong>Contact Phone Number</strong> below.</div>
+              </div>
+            </div>
+          )}
+
+          {isRejected && (
+            <div style={{ background: '#FEF2F2', border: '1.5px solid #FECACA', borderRadius: 12, padding: '14px 20px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+                <span style={{ fontSize: 26 }}>❌</span>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: '#991B1B' }}>Verification Rejected</div>
+                  <div style={{ fontSize: 12, color: '#DC2626', marginTop: 2 }}>Please update your information or documents below and resubmit for verification.</div>
+                </div>
+              </div>
+              {registrationData?.verificationRejectReason && (
+                <div style={{ background: 'rgba(220,38,38,0.07)', border: '1px solid #FECACA', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#7F1D1D' }}>
+                  <strong>Rejection Reason:</strong> {registrationData.verificationRejectReason}
                 </div>
               )}
-
-              <form onSubmit={handleUpdateProfile} className="space-y-6">
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 1fr",
-                    gap: "16px",
-                  }}
-                >
-                  <div>
-                    <label className="block text-zinc-500 uppercase text-[10px] font-black tracking-wider mb-1.5">
-                      Company Name
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      disabled={!isOwner}
-                      value={companyName}
-                      onChange={(e) => setCompanyName(e.target.value)}
-                      className="input-crisp disabled:opacity-60 text-sm transition-all"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-zinc-500 uppercase text-[10px] font-black tracking-wider mb-1.5">
-                      VAT / TAX ID Number
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      disabled={!isOwner}
-                      value={taxId}
-                      onChange={(e) => setTaxId(e.target.value)}
-                      className="input-crisp disabled:opacity-60 font-mono text-sm transition-all"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-zinc-500 uppercase text-[10px] font-black tracking-wider mb-1.5">
-                      Registration / License Number
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="e.g. REG-98234-DIST"
-                      disabled={!isOwner}
-                      value={registrationNumber}
-                      onChange={(e) => setRegistrationNumber(e.target.value)}
-                      className="input-crisp disabled:opacity-60 font-mono text-sm transition-all"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-zinc-500 uppercase text-[10px] font-black tracking-wider mb-1.5">
-                      Contact Person Name
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="e.g. Harry Prasad"
-                      disabled={!isOwner}
-                      value={contactPerson}
-                      onChange={(e) => setContactPerson(e.target.value)}
-                      className="input-crisp disabled:opacity-60 text-sm transition-all"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-zinc-500 uppercase text-[10px] font-black tracking-wider mb-1.5">
-                      Contact Phone Number
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      disabled={!isOwner}
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      className="input-crisp disabled:opacity-60 font-mono text-sm transition-all"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-zinc-500 uppercase text-[10px] font-black tracking-wider mb-1.5">
-                      Warehouse Street Address
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      disabled={!isOwner}
-                      value={address}
-                      onChange={(e) => setAddress(e.target.value)}
-                      className="input-crisp disabled:opacity-60 text-sm transition-all"
-                    />
-                  </div>
-                </div>
-
-                {/* GPS Coordinates Section */}
-                <div
-                  style={{
-                    borderTop: "1px solid rgba(249,115,22,0.1)",
-                    paddingTop: 20,
-                  }}
-                  className="space-y-4"
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                    }}
-                  >
-                    <span className="block text-zinc-700 uppercase font-black text-[10px] tracking-wider">
-                      GPS Coordinates
-                    </span>
-                    {isOwner && (
-                      <button
-                        type="button"
-                        onClick={handleGetLocation}
-                        disabled={isFetchingLocation}
-                        className="btn-primary"
-                        style={{
-                          background:
-                            "linear-gradient(135deg, #0EA5E9, #0284C7)",
-                          fontSize: 14,
-                          padding: "6px 12px",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 6,
-                          borderRadius: 8,
-                          boxShadow: "none",
-                          opacity: isFetchingLocation ? 0.7 : 1,
-                        }}
-                      >
-                        <Navigation
-                          style={{
-                            width: 12,
-                            height: 12,
-                            transform: "rotate(45deg)",
-                          }}
-                        />
-                        {isFetchingLocation
-                          ? "Fetching..."
-                          : "Capture GPS Coordinates"}
-                      </button>
-                    )}
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-zinc-400 uppercase text-[9px] font-black tracking-wider mb-1">
-                        Latitude
-                      </label>
-                      <input
-                        type="text"
-                        disabled
-                        value={latitude}
-                        className="input-crisp bg-slate-50 cursor-not-allowed font-mono text-xs"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-zinc-400 uppercase text-[9px] font-black tracking-wider mb-1">
-                        Longitude
-                      </label>
-                      <input
-                        type="text"
-                        disabled
-                        value={longitude}
-                        className="input-crisp bg-slate-50 cursor-not-allowed font-mono text-xs"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Dynamic custom fields */}
-                <div
-                  style={{
-                    borderTop: "1px solid rgba(249,115,22,0.1)",
-                    paddingTop: 20,
-                  }}
-                  className="space-y-4"
-                >
-                  <div
-                    className="flex justify-between items-center"
-                    style={{ marginBottom: 8 }}
-                  >
-                    <span className="block text-zinc-700 uppercase font-black text-[10px] tracking-wider">
-                      Additional Parameters
-                    </span>
-                    {isOwner && (
-                      <button
-                        type="button"
-                        onClick={() => setShowAddFieldForm(!showAddFieldForm)}
-                        className="btn-primary"
-                        style={{
-                          background:
-                            "linear-gradient(135deg, #0EA5E9, #0284C7)",
-                          fontSize: 14,
-                          padding: "6px 12px",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 0,
-
-                          borderRadius: 8,
-                          height: "auto",
-                          boxShadow: "none",
-                          opacity: isFetchingLocation ? 0.7 : 1,
-                        }}
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        Add Field
-                      </button>
-                    )}
-                  </div>{" "}
-                  {showAddFieldForm && (
-                    <div
-                      className="modal-overlay"
-                      onClick={() => setShowAddFieldForm(false)}
-                    >
-                      <div
-                        className="modal-card animate-scaleIn"
-                        style={
-                          {
-                            "--modal-max-width": "400px",
-                            padding: 24,
-                          } as React.CSSProperties
-                        }
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <div
-                          style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                            borderBottom: "1px solid #F1F5F9",
-                            paddingBottom: 10,
-                            marginBottom: 14,
-                          }}
-                        >
-                          <h3
-                            style={{
-                              fontSize: 14,
-                              fontWeight: 900,
-                              color: "var(--text-primary)",
-                              textTransform: "uppercase",
-                            }}
-                          >
-                            Add Custom Parameter Field
-                          </h3>
-                          <button
-                            onClick={() => setShowAddFieldForm(false)}
-                            style={{
-                              background: "none",
-                              border: "none",
-                              cursor: "pointer",
-                              color: "var(--text-muted)",
-                            }}
-                          >
-                            <X style={{ width: 18, height: 18 }} />
-                          </button>
-                        </div>
-                        <div className="space-y-4">
-                          <div>
-                            <label className="block text-zinc-500 text-xs font-semibold mb-1">
-                              Parameter Label / Name *
-                            </label>
-                            <input
-                              type="text"
-                              placeholder="e.g. Website, Reg Date"
-                              value={newFieldLabel}
-                              onChange={(e) => setNewFieldLabel(e.target.value)}
-                              className="input-crisp bg-white"
-                              style={{ fontSize: 14 }}
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-zinc-500 text-xs font-semibold mb-1">
-                              Value *
-                            </label>
-                            <input
-                              type="text"
-                              placeholder="e.g. www.distributor.com"
-                              value={newFieldValue}
-                              onChange={(e) => setNewFieldValue(e.target.value)}
-                              className="input-crisp bg-white"
-                              style={{ fontSize: 14 }}
-                            />
-                          </div>
-                          <div
-                            className="flex gap-2 justify-end pt-3 border-top border-slate-100"
-                            style={{ borderTop: "1px solid #F1F5F9" }}
-                          >
-                            <button
-                              type="button"
-                              onClick={handleAddCustomField}
-                              className="btn-primary"
-                              style={{
-                                padding: "8px 16px",
-                                fontSize: 14,
-                                background:
-                                  "linear-gradient(135deg, #0EA5E9, #38BDF8)",
-                              }}
-                            >
-                              Confirm
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setShowAddFieldForm(false)}
-                              className="btn-ghost"
-                              style={{ padding: "8px 16px", fontSize: 14 }}
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  {customFields.length > 0 && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {customFields.map((field) => (
-                        <div
-                          key={field.label}
-                          style={{
-                            background: "rgba(249,115,22,0.03)",
-                            border: "1.5px solid rgba(249,115,22,0.1)",
-                            padding: 12,
-                            borderRadius: 16,
-                          }}
-                          className="relative group space-y-1.5"
-                        >
-                          <div className="flex justify-between items-center">
-                            <label className="block text-zinc-500 uppercase text-[9px] font-black truncate max-w-[80%]">
-                              {field.label}
-                            </label>
-                            {isOwner && (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  handleDeleteCustomField(field.label)
-                                }
-                                className="text-zinc-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                              >
-                                <Trash className="w-3.5 h-3.5" />
-                              </button>
-                            )}
-                          </div>
-                          <input
-                            type="text"
-                            disabled={!isOwner}
-                            value={field.value}
-                            onChange={(e) =>
-                              handleCustomFieldValueChange(
-                                field.label,
-                                e.target.value,
-                              )
-                            }
-                            className="input-crisp bg-white text-xs py-1.5"
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {isOwner && (
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="w-full btn-primary bg-gradient-to-r from-sky-500 to-cyan-400 text-white shadow-md hover:shadow-lg py-4 font-black uppercase text-xs tracking-wider"
-                  >
-                    {loading ? (
-                      <RefreshCw className="w-4 h-4 animate-spin shrink-0" />
-                    ) : null}
-                    Save Distributor Settings
-                  </button>
-                )}
-              </form>
             </div>
+          )}
 
-            {/* Map Locator */}
-            <div className="lg:col-span-5 space-y-6">
-              <div
-                className="card bg-white/85 p-6 space-y-4"
-                style={{
-                  border: "1.5px solid rgba(14,165,233,0.12)",
-                  boxShadow: "none",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 10,
-                    marginBottom: 4,
-                  }}
-                >
-                  <div
-                    style={{
-                      width: 32,
-                      height: 32,
-                      borderRadius: 10,
-                      background: "linear-gradient(135deg,#0EA5E9,#38BDF8)",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      flexShrink: 0,
-                      boxShadow: "none",
-                    }}
-                  >
-                    <MapPin style={{ width: 15, height: 15, color: "white" }} />
-                  </div>
-                  <div>
-                    <h3
-                      style={{
-                        fontSize: 14,
-                        fontWeight: 800,
-                        color: "var(--text-primary)",
-                        letterSpacing: "-0.01em",
-                      }}
-                    >
-                      Map Geolocation View
-                    </h3>
-                    <p style={{ fontSize: 14, color: "var(--text-muted)", marginTop: 1 }}>
-                      Capture warehouse coordinates
-                    </p>
-                  </div>
-                </div>
-                <p style={{ fontSize: 14, color: "var(--text-secondary)" }}>
-                  Your registered warehouse location coordinates. Once captured,
-                  verify them on Google Maps.
-                </p>
-
-                <div
-                  style={{
-                    background: "rgba(14,165,233,0.04)",
-                    border: "1.5px solid rgba(14,165,233,0.1)",
-                    borderRadius: 16,
-                    padding: 16,
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: 12,
-                  }}
-                >
-                  <div>
-                    <label
-                      style={{
-                        display: "block",
-                        fontSize: 14,
-                        fontWeight: 700,
-                        color: "var(--text-secondary)",
-                        textTransform: "uppercase",
-                        marginBottom: 4,
-                      }}
-                    >
-                      Manual Coordinates Override
-                    </label>
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "1fr 1fr",
-                        gap: 10,
-                      }}
-                    >
-                      <input
-                        type="number"
-                        step="0.0001"
-                        placeholder="Lat"
-                        value={latitude}
-                        onChange={(e) => setLatitude(e.target.value)}
-                        className="input-crisp"
-                        style={{
-                          fontSize: 14,
-                          padding: 6,
-                          width: "100%",
-                          fontFamily: "monospace",
-                        }}
-                      />
-                      <input
-                        type="number"
-                        step="0.0001"
-                        placeholder="Lng"
-                        value={longitude}
-                        onChange={(e) => setLongitude(e.target.value)}
-                        className="input-crisp"
-                        style={{
-                          fontSize: 14,
-                          padding: 6,
-                          width: "100%",
-                          fontFamily: "monospace",
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  {latitude && longitude && (
-                    <a
-                      href={`https://www.google.com/maps?q=${latitude},${longitude}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="btn-ghost"
-                      style={{
-                        padding: "8px 14px",
-                        fontSize: 14,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: 6,
-                        background: "var(--card-bg)",
-                      }}
-                    >
-                      <MapPin
-                        style={{ width: 14, height: 14, color: "#0EA5E9" }}
-                      />{" "}
-                      View Location on Google Maps
-                    </a>
-                  )}
-                </div>
-              </div>
+          {/* Contact Phone Number — Always Editable */}
+          <div style={{ background: 'var(--card-bg)', border: '1px solid var(--card-border)', borderRadius: 12, padding: 18 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+              <Phone style={{ width: 16, height: 16, color: '#10B981' }} />
+              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>Contact Phone Number</span>
+              <span style={{ fontSize: 10, background: '#F0FDF4', border: '1px solid #BBF7D0', color: '#059669', padding: '1px 7px', borderRadius: 10, fontWeight: 700 }}>ALWAYS EDITABLE</span>
+            </div>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+              <input type="text" value={phone} onChange={(e) => setPhone(e.target.value)} disabled={!isOwner} style={{ ...inputStyle, flex: 1 }} placeholder="e.g. 98xxxxxxxx" />
+              {isOwner && (
+                <button type="button" onClick={handleSavePhoneOnly} disabled={phoneLoading} style={{ ...btnStyle, background: '#10B981', flexShrink: 0 }}>
+                  {phoneLoading ? '...' : <><Check style={{ width: 14, height: 14 }} /> Save Phone</>}
+                </button>
+              )}
             </div>
           </div>
-        )}
 
-        {/* PANEL: STAFF ROSTER */}
-        {activeTab === "staff" && isOwner && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-            <div
-              className="lg:col-span-12 card bg-white/85 p-6 space-y-4"
-              style={{
-                border: "1.5px solid rgba(249,115,22,0.12)",
-                boxShadow: "none",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 10,
-                  paddingBottom: 16,
-                  borderBottom: "1px solid rgba(249,115,22,0.1)",
-                }}
-              >
-                <div
-                  style={{
-                    width: 32,
-                    height: 32,
-                    borderRadius: 10,
-                    background: "linear-gradient(135deg,#0EA5E9,#38BDF8)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    flexShrink: 0,
-                    boxShadow: "none",
-                  }}
-                >
-                  <UserPlus style={{ width: 15, height: 15, color: "white" }} />
-                </div>
-                <div>
-                  <h3
-                    style={{
-                      fontSize: 14,
-                      fontWeight: 800,
-                      color: "var(--text-primary)",
-                      letterSpacing: "-0.01em",
-                    }}
-                  >
-                    Register Staff Member
-                  </h3>
-                  <p style={{ fontSize: 14, color: "var(--text-muted)", marginTop: 1 }}>
-                    Create employee login credentials and feature access
-                  </p>
-                </div>
+          {/* Core Profile Form */}
+          <form onSubmit={handleUpdateProfile} style={{ background: 'var(--card-bg)', border: '1px solid var(--card-border)', borderRadius: 12, padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4, flexWrap: 'wrap', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Building style={{ width: 16, height: 16, color: '#0EA5E9' }} />
+                <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>Distributor Identity & Location</span>
+                {fieldsLocked && (
+                  <span style={{ fontSize: 10, background: '#FEF3C7', border: '1px solid #FDE68A', color: '#D97706', padding: '1px 7px', borderRadius: 10, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 3 }}>
+                    <Lock style={{ width: 10, height: 10 }} /> LOCKED
+                  </span>
+                )}
               </div>
-
-              <form onSubmit={handleCreateStaff} className="space-y-6">
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
-                    gap: "24px",
-                  }}
-                >
-                  {/* Left Column: Text Inputs */}
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-zinc-500 uppercase text-[9px] font-black mb-1">
-                        Full Name
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        placeholder="e.g. Ram Bahadur"
-                        value={fullName}
-                        onChange={(e) => setFullName(e.target.value)}
-                        className="input-crisp text-xs py-2.5"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-zinc-500 uppercase text-[9px] font-black mb-1">
-                        Email / Username
-                      </label>
-                      <input
-                        type="email"
-                        required
-                        placeholder="e.g. ram@distributor.com"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        className="input-crisp text-xs py-2.5"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-zinc-500 uppercase text-[9px] font-black mb-1">
-                        Password
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        placeholder="Create staff password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        className="input-crisp text-xs py-2.5 font-mono"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Right Column: Features Enabled Checklist */}
-                  <div style={{ display: "flex", flexDirection: "column" }}>
-                    <label className="block text-zinc-500 uppercase text-[9px] font-black tracking-wider mb-2">
-                      Features Enabled Checklist
-                    </label>
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "1fr 1fr",
-                        gap: 6,
-                        background: "rgba(249,115,22,0.03)",
-                        border: "1.5px solid rgba(249,115,22,0.1)",
-                        padding: 12,
-                        borderRadius: 14,
-                        flex: 1,
-                      }}
-                    >
-                      {AVAILABLE_FEATURES.map((f) => {
-                        const isChecked = allowedFeatures.includes(f.key);
-                        return (
-                          <button
-                            key={f.key}
-                            type="button"
-                            onClick={() => handleToggleFeature(f.key)}
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 8,
-                              padding: "7px 10px",
-                              borderRadius: 10,
-                              border: "none",
-                              background: isChecked
-                                ? "rgba(249,115,22,0.08)"
-                                : "rgba(255,255,255,0.8)",
-                              cursor: "pointer",
-                              textAlign: "left",
-                              fontFamily: "inherit",
-                              transition: "all 0.15s",
-                              boxShadow: isChecked
-                                ? "0 2px 8px rgba(249,115,22,0.15)"
-                                : "0 1px 3px rgba(0,0,0,0.04)",
-                            }}
-                          >
-                            <span
-                              style={{
-                                width: 14,
-                                height: 14,
-                                borderRadius: 4,
-                                background: isChecked
-                                  ? "linear-gradient(135deg,#0EA5E9,#38BDF8)"
-                                  : "white",
-                                border: `1.5px solid ${isChecked ? "transparent" : "rgba(0,0,0,0.12)"}`,
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                flexShrink: 0,
-                                transition: "all 0.15s",
-                                boxShadow: isChecked
-                                  ? "0 2px 6px rgba(249,115,22,0.3)"
-                                  : "none",
-                              }}
-                            >
-                              {isChecked && (
-                                <span
-                                  style={{
-                                    color: "white",
-                                    fontSize: 9,
-                                    fontWeight: 900,
-                                  }}
-                                >
-                                  ✓
-                                </span>
-                              )}
-                            </span>
-                            <span
-                              style={{
-                                fontSize: 14,
-                                fontWeight: 700,
-                                color: isChecked ? "#1E293B" : "#64748B",
-                              }}
-                            >
-                              {f.label}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "flex-end",
-                    borderTop: "1px solid rgba(249,115,22,0.1)",
-                    paddingTop: 16,
-                  }}
-                >
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="btn-primary"
-                    style={{
-                      background: "linear-gradient(135deg, #0EA5E9, #38BDF8)",
-                      padding: "12px 32px",
-                      fontSize: 14,
-                      fontWeight: 800,
-                      textTransform: "uppercase",
-                    }}
-                  >
-                    {loading ? (
-                      <RefreshCw className="w-4 h-4 animate-spin shrink-0" />
-                    ) : null}
-                    Register Employee Account
-                  </button>
-                </div>
-              </form>
+              {fieldsLocked && isOwner && (
+                <button type="button" onClick={() => setIsEditingVerifiedDetails(true)}
+                  style={{ ...btnStyle, background: '#D97706', fontSize: 12, padding: '6px 14px' }}>
+                  <Edit2 style={{ width: 13, height: 13 }} /> Edit & Resubmit Application
+                </button>
+              )}
             </div>
 
-            <div
-              className="lg:col-span-12 card bg-white/85 p-6 space-y-4"
-              style={{
-                border: "1.5px solid rgba(14,165,233,0.12)",
-                boxShadow: "none",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 10,
-                  paddingBottom: 16,
-                  borderBottom: "1px solid rgba(14,165,233,0.1)",
-                }}
-              >
-                <div
-                  style={{
-                    width: 32,
-                    height: 32,
-                    borderRadius: 10,
-                    background: "linear-gradient(135deg,#0EA5E9,#38BDF8)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    flexShrink: 0,
-                    boxShadow: "none",
-                  }}
-                >
-                  <Users style={{ width: 15, height: 15, color: "white" }} />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <div>
+                <label style={labelStyle}>Company Name *</label>
+                <input type="text" value={companyName} onChange={(e) => setCompanyName(e.target.value)} disabled={fieldsLocked} style={fieldsLocked ? lockedInputStyle : inputStyle} required />
+              </div>
+              <div>
+                <label style={labelStyle}>VAT / TAX ID Number *</label>
+                <input type="text" value={taxId} onChange={(e) => setTaxId(e.target.value)} disabled={fieldsLocked} style={fieldsLocked ? lockedInputStyle : inputStyle} required />
+              </div>
+              <div>
+                <label style={labelStyle}>Registration / License Number</label>
+                <input type="text" value={registrationNumber} onChange={(e) => setRegistrationNumber(e.target.value)} disabled={fieldsLocked} style={fieldsLocked ? lockedInputStyle : inputStyle} placeholder="e.g. REG-98234-DIST" />
+              </div>
+              <div>
+                <label style={labelStyle}>Contact Person Name</label>
+                <input type="text" value={contactPerson} onChange={(e) => setContactPerson(e.target.value)} disabled={fieldsLocked} style={fieldsLocked ? lockedInputStyle : inputStyle} placeholder="e.g. Harry Prasad" />
+              </div>
+              <div style={{ gridColumn: 'span 2' }}>
+                <label style={labelStyle}>Warehouse Street Address *</label>
+                <input type="text" value={address} onChange={(e) => setAddress(e.target.value)} disabled={fieldsLocked} style={fieldsLocked ? lockedInputStyle : inputStyle} required />
+              </div>
+            </div>
+
+            {/* GPS Location Section */}
+            <div style={{ background: 'var(--table-header-bg)', border: '1px solid var(--card-border)', borderRadius: 10, padding: 14 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <MapPin style={{ width: 16, height: 16, color: '#0EA5E9' }} />
+                  <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>Warehouse Location (GPS)</span>
+                </div>
+                {!fieldsLocked && isOwner && (
+                  <button type="button" onClick={() => setShowMapModal(true)}
+                    style={{ ...btnStyle, background: '#0EA5E9', fontSize: 12, padding: '7px 14px' }}>
+                    <MapPin style={{ width: 13, height: 13 }} /> Set from Map
+                  </button>
+                )}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={labelStyle}>Latitude</label>
+                  <input type="text" value={latitude} onChange={(e) => setLatitude(e.target.value)} disabled={fieldsLocked} style={{ ...(fieldsLocked ? lockedInputStyle : inputStyle), fontFamily: 'monospace' }} placeholder="e.g. 27.7172" />
                 </div>
                 <div>
-                  <h3
-                    style={{
-                      fontSize: 14,
-                      fontWeight: 800,
-                      color: "var(--text-primary)",
-                      letterSpacing: "-0.01em",
-                    }}
-                  >
-                    Staff Directory Roster
-                  </h3>
-                  <p style={{ fontSize: 14, color: "var(--text-muted)", marginTop: 1 }}>
-                    {staff.length} employee account
-                    {staff.length !== 1 ? "s" : ""} registered
+                  <label style={labelStyle}>Longitude</label>
+                  <input type="text" value={longitude} onChange={(e) => setLongitude(e.target.value)} disabled={fieldsLocked} style={{ ...(fieldsLocked ? lockedInputStyle : inputStyle), fontFamily: 'monospace' }} placeholder="e.g. 85.3240" />
+                </div>
+              </div>
+              {latitude && longitude && (
+                <a href={`https://www.google.com/maps?q=${latitude},${longitude}`} target="_blank" rel="noopener noreferrer"
+                  style={{ fontSize: 11, color: '#0EA5E9', fontWeight: 600, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 8 }}>
+                  <Navigation style={{ width: 11, height: 11 }} /> Verify on Google Maps ↗
+                </a>
+              )}
+            </div>
+
+            {/* Custom Fields */}
+            {!fieldsLocked && isOwner && (
+              <div style={{ borderTop: '1px solid var(--card-border)', paddingTop: 16 }}>
+                <span style={labelStyle}>Custom / Dynamic Parameters</span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
+                  {customFields.map((field) => (
+                    <div key={field.label} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <span style={{ fontSize: 13, fontWeight: 600, minWidth: 120, color: 'var(--text-secondary)' }}>{field.label}</span>
+                      <input type="text" value={field.value} onChange={(e) => { const val = e.target.value; setCustomFields(customFields.map((f) => f.label === field.label ? { ...f, value: val } : f)); }} style={{ ...inputStyle, flex: 1 }} />
+                      <button type="button" onClick={() => handleDeleteCustomField(field.label)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#EF4444', padding: 4 }}>
+                        <Trash2 style={{ width: 14, height: 14 }} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                {showAddFieldForm ? (
+                  <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+                    <input type="text" placeholder="Field Name (e.g. Website)" value={newFieldLabel} onChange={(e) => setNewFieldLabel(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
+                    <input type="text" placeholder="Value" value={newFieldValue} onChange={(e) => setNewFieldValue(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
+                    <button type="button" onClick={handleAddCustomField} style={btnStyle}>Add</button>
+                    <button type="button" onClick={() => setShowAddFieldForm(false)} style={{ ...btnStyle, background: 'var(--table-header-bg)', color: 'var(--text-secondary)', border: '1px solid var(--card-border)' }}>Cancel</button>
+                  </div>
+                ) : (
+                  <button type="button" onClick={() => setShowAddFieldForm(true)} style={{ ...btnStyle, background: 'var(--table-header-bg)', color: 'var(--text-secondary)', border: '1px solid var(--card-border)', marginTop: 10, fontSize: 12 }}>
+                    <Plus style={{ width: 13, height: 13 }} /> Add Custom Parameter
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Registration Documents */}
+            <div style={{ borderTop: '1px solid var(--card-border)', paddingTop: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+                <div>
+                  <span style={{ ...labelStyle, fontSize: 12, marginBottom: 2 }}>📷 Registration & License Documents</span>
+                  <p style={{ fontSize: 11, color: 'var(--text-secondary)', margin: 0 }}>
+                    Company registration, VAT/PAN certificate, citizenship, warehouse license (Max 500MB each, up to 10 images)
                   </p>
                 </div>
+                {registrationImages.length > 0 && (
+                  <button type="button" onClick={() => { setDocViewerIndex(0); setShowDocViewer(true); }}
+                    style={{ ...btnStyle, background: '#0EA5E9', fontSize: 12, padding: '7px 14px' }}>
+                    <Eye style={{ width: 13, height: 13 }} /> View Documents ({registrationImages.length})
+                  </button>
+                )}
               </div>
 
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-                  gap: 16,
-                  background: "rgba(14,165,233,0.03)",
-                  border: "1.5px solid rgba(14,165,233,0.1)",
-                  padding: 16,
-                  borderRadius: 16,
-                }}
-              >
-                <div>
-                  <label
-                    className="block text-zinc-500 uppercase text-[9px] font-black tracking-wider mb-1.5"
-                    style={{ display: "flex", alignItems: "center", gap: 4 }}
-                  >
-                    <Search
-                      style={{ width: 11, height: 11, color: "#0EA5E9" }}
-                    />{" "}
-                    Search Staff Roster
-                  </label>
-                  <input
-                    type="text"
-                    value={staffSearch}
-                    onChange={(e) => setStaffSearch(e.target.value)}
-                    placeholder="Type name, email..."
-                    className="input-crisp bg-white text-xs py-2"
-                  />
-                </div>
-                <div>
-                  <label
-                    className="block text-zinc-500 uppercase text-[9px] font-black tracking-wider mb-1.5"
-                    style={{ display: "flex", alignItems: "center", gap: 4 }}
-                  >
-                    <Filter
-                      style={{ width: 11, height: 11, color: "#0EA5E9" }}
-                    />{" "}
-                    Employment Status
-                  </label>
-                  <select
-                    value={staffStatusFilter}
-                    onChange={(e) => setStaffStatusFilter(e.target.value)}
-                    className="select-crisp bg-white text-xs py-2"
-                  >
-                    <option value="">All Statuses (Active & Inactive)</option>
-                    <option value="active">Active Accounts Only</option>
-                    <option value="inactive">Suspended / Inactive</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {(() => {
-                  const filteredStaff = staff.filter((emp) => {
-                    const matchesSearch =
-                      (emp.fullName || "")
-                        .toLowerCase()
-                        .includes(staffSearch.toLowerCase()) ||
-                      emp.email
-                        .toLowerCase()
-                        .includes(staffSearch.toLowerCase());
-                    const matchesStatus =
-                      staffStatusFilter === "active"
-                        ? emp.isActive
-                        : staffStatusFilter === "inactive"
-                          ? !emp.isActive
-                          : true;
-                    return matchesSearch && matchesStatus;
-                  });
-
-                  if (filteredStaff.length === 0) {
-                    return (
-                      <div className="col-span-2 text-center text-zinc-400 py-10 italic text-xs font-mono">
-                        NO STAFF MEMBERS MATCH THE CURRENT FILTERS.
-                      </div>
-                    );
+              {/* Upload Grid */}
+              <input type="file" accept="image/*" multiple id="wholesaler-doc-upload-input" style={{ display: 'none' }}
+                onChange={async (e) => {
+                  const files = e.target.files;
+                  if (!files || files.length === 0) return;
+                  setUploadingDoc(true);
+                  const { compressImageToBase64 } = await import('@/lib/imageCompressor');
+                  for (let i = 0; i < files.length; i++) {
+                    if (registrationImages.length >= 10) { alert('Maximum 10 images allowed.'); break; }
+                    try {
+                      const compressed = await compressImageToBase64(files[i]);
+                      setRegistrationImages(prev => [...prev, compressed]);
+                    } catch (err) { console.error(err); }
                   }
-
-                  return filteredStaff.map((emp) => (
-                    <div
-                      key={emp.id}
-                      style={{
-                        padding: 20,
-                        borderRadius: 20,
-                        background:
-                          "linear-gradient(145deg, rgba(255,255,255,0.95), rgba(249,250,251,0.9))",
-                        border: "1.5px solid rgba(14,165,233,0.1)",
-                        boxShadow: "none",
-                        display: "flex",
-                        flexDirection: "column",
-                        justifyContent: "space-between",
-                        gap: 16,
-                        transition: "all 0.2s",
-                      }}
-                      onMouseOver={(e) => (
-                        (e.currentTarget.style.boxShadow =
-                          "0 8px 28px rgba(249,115,22,0.12)"),
-                        (e.currentTarget.style.borderColor =
-                          "rgba(249,115,22,0.2)")
-                      )}
-                      onMouseOut={(e) => (
-                        (e.currentTarget.style.boxShadow =
-                          "0 4px 16px rgba(0,0,0,0.04)"),
-                        (e.currentTarget.style.borderColor =
-                          "rgba(14,165,233,0.1)")
-                      )}
-                    >
-                      <div>
-                        <div className="flex justify-between items-start">
-                          <div className="min-w-0">
-                            <div className="text-zinc-950 font-black text-xs uppercase tracking-wide truncate">
-                              {emp.fullName}
-                            </div>
-                            <div className="text-[10px] text-zinc-450 truncate font-mono mt-0.5">
-                              {emp.email}
-                            </div>
-                          </div>
-                          <span
-                            className={`px-2 py-0.5 rounded-full text-[8.5px] font-bold border uppercase tracking-wider font-mono ${
-                              emp.isActive
-                                ? "bg-emerald-50 border-emerald-250 text-emerald-600"
-                                : "bg-slate-100 border-slate-300 text-zinc-400"
-                            }`}
-                          >
-                            {emp.isActive ? "ACTIVE" : "INACTIVE"}
-                          </span>
-                        </div>
-
-                        <div
-                          style={{
-                            background: "rgba(249,115,22,0.05)",
-                            border: "1.5px solid rgba(249,115,22,0.12)",
-                            padding: "8px 12px",
-                            borderRadius: 12,
-                            marginTop: 12,
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 8,
-                            fontSize: 14,
-                            fontFamily: "monospace",
-                            fontWeight: 700,
-                            color: "var(--text-secondary)",
-                          }}
-                        >
-                          <Key
-                            style={{
-                              width: 13,
-                              height: 13,
-                              color: "#0EA5E9",
-                              flexShrink: 0,
-                            }}
-                          />
-                          <span style={{ color: "var(--text-muted)" }}>PASSCODE:</span>
-                          <span
-                            style={{
-                              color: "var(--text-primary)",
-                              fontWeight: 900,
-                              letterSpacing: "0.05em",
-                              userSelect: "all",
-                            }}
-                          >
-                            {emp.plainPassword || "N/A"}
-                          </span>
-                        </div>
-
-                        <div className="mt-3.5 space-y-1">
-                          <div className="text-[9px] uppercase font-black text-zinc-400 tracking-wider">
-                            Permitted Pages:
-                          </div>
-                          <div className="flex flex-wrap gap-1">
-                            {emp.allowedFeatures ? (
-                              emp.allowedFeatures.split(",").map((f) => (
-                                <span
-                                  key={f}
-                                  style={{
-                                    padding: "2px 8px",
-                                    background: "rgba(249,115,22,0.08)",
-                                    color: "#0369A1",
-                                    borderRadius: 6,
-                                    fontSize: 9,
-                                    fontWeight: 800,
-                                    letterSpacing: "0.04em",
-                                  }}
-                                >
-                                  {f}
-                                </span>
-                              ))
-                            ) : (
-                              <span className="text-[9px] text-zinc-400 italic">
-                                None
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div
-                        style={{
-                          display: "flex",
-                          gap: 8,
-                          borderTop: "1px solid rgba(14,165,233,0.08)",
-                          paddingTop: 12,
-                          justifyContent: "flex-end",
-                        }}
-                      >
-                        <button
-                          type="button"
-                          onClick={() => handleOpenEdit(emp)}
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 6,
-                            padding: "7px 14px",
-                            borderRadius: 10,
-                            border: "none",
-                            background: "rgba(249,115,22,0.08)",
-                            color: "#0369A1",
-                            fontSize: 14,
-                            fontWeight: 800,
-                            cursor: "pointer",
-                            fontFamily: "inherit",
-                            transition: "all 0.15s",
-                          }}
-                        >
-                          <Edit style={{ width: 13, height: 13 }} />
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            handleDeleteStaff(emp.id, emp.fullName || emp.email)
-                          }
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 6,
-                            padding: "7px 14px",
-                            borderRadius: 10,
-                            border: "none",
-                            background: "rgba(239,68,68,0.08)",
-                            color: "#DC2626",
-                            fontSize: 14,
-                            fontWeight: 800,
-                            cursor: "pointer",
-                            fontFamily: "inherit",
-                            transition: "all 0.15s",
-                          }}
-                        >
-                          <Trash2 style={{ width: 13, height: 13 }} />
-                          Delete
-                        </button>
-                      </div>
-                    </div>
-                  ));
-                })()}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* PANEL: ACTIVITY LOGS */}
-        {activeTab === "logs" && hasLogsAccess && (
-          <div
-            className="card bg-white/85 p-6 space-y-6"
-            style={{
-              border: "1.5px solid rgba(16,185,129,0.12)",
-              boxShadow: "none",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                paddingBottom: 16,
-                borderBottom: "1px solid rgba(16,185,129,0.1)",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <div
-                  style={{
-                    width: 32,
-                    height: 32,
-                    borderRadius: 10,
-                    background: "linear-gradient(135deg,#10B981,#34D399)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    flexShrink: 0,
-                    boxShadow: "none",
-                  }}
-                >
-                  <FileText style={{ width: 15, height: 15, color: "white" }} />
-                </div>
-                <div>
-                  <h3
-                    style={{
-                      fontSize: 14,
-                      fontWeight: 800,
-                      color: "var(--text-primary)",
-                      letterSpacing: "-0.01em",
-                    }}
-                  >
-                    Operational Activity Logs
-                  </h3>
-                  <p style={{ fontSize: 14, color: "var(--text-muted)", marginTop: 1 }}>
-                    Audit trail of all system events
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => window.location.reload()}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                  padding: "8px 16px",
-                  borderRadius: 10,
-                  border: "none",
-                  background: "rgba(16,185,129,0.08)",
-                  color: "#059669",
-                  fontSize: 14,
-                  fontWeight: 800,
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                  transition: "all 0.15s",
+                  setUploadingDoc(false);
+                  e.target.value = '';
                 }}
-              >
-                <RefreshCw style={{ width: 13, height: 13 }} />
-                Refresh
-              </button>
-            </div>
-
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-                gap: 16,
-                background: "rgba(16,185,129,0.03)",
-                border: "1.5px solid rgba(16,185,129,0.1)",
-                padding: 16,
-                borderRadius: 16,
-              }}
-            >
-              <div>
-                <label
-                  className="block text-zinc-500 uppercase text-[9px] font-black tracking-wider mb-1.5"
-                  style={{ display: "flex", alignItems: "center", gap: 4 }}
-                >
-                  <Search style={{ width: 11, height: 11, color: "#0EA5E9" }} />{" "}
-                  Search Logs
-                </label>
-                <input
-                  type="text"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Filter by keyword..."
-                  className="input-crisp bg-white text-xs py-2"
-                />
-              </div>
-
-              <div>
-                <label
-                  className="block text-zinc-500 uppercase text-[9px] font-black tracking-wider mb-1.5"
-                  style={{ display: "flex", alignItems: "center", gap: 4 }}
-                >
-                  <Filter style={{ width: 11, height: 11, color: "#0EA5E9" }} />{" "}
-                  Action Type
-                </label>
-                <select
-                  value={actionFilter}
-                  onChange={(e) => setActionFilter(e.target.value)}
-                  className="select-crisp bg-white text-xs py-2"
-                >
-                  <option value="">All Actions</option>
-                  {uniqueActions.map((action) => (
-                    <option key={action} value={action}>
-                      {action.replace(/_/g, " ")}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label
-                  className="block text-zinc-500 uppercase text-[9px] font-black tracking-wider mb-1.5"
-                  style={{ display: "flex", alignItems: "center", gap: 4 }}
-                >
-                  <User style={{ width: 11, height: 11, color: "#0EA5E9" }} />{" "}
-                  Operator
-                </label>
-                <select
-                  value={userFilter}
-                  onChange={(e) => setUserFilter(e.target.value)}
-                  className="select-crisp bg-white text-xs py-2"
-                >
-                  <option value="">All Operators</option>
-                  {uniqueUsers.map((email) => (
-                    <option key={email} value={email}>
-                      {email}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="flex items-end">
-                {(searchTerm || actionFilter || userFilter) && (
-                  <button
-                    onClick={clearFilters}
-                    style={{
-                      width: "100%",
-                      padding: "9px 0",
-                      background: "rgba(239,68,68,0.08)",
-                      color: "#DC2626",
-                      border: "none",
-                      borderRadius: 10,
-                      fontWeight: 800,
-                      fontSize: 14,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.05em",
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: 6,
-                      fontFamily: "inherit",
-                    }}
-                  >
-                    <XCircle style={{ width: 12, height: 12 }} /> Clear Filters
-                  </button>
+              />
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                {registrationImages.map((src, idx) => (
+                  <div key={idx} onClick={() => { setDocViewerIndex(idx); setShowDocViewer(true); }}
+                    style={{ width: 72, height: 72, borderRadius: 8, overflow: 'hidden', border: '2px solid var(--card-border)', position: 'relative', cursor: 'zoom-in', flexShrink: 0 }}>
+                    <img src={src} alt={`Doc ${idx + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    {!fieldsLocked && isOwner && (
+                      <button type="button" onClick={(ev) => { ev.stopPropagation(); setRegistrationImages(prev => prev.filter((_, i) => i !== idx)); }}
+                        style={{ position: 'absolute', top: 2, right: 2, background: 'rgba(0,0,0,0.8)', color: 'white', border: 'none', borderRadius: '50%', width: 18, height: 18, fontSize: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        ✕
+                      </button>
+                    )}
+                    <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,0.45)', color: '#fff', fontSize: 9, fontWeight: 700, textAlign: 'center', padding: '2px 0' }}>
+                      {idx + 1}
+                    </div>
+                  </div>
+                ))}
+                {!fieldsLocked && isOwner && registrationImages.length < 10 && (
+                  <label htmlFor="wholesaler-doc-upload-input"
+                    style={{ width: 72, height: 72, borderRadius: 8, border: '2px dashed #0EA5E9', background: 'rgba(14,165,233,0.06)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#0EA5E9', fontSize: 10, fontWeight: 700, textAlign: 'center', gap: 4, flexShrink: 0 }}>
+                    <Upload style={{ width: 18, height: 18 }} />
+                    {uploadingDoc ? '...' : `Upload\n(${registrationImages.length}/10)`}
+                  </label>
+                )}
+                {registrationImages.length === 0 && fieldsLocked && (
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>No documents uploaded yet.</span>
                 )}
               </div>
             </div>
 
-            {/* Redesigned Premium Bordered Table */}
-            <div className="table-wrapper">
-              <table className="data-table">
+            {/* Submit / CTA Button */}
+            {!fieldsLocked && isOwner && (
+              <div style={{ borderTop: '1px solid var(--card-border)', paddingTop: 16, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+                <button type="submit" disabled={loading} style={{ ...btnStyle, flex: '0 0 auto' }}>
+                  <Send style={{ width: 14, height: 14 }} />
+                  {loading ? 'Submitting...' : isRejected || !registrationData ? 'Submit for Verification' : 'Save & Resubmit for Verification'}
+                </button>
+                {isEditingVerifiedDetails && (
+                  <button type="button" onClick={() => setIsEditingVerifiedDetails(false)}
+                    style={{ ...btnStyle, background: 'var(--table-header-bg)', color: 'var(--text-secondary)', border: '1px solid var(--card-border)', flex: '0 0 auto' }}>
+                    Cancel Edit
+                  </button>
+                )}
+                <span style={{ fontSize: 11, color: 'var(--text-muted)', flex: 1 }}>
+                  {isRejected ? 'Fix the issues and resubmit for Superadmin review.' : 'Submitting will set your status to PENDING for Superadmin review.'}
+                </span>
+              </div>
+            )}
+          </form>
+        </div>
+      )}
+
+      {/* ── STAFF TAB ── */}
+      {activeTab === 'staff' && isOwner && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+            <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Configure distributor internal accounts for sales & warehouse management.</span>
+            <button onClick={handleOpenCreateStaff} style={btnStyle}>
+              <Plus style={{ width: 15, height: 15 }} /> Add Staff Employee
+            </button>
+          </div>
+          <div style={{ background: 'var(--card-bg)', borderRadius: 10, border: '1px solid var(--card-border)', overflow: 'hidden' }}>
+            {staffList.length === 0 ? (
+              <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 14 }}>No staff accounts registered yet.</div>
+            ) : (
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 13 }}>
                 <thead>
-                  <tr>
-                    <th>Timestamp</th>
-                    <th>Action</th>
-                    <th>Operator</th>
-                    <th>Description</th>
-                    <th>Role</th>
+                  <tr style={{ background: 'var(--table-header-bg)', borderBottom: '1px solid var(--card-border)' }}>
+                    <th style={thStyle}>Full Name</th>
+                    <th style={thStyle}>Login Email</th>
+                    <th style={thStyle}>Authorized Tabs</th>
+                    <th style={thStyle}>Status</th>
+                    <th style={{ ...thStyle, textAlign: 'center' }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredLogs.length === 0 ? (
-                    <tr>
-                      <td
-                        colSpan={5}
-                        className="p-8 text-center text-zinc-400 italic"
-                      >
-                        No logs match filters.
+                  {staffList.map((emp) => (
+                    <tr key={emp.id} style={{ borderBottom: '1px solid var(--card-border)' }}>
+                      <td style={{ padding: '12px 18px', fontWeight: 700 }}>{emp.fullName}</td>
+                      <td style={{ padding: '12px 18px', fontFamily: 'monospace' }}>{emp.email}</td>
+                      <td style={{ padding: '12px 18px' }}>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                          {emp.allowedFeatures.split(',').map((f) => (
+                            <span key={f} style={{ fontSize: 11, background: 'var(--table-header-bg)', border: '1px solid var(--card-border)', padding: '2px 6px', borderRadius: 4, fontWeight: 600, color: 'var(--text-secondary)' }}>{f}</span>
+                          ))}
+                        </div>
+                      </td>
+                      <td style={{ padding: '12px 18px' }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6, background: emp.isActive ? '#F0FDF4' : '#FEF2F2', color: emp.isActive ? '#10B981' : '#EF4444' }}>
+                          {emp.isActive ? 'ACTIVE' : 'INACTIVE'}
+                        </span>
+                      </td>
+                      <td style={{ padding: '12px 18px', textAlign: 'center' }}>
+                        <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
+                          <button onClick={() => handleOpenEditStaff(emp)} style={{ border: '1px solid var(--card-border)', background: 'var(--table-header-bg)', padding: 5, borderRadius: 6, cursor: 'pointer', color: 'var(--text-secondary)' }}>
+                            <Edit2 style={{ width: 13, height: 13 }} />
+                          </button>
+                          <button onClick={() => handleDeleteStaff(emp.id, emp.fullName || '')} style={{ border: '1.5px solid #FECACA', background: '#FEF2F2', padding: 5, borderRadius: 6, cursor: 'pointer', color: '#EF4444' }}>
+                            <Trash2 style={{ width: 13, height: 13 }} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
-                  ) : (
-                    filteredLogs.map((log) => {
-                      const isStaff = log.user?.role === "WHOLESALER_STAFF";
-                      const timestampStr = new Date(
-                        log.timestamp,
-                      ).toLocaleString();
-
-                      return (
-                        <tr key={log.id}>
-                          <td className="font-mono text-[10px] text-zinc-500 whitespace-nowrap">
-                            {timestampStr}
-                          </td>
-                          <td>
-                            <span className="text-sky-700 font-bold uppercase text-[9px] bg-sky-50 px-2 py-1 rounded-lg font-mono">
-                              {log.action}
-                            </span>
-                          </td>
-                          <td>
-                            <div className="font-bold text-zinc-800 truncate max-w-[120px]">
-                              {log.user?.fullName ||
-                                log.user?.email.split("@")[0] ||
-                                "System"}
-                            </div>
-                            <div className="text-[9.5px] text-zinc-400 font-mono mt-0.5">
-                              {log.user?.email}
-                            </div>
-                          </td>
-                          <td className="leading-relaxed text-[11px]">
-                            {log.details}
-                          </td>
-                          <td>
-                            <span
-                              className={`px-2 py-1 rounded-full text-[8.5px] font-bold uppercase tracking-wider font-mono ${
-                                isStaff
-                                  ? "bg-pink-50 text-pink-650"
-                                  : "bg-sky-50 text-sky-650"
-                              }`}
-                            >
-                              {isStaff ? "STAFF" : "OWNER"}
-                            </span>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
+                  ))}
                 </tbody>
               </table>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── SECURITY TAB ── */}
+      {activeTab === 'security' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <div style={{ background: 'var(--card-bg)', borderRadius: 10, border: '1px solid var(--card-border)', padding: 20 }}>
+            <h3 style={{ fontSize: 15, fontWeight: 700, margin: 0 }}>Session Auto-Logout Timer</h3>
+            <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>Automatically sign out after a period of inactivity to protect your account.</p>
+            <select value={inactivityTimeout} onChange={(e) => handleSaveTimeout(e.target.value)} style={{ ...inputStyle, marginTop: 12 }}>
+              <option value="15">15 minutes of inactivity</option>
+              <option value="30">30 minutes of inactivity</option>
+              <option value="60">60 minutes of inactivity (Default)</option>
+              <option value="120">120 minutes of inactivity</option>
+              <option value="never">Never (Disabled)</option>
+            </select>
+          </div>
+          <div style={{ background: 'var(--card-bg)', borderRadius: 10, border: '1px solid var(--card-border)', padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div>
+              <h3 style={{ fontSize: 15, fontWeight: 700, margin: 0 }}>Low-Stock Warning Thresholds</h3>
+              <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>Warn when available distributor inventory drops below limits.</p>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+              <div><label style={labelStyle}>BOXES</label><input type="number" value={lowStockBoxes} onChange={(e) => setLowStockBoxes(parseInt(e.target.value) || 0)} style={inputStyle} /></div>
+              <div><label style={labelStyle}>STRIPS</label><input type="number" value={lowStockStrips} onChange={(e) => setLowStockStrips(parseInt(e.target.value) || 0)} style={inputStyle} /></div>
+              <div><label style={labelStyle}>TABLETS</label><input type="number" value={lowStockTablets} onChange={(e) => setLowStockTablets(parseInt(e.target.value) || 0)} style={inputStyle} /></div>
+            </div>
+            <div><label style={labelStyle}>EXPIRY ALERT WARN THRESHOLD (DAYS)</label><input type="number" value={expiryAlertDays} onChange={(e) => setExpiryAlertDays(parseInt(e.target.value) || 0)} style={inputStyle} /></div>
+            <button onClick={handleSaveAlerts} style={{ ...btnStyle, alignSelf: 'flex-end' }}>Save Threshold Rules</button>
+          </div>
+        </div>
+      )}
+
+      {/* ── APPEARANCE TAB ── */}
+      {activeTab === 'theme' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <div style={{ background: 'var(--card-bg)', borderRadius: 10, border: '1px solid var(--card-border)', padding: 20 }}>
+            <h3 style={{ fontSize: 15, fontWeight: 700, margin: 0 }}>🌗 Interface Theme</h3>
+            <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4, marginBottom: 14 }}>Choose between light and dark mode for the distributor dashboard.</p>
+            <div style={{ display: 'flex', gap: 12 }}>
+              <button type="button" onClick={() => handleToggleTheme('light')} style={{
+                flex: 1, padding: '14px 10px', borderRadius: 10,
+                border: themeMode === 'light' ? '2px solid #0EA5E9' : '1px solid var(--card-border)',
+                background: themeMode === 'light' ? '#F0F9FF' : 'var(--card-bg)',
+                color: themeMode === 'light' ? '#0369A1' : 'var(--text-secondary)',
+                fontWeight: 700, fontSize: 14, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, transition: 'all 0.15s',
+              }}>
+                <span style={{ fontSize: 28 }}>☀️</span>
+                Light Mode
+                {themeMode === 'light' && <span style={{ fontSize: 10, background: '#0EA5E9', color: '#fff', padding: '2px 8px', borderRadius: 10 }}>ACTIVE</span>}
+              </button>
+              <button type="button" onClick={() => handleToggleTheme('dark')} style={{
+                flex: 1, padding: '14px 10px', borderRadius: 10,
+                border: themeMode === 'dark' ? '2px solid #0EA5E9' : '1px solid var(--card-border)',
+                background: themeMode === 'dark' ? '#1E293B' : 'var(--card-bg)',
+                color: themeMode === 'dark' ? '#FFFFFF' : 'var(--text-secondary)',
+                fontWeight: 700, fontSize: 14, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, transition: 'all 0.15s',
+              }}>
+                <span style={{ fontSize: 28 }}>🌙</span>
+                Dark Mode
+                {themeMode === 'dark' && <span style={{ fontSize: 10, background: '#0EA5E9', color: '#fff', padding: '2px 8px', borderRadius: 10 }}>ACTIVE</span>}
+              </button>
             </div>
           </div>
-        )}
+          <div style={{ background: 'var(--card-bg)', borderRadius: 10, border: '1px solid var(--card-border)', padding: 20 }}>
+            <h3 style={{ fontSize: 15, fontWeight: 700, margin: 0 }}>🔤 Font Size Scale</h3>
+            <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4, marginBottom: 14 }}>Adjust the base font size of all dashboard text.</p>
+            <div style={{ display: 'flex', gap: 12 }}>
+              {([
+                { key: 'sm', label: 'Small', desc: 'Compact, more content visible' },
+                { key: 'md', label: 'Medium', desc: 'Default balanced size' },
+                { key: 'lg', label: 'Large', desc: 'Easier to read, larger text' },
+              ] as const).map(s => (
+                <button key={s.key} type="button" onClick={() => handleToggleFontScale(s.key)} style={{
+                  flex: 1, padding: '14px 10px', borderRadius: 10,
+                  border: fontScale === s.key ? '2px solid #0EA5E9' : '1px solid var(--card-border)',
+                  background: fontScale === s.key ? '#F0F9FF' : 'var(--card-bg)',
+                  color: fontScale === s.key ? '#0369A1' : 'var(--text-secondary)',
+                  fontWeight: 700, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, transition: 'all 0.15s',
+                }}>
+                  <span style={{ fontSize: s.key === 'sm' ? 18 : s.key === 'md' ? 22 : 28, fontWeight: 700 }}>Aa</span>
+                  <span style={{ fontSize: 13 }}>{s.label}</span>
+                  <span style={{ fontSize: 10, color: fontScale === s.key ? '#0369A1' : 'var(--text-muted)', textAlign: 'center' }}>{s.desc}</span>
+                  {fontScale === s.key && <span style={{ fontSize: 10, background: '#0EA5E9', color: '#fff', padding: '2px 8px', borderRadius: 10, marginTop: 2 }}>ACTIVE</span>}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
-        {/* PANEL: SECURITY PREFERENCES */}
-        {activeTab === "security" && (
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 300px",
-              gap: 16,
-              alignItems: "start",
-            }}
-          >
-            {/* Main Card */}
-            <div
-              className="card"
-              style={{ background: "var(--card-bg)", padding: 24 }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                  borderBottom: "1px solid #F1F5F9",
-                  paddingBottom: 12,
-                  marginBottom: 20,
-                }}
-              >
-                <Lock style={{ width: 14, height: 14, color: "#0EA5E9" }} />
-                <h3
-                  style={{
-                    fontSize: 14,
-                    fontWeight: 800,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.07em",
-                    color: "var(--text-primary)",
-                  }}
-                >
-                  Security Preference Guard
-                </h3>
-              </div>
-              <div
-                style={{ display: "flex", flexDirection: "column", gap: 16 }}
-              >
-                {/* Appearance Theme Selector */}
-                <div style={{ borderBottom: '1px solid #E5E7EB', paddingBottom: 20, marginBottom: 4 }}>
-                  <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>Appearance Theme</h3>
-                  <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 2 }}>Toggle application display color scheme.</p>
-                  <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
-                    <button
-                      type="button"
-                      onClick={() => handleToggleTheme('light')}
-                      style={{
-                        flex: 1,
-                        padding: '10px',
-                        borderRadius: 6,
-                        border: themeMode === 'light' ? '2px solid #1D4ED8' : '1px solid #D1D5DB',
-                        background: themeMode === 'light' ? '#EFF6FF' : '#FFFFFF',
-                        color: themeMode === 'light' ? '#1D4ED8' : '#374151',
-                        fontWeight: 600,
-                        fontSize: 14,
-                        cursor: 'pointer',
-                        textAlign: 'center',
-                      }}
-                    >
-                      Light Mode
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleToggleTheme('dark')}
-                      style={{
-                        flex: 1,
-                        padding: '10px',
-                        borderRadius: 6,
-                        border: themeMode === 'dark' ? '2px solid #1D4ED8' : '1px solid #D1D5DB',
-                        background: themeMode === 'dark' ? '#1E293B' : '#FFFFFF',
-                        color: themeMode === 'dark' ? '#F9FAFB' : '#374151',
-                        fontWeight: 600,
-                        fontSize: 14,
-                        cursor: 'pointer',
-                        textAlign: 'center',
-                      }}
-                    >
-                      Dark Mode
-                    </button>
-                  </div>
+      {/* ── LOGS TAB ── */}
+      {activeTab === 'logs' && hasLogsAccess && (
+        <div style={{ background: 'var(--card-bg)', borderRadius: 10, border: '1px solid var(--card-border)', padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <div style={{ flex: 1, minWidth: 200, display: 'flex', alignItems: 'center', gap: 8, background: 'var(--table-header-bg)', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--card-border)' }}>
+              <Search style={{ width: 14, height: 14, color: 'var(--text-muted)' }} />
+              <input type="text" placeholder="Search audit logs..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%', fontSize: 13, color: 'var(--text-primary)' }} />
+            </div>
+            <select value={actionFilter} onChange={(e) => setActionFilter(e.target.value)} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--card-border)', fontSize: 13, outline: 'none', background: 'var(--table-header-bg)', color: 'var(--text-secondary)' }}>
+              <option value="">All Actions</option>
+              {uniqueActions.map((act) => <option key={act} value={act}>{act}</option>)}
+            </select>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 480, overflowY: 'auto' }}>
+            {filteredLogs.map((log) => (
+              <div key={log.id} style={{ borderBottom: '1px solid var(--card-border)', paddingBottom: 12, fontSize: 13 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 5, background: log.action.includes('ERR') || log.action.includes('DELETE') ? '#FEF2F2' : '#F0FDF4', color: log.action.includes('ERR') || log.action.includes('DELETE') ? '#EF4444' : '#10B981' }}>{log.action}</span>
+                  <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>{formatDateTimeNPT(log.timestamp)}</span>
                 </div>
+                <div style={{ color: 'var(--text-secondary)', marginTop: 6, lineHeight: 1.4 }}>{log.details}</div>
+                {log.user && (
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginTop: 4 }}>
+                    By: <strong>{log.user.fullName || log.user.email}</strong> ({log.user.role})
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
-                {/* Typography Scale Selector */}
-                <div style={{ borderBottom: '1px solid #E5E7EB', paddingBottom: 20, marginBottom: 4 }}>
-                  <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>Font &amp; Interface Scale</h3>
-                  <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 2 }}>Adjust text and layout size across all pages.</p>
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
-                    {([
-                      { scale: 'xs', label: 'Very Small (XS)' },
-                      { scale: 'sm', label: 'Small' },
-                      { scale: 'md', label: 'Medium' },
-                      { scale: 'lg', label: 'Large' },
-                      { scale: 'xl', label: 'Very Large (XL)' }
-                    ] as const).map((item) => (
-                      <button
-                        key={item.scale}
-                        type="button"
-                        onClick={() => handleToggleFontScale(item.scale)}
-                        style={{
-                          flex: '1 1 calc(33% - 8px)',
-                          padding: '10px 8px',
-                          borderRadius: 6,
-                          border: fontScale === item.scale ? '2px solid #2563EB' : '1px solid #D1D5DB',
-                          background: fontScale === item.scale ? '#EFF6FF' : '#FFFFFF',
-                          color: fontScale === item.scale ? '#2563EB' : '#374151',
-                          fontWeight: 600,
-                          fontSize: 13,
-                          cursor: 'pointer',
-                          textAlign: 'center',
-                        }}
-                      >
-                        {item.label}
-                      </button>
+      {/* ── STAFF MODAL ── */}
+      {showStaffModal && (
+        <div onClick={() => setShowStaffModal(false)} style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(15,23,42,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 480, background: 'var(--card-bg)', borderRadius: 14, border: '1px solid var(--card-border)', display: 'flex', flexDirection: 'column', maxHeight: '92vh', overflow: 'hidden', boxShadow: '0 24px 48px rgba(0,0,0,0.2)' }}>
+            <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--card-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, background: 'var(--table-header-bg)' }}>
+              <span style={{ fontSize: 14, fontWeight: 700 }}>{editingStaff ? 'Update Employee Permissions' : 'Register New Staff Member'}</span>
+              <button onClick={() => setShowStaffModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4 }}><X style={{ width: 16, height: 16 }} /></button>
+            </div>
+            <div style={{ padding: 18, overflowY: 'auto', flex: 1 }}>
+              <form onSubmit={handleSaveStaff} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div><label style={labelStyle}>Full Name</label><input type="text" required value={staffFullName} onChange={(e) => setStaffFullName(e.target.value)} placeholder="e.g. Ram Kumar" style={inputStyle} /></div>
+                <div><label style={labelStyle}>Email Address (Login ID)</label><input type="email" required disabled={!!editingStaff} value={staffEmail} onChange={(e) => setStaffEmail(e.target.value)} placeholder="e.g. ram@distributor.com" style={{ ...inputStyle, background: editingStaff ? 'var(--table-header-bg)' : 'var(--card-bg)' }} /></div>
+                <div><label style={labelStyle}>Password {editingStaff && '(Leave blank to keep current)'}</label><input type="password" required={!editingStaff} value={staffPassword} onChange={(e) => setStaffPassword(e.target.value)} placeholder="••••••••" style={inputStyle} /></div>
+                <div>
+                  <label style={labelStyle}>Authorized Dashboard Tabs</label>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, background: 'var(--table-header-bg)', padding: 10, borderRadius: 8, border: '1px solid var(--card-border)' }}>
+                    {AVAILABLE_FEATURES.map((feat) => (
+                      <label key={feat.key} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text-secondary)', cursor: 'pointer' }}>
+                        <input type="checkbox" checked={staffFeatures.includes(feat.key)} onChange={() => toggleFeature(feat.key)} style={{ cursor: 'pointer' }} />{feat.label}
+                      </label>
                     ))}
                   </div>
                 </div>
-
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: 14,
-                      fontWeight: 700,
-                      color: "var(--text-secondary)",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.05em",
-                      marginBottom: 6,
-                    }}
-                  >
-                    Client Inactivity Auto-Logout Threshold
-                  </label>
-                  <p
-                    style={{
-                      fontSize: 14,
-                      color: "var(--text-muted)",
-                      marginBottom: 12,
-                      lineHeight: 1.6,
-                    }}
-                  >
-                    Set the duration after which an idle browser session is
-                    automatically signed out. Timer resets on every user
-                    interaction (click, keypress, mouse move).
-                  </p>
-                  <select
-                    value={inactivityTimeout}
-                    onChange={(e) => handleSaveTimeout(e.target.value)}
-                    className="select-crisp"
-                    style={{ fontWeight: 700 }}
-                  >
-                    <option value="1">1 Minute (Test Mode)</option>
-                    <option value="5">5 Minutes</option>
-                    <option value="15">15 Minutes</option>
-                    <option value="30">30 Minutes</option>
-                    <option value="60">60 Minutes (Default)</option>
-                    <option value="120">120 Minutes</option>
-                    <option value="never">Never (Disabled)</option>
-                  </select>
-                </div>
-                {/* Active Setting Display */}
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 12,
-                    background: "var(--table-header-bg)",
-                    border: "1.5px solid #E0F2FE",
-                    borderRadius: 12,
-                    padding: "14px 16px",
-                  }}
-                >
-                  <Clock
-                    style={{
-                      width: 20,
-                      height: 20,
-                      color: "#0EA5E9",
-                      flexShrink: 0,
-                    }}
-                    className="animate-pulse"
-                  />
-                  <div>
-                    <div
-                      style={{
-                        fontSize: 9,
-                        fontWeight: 800,
-                        textTransform: "uppercase",
-                        color: "var(--text-muted)",
-                        letterSpacing: "0.06em",
-                      }}
-                    >
-                      Active Timeout Setting
-                    </div>
-                    <div
-                      style={{
-                        fontSize: 14,
-                        fontWeight: 900,
-                        fontFamily: "monospace",
-                        color: "var(--text-primary)",
-                        marginTop: 2,
-                      }}
-                    >
-                      {inactivityTimeout === "never"
-                        ? "DISABLED — Never Timeout"
-                        : `${inactivityTimeout} Minutes`}
-                    </div>
+                {editingStaff && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingTop: 6 }}>
+                    <input type="checkbox" id="staff-active" checked={staffIsActive} onChange={(e) => setStaffIsActive(e.target.checked)} style={{ cursor: 'pointer' }} />
+                    <label htmlFor="staff-active" style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', cursor: 'pointer' }}>Account Status Active</label>
                   </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Info Sidebar — finance-card dark panel */}
-            <div className="finance-card">
-              <div style={{ position: "relative", zIndex: 1 }}>
-                <h3
-                  style={{
-                    fontSize: 14,
-                    fontWeight: 800,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.1em",
-                    color: "rgba(255,255,255,0.7)",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 6,
-                    marginBottom: 20,
-                  }}
-                >
-                  <ShieldAlert
-                    style={{ width: 14, height: 14, color: "#38BDF8" }}
-                  />
-                  Guard Details
-                </h3>
-                <div
-                  style={{ display: "flex", flexDirection: "column", gap: 14 }}
-                >
-                  {[
-                    {
-                      label: "Interaction tracking",
-                      value: "Mouse, keyboard, clicks",
-                    },
-                    { label: "Timer resets on", value: "Every user action" },
-                    { label: "On timeout", value: "Auto-redirect to logout" },
-                    { label: "Scope", value: "Client-side only" },
-                  ].map((row, i, arr) => (
-                    <div
-                      key={i}
-                      style={{
-                        paddingBottom: i < arr.length - 1 ? 14 : 0,
-                        borderBottom:
-                          i < arr.length - 1
-                            ? "1px solid rgba(255,255,255,0.07)"
-                            : "none",
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontSize: 9,
-                          fontWeight: 700,
-                          textTransform: "uppercase",
-                          color: "rgba(255,255,255,0.4)",
-                          letterSpacing: "0.06em",
-                        }}
-                      >
-                        {row.label}
-                      </div>
-                      <div
-                        style={{
-                          fontSize: 14,
-                          fontWeight: 700,
-                          color: "white",
-                          marginTop: 3,
-                        }}
-                      >
-                        {row.value}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* PANEL: ALERT THRESHOLDS */}
-        {activeTab === "alerts" && (
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 300px",
-              gap: 16,
-              alignItems: "start",
-            }}
-          >
-            {/* Main Card */}
-            <div
-              className="card"
-              style={{ background: "var(--card-bg)", padding: 24 }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                  borderBottom: "1px solid #F1F5F9",
-                  paddingBottom: 12,
-                  marginBottom: 20,
-                }}
-              >
-                <Bell style={{ width: 14, height: 14, color: "#0EA5E9" }} />
-                <h3
-                  style={{
-                    fontSize: 14,
-                    fontWeight: 800,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.07em",
-                    color: "var(--text-primary)",
-                  }}
-                >
-                  Alert & Notifications Threshold Configuration
-                </h3>
-              </div>
-              <div
-                style={{ display: "flex", flexDirection: "column", gap: 20 }}
-              >
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: 14,
-                      fontWeight: 700,
-                      color: "var(--text-secondary)",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.05em",
-                      marginBottom: 6,
-                    }}
-                  >
-                    Low Stock Threshold (Boxes)
-                  </label>
-                  <p
-                    style={{
-                      fontSize: 14,
-                      color: "var(--text-muted)",
-                      marginBottom: 10,
-                      lineHeight: 1.6,
-                    }}
-                  >
-                    Define the inventory count (in boxes, where 1 box = 20 base
-                    units) below which a medicine is considered low stock and
-                    flagged on the dashboard.
-                  </p>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: 14,
-                      fontWeight: 700,
-                      color: "var(--text-secondary)",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.05em",
-                      marginBottom: 6,
-                    }}
-                  >
-                    Low Stock Threshold
-                  </label>
-                  <p
-                    style={{
-                      fontSize: 14,
-                      color: "var(--text-muted)",
-                      marginBottom: 10,
-                      lineHeight: 1.6,
-                    }}
-                  >
-                    Define the inventory count (boxes, strips, tablets) below which a medicine is considered low stock and flagged on the dashboard.
-                  </p>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, maxWidth: 350, background: "var(--table-header-bg)", border: "1px solid var(--card-border)", padding: 12, borderRadius: 14 }}>
-                    <div>
-                      <label style={{ display: "block", fontSize: 9, fontWeight: 800, color: "var(--text-muted)", textAlign: "center", marginBottom: 4 }}>BOXES</label>
-                      <input
-                        type="number"
-                        min="0"
-                        value={lowStockBoxes}
-                        onChange={(e) =>
-                          handleSaveAlerts(
-                            parseInt(e.target.value, 10) || 0,
-                            lowStockStrips,
-                            lowStockTablets,
-                            expiryAlertDays,
-                          )
-                        }
-                        className="input-crisp"
-                        style={{ width: "100%", textAlign: "center", fontWeight: "bold", fontSize: 14, fontFamily: "monospace" }}
-                      />
-                    </div>
-                    <div>
-                      <label style={{ display: "block", fontSize: 9, fontWeight: 800, color: "var(--text-muted)", textAlign: "center", marginBottom: 4 }}>STRIPS</label>
-                      <input
-                        type="number"
-                        min="0"
-                        value={lowStockStrips}
-                        onChange={(e) =>
-                          handleSaveAlerts(
-                            lowStockBoxes,
-                            parseInt(e.target.value, 10) || 0,
-                            lowStockTablets,
-                            expiryAlertDays,
-                          )
-                        }
-                        className="input-crisp"
-                        style={{ width: "100%", textAlign: "center", fontWeight: "bold", fontSize: 14, fontFamily: "monospace" }}
-                      />
-                    </div>
-                    <div>
-                      <label style={{ display: "block", fontSize: 9, fontWeight: 800, color: "var(--text-muted)", textAlign: "center", marginBottom: 4 }}>TABLETS</label>
-                      <input
-                        type="number"
-                        min="0"
-                        value={lowStockTablets}
-                        onChange={(e) =>
-                          handleSaveAlerts(
-                            lowStockBoxes,
-                            lowStockStrips,
-                            parseInt(e.target.value, 10) || 0,
-                            expiryAlertDays,
-                          )
-                        }
-                        className="input-crisp"
-                        style={{ width: "100%", textAlign: "center", fontWeight: "bold", fontSize: 14, fontFamily: "monospace" }}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: 14,
-                      fontWeight: 700,
-                      color: "var(--text-secondary)",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.05em",
-                      marginBottom: 6,
-                    }}
-                  >
-                    Stock Expiry Alert Range (Days)
-                  </label>
-                  <p
-                    style={{
-                      fontSize: 14,
-                      color: "var(--text-muted)",
-                      marginBottom: 10,
-                      lineHeight: 1.6,
-                    }}
-                  >
-                    The number of days prior to a batch's expiration date when
-                    warning alerts should display on your dashboard.
-                  </p>
-                  <input
-                    type="number"
-                    min="1"
-                    value={expiryAlertDays}
-                    onChange={(e) =>
-                      handleSaveAlerts(
-                        lowStockBoxes,
-                        lowStockStrips,
-                        lowStockTablets,
-                        parseInt(e.target.value, 10) || 1,
-                      )
-                    }
-                    className="input-crisp"
-                    style={{
-                      maxWidth: 200,
-                      fontWeight: 700,
-                      fontFamily: "monospace",
-                    }}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Info Sidebar Box */}
-            <div
-              className="card"
-              style={{
-                background: "#FAFCFF",
-                border: "1.5px solid #E0F2FE",
-                padding: 20,
-                display: "flex",
-                flexDirection: "column",
-                gap: 14,
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  borderBottom: "1px solid #E0F2FE",
-                  paddingBottom: 10,
-                }}
-              >
-                <AlertTriangle
-                  style={{ width: 16, height: 16, color: "#0EA5E9" }}
-                />
-                <h4
-                  style={{
-                    fontSize: 14,
-                    fontWeight: 800,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.05em",
-                    color: "var(--text-primary)",
-                  }}
-                >
-                  Current Threshold Summary
-                </h4>
-              </div>
-              <div
-                style={{ display: "flex", flexDirection: "column", gap: 12 }}
-              >
-                <div>
-                  <div
-                    style={{
-                      fontSize: 9,
-                      fontWeight: 800,
-                      color: "var(--text-muted)",
-                      textTransform: "uppercase",
-                    }}
-                  >
-                    Low Stock Flag
-                  </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 4 }}>
-                    {lowStockBoxes > 0 && (
-                      <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)", fontFamily: "monospace" }}>
-                        &lt; {lowStockBoxes} Boxes
-                      </div>
-                    )}
-                    {lowStockStrips > 0 && (
-                      <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)", fontFamily: "monospace" }}>
-                        &lt; {lowStockStrips} Strips
-                      </div>
-                    )}
-                    {lowStockTablets > 0 && (
-                      <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)", fontFamily: "monospace" }}>
-                        &lt; {lowStockTablets} Tablets
-                      </div>
-                    )}
-                    {lowStockBoxes === 0 && lowStockStrips === 0 && lowStockTablets === 0 && (
-                      <div style={{ fontSize: 14, color: "var(--text-muted)", fontStyle: "italic" }}>No threshold set</div>
-                    )}
-                  </div>
-                </div>
-                <div>
-                  <div
-                    style={{
-                      fontSize: 9,
-                      fontWeight: 800,
-                      color: "var(--text-muted)",
-                      textTransform: "uppercase",
-                    }}
-                  >
-                    Expiry Window Flag
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 16,
-                      fontWeight: 900,
-                      color: "var(--text-primary)",
-                      fontFamily: "monospace",
-                      marginTop: 2,
-                    }}
-                  >
-                    &lt; {expiryAlertDays} Days
-                  </div>
-                  <p style={{ fontSize: 14, color: "var(--text-secondary)", marginTop: 2 }}>
-                    Warnings display dynamically
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* EDIT STAFF ACCESS MODAL */}
-      {editingStaff && (
-        <div
-          className="modal-overlay no-print"
-          onClick={() => setEditingStaff(null)}
-        >
-          <div
-            className="modal-card animate-scaleIn"
-            style={{ "--modal-max-width": "480px" } as React.CSSProperties}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="modal-header">
-              <h3
-                style={{
-                  fontSize: 14,
-                  fontWeight: 800,
-                  color: "var(--text-primary)",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                }}
-              >
-                <Edit style={{ width: 16, height: 16, color: "#0EA5E9" }} />
-                Modify Staff Permissions
-              </h3>
-              <button
-                onClick={() => setEditingStaff(null)}
-                style={{
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  color: "var(--text-muted)",
-                  padding: 4,
-                }}
-              >
-                <X style={{ width: 20, height: 20 }} />
-              </button>
-            </div>
-
-            <div className="modal-body">
-              <form
-                onSubmit={handleUpdateStaff}
-                style={{ display: "flex", flexDirection: "column", gap: 14 }}
-              >
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: 14,
-                      fontWeight: 700,
-                      color: "var(--text-secondary)",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.05em",
-                      marginBottom: 6,
-                    }}
-                  >
-                    Full Name
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={editFullName}
-                    onChange={(e) => setEditFullName(e.target.value)}
-                    className="input-crisp"
-                  />
-                </div>
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: 14,
-                      fontWeight: 700,
-                      color: "var(--text-secondary)",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.05em",
-                      marginBottom: 6,
-                    }}
-                  >
-                    Email / Username
-                  </label>
-                  <input
-                    type="email"
-                    required
-                    value={editEmail}
-                    onChange={(e) => setEditEmail(e.target.value)}
-                    className="input-crisp"
-                  />
-                </div>
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: 14,
-                      fontWeight: 700,
-                      color: "var(--text-secondary)",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.05em",
-                      marginBottom: 6,
-                    }}
-                  >
-                    New Password (leave blank to keep current)
-                  </label>
-                  <input
-                    type="text"
-                    value={editPassword}
-                    onChange={(e) => setEditPassword(e.target.value)}
-                    placeholder="Enter new plain passcode"
-                    className="input-crisp"
-                    style={{ fontFamily: "monospace" }}
-                  />
-                </div>
-
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    background: "var(--table-header-bg)",
-                    border: "1.5px solid #E0F2FE",
-                    borderRadius: 10,
-                    padding: "10px 14px",
-                  }}
-                >
-                  <span
-                    style={{
-                      fontSize: 14,
-                      fontWeight: 700,
-                      color: "var(--text-secondary)",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.05em",
-                    }}
-                  >
-                    Account Status:
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setEditIsActive(!editIsActive)}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 8,
-                      background: "none",
-                      border: "none",
-                      cursor: "pointer",
-                      fontFamily: "inherit",
-                    }}
-                  >
-                    {editIsActive ? (
-                      <>
-                        <ToggleRight
-                          style={{ width: 32, height: 32, color: "#0EA5E9" }}
-                        />
-                        <span
-                          style={{
-                            fontSize: 14,
-                            fontWeight: 800,
-                            color: "#0EA5E9",
-                          }}
-                        >
-                          ENABLED
-                        </span>
-                      </>
-                    ) : (
-                      <>
-                        <ToggleLeft
-                          style={{ width: 32, height: 32, color: "var(--text-muted)" }}
-                        />
-                        <span
-                          style={{
-                            fontSize: 14,
-                            fontWeight: 800,
-                            color: "var(--text-muted)",
-                          }}
-                        >
-                          DISABLED
-                        </span>
-                      </>
-                    )}
-                  </button>
-                </div>
-
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: 14,
-                      fontWeight: 700,
-                      color: "var(--text-secondary)",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.05em",
-                      marginBottom: 8,
-                    }}
-                  >
-                    Features Checklist
-                  </label>
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "1fr 1fr",
-                      gap: 6,
-                      background: "rgba(249,115,22,0.03)",
-                      border: "1.5px solid rgba(249,115,22,0.1)",
-                      borderRadius: 12,
-                      padding: "10px 12px",
-                    }}
-                  >
-                    {AVAILABLE_FEATURES.map((f) => {
-                      const isChecked = editAllowedFeatures.includes(f.key);
-                      return (
-                        <button
-                          key={f.key}
-                          type="button"
-                          onClick={() => handleToggleFeature(f.key, true)}
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 8,
-                            padding: "7px 10px",
-                            borderRadius: 10,
-                            border: "none",
-                            background: isChecked
-                              ? "rgba(249,115,22,0.08)"
-                              : "rgba(255,255,255,0.8)",
-                            cursor: "pointer",
-                            textAlign: "left",
-                            fontFamily: "inherit",
-                            transition: "all 0.15s",
-                            boxShadow: isChecked
-                              ? "0 2px 8px rgba(249,115,22,0.15)"
-                              : "0 1px 3px rgba(0,0,0,0.04)",
-                          }}
-                        >
-                          <span
-                            style={{
-                              width: 14,
-                              height: 14,
-                              borderRadius: 4,
-                              background: isChecked
-                                ? "linear-gradient(135deg,#0EA5E9,#38BDF8)"
-                                : "white",
-                              border: `1.5px solid ${isChecked ? "transparent" : "rgba(0,0,0,0.12)"}`,
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              flexShrink: 0,
-                              transition: "all 0.15s",
-                              boxShadow: isChecked
-                                ? "0 2px 6px rgba(249,115,22,0.3)"
-                                : "none",
-                            }}
-                          >
-                            {isChecked && (
-                              <span
-                                style={{
-                                  color: "white",
-                                  fontSize: 9,
-                                  fontWeight: 900,
-                                }}
-                              >
-                                ✓
-                              </span>
-                            )}
-                          </span>
-                          <span
-                            style={{
-                              fontSize: 14,
-                              fontWeight: 700,
-                              color: isChecked ? "#1E293B" : "#64748B",
-                            }}
-                          >
-                            {f.key}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div
-                  className="modal-footer"
-                  style={{
-                    display: "flex",
-                    gap: 10,
-                    padding: "14px 0 0",
-                    borderTop: "1px solid #F1F5F9",
-                    background: "transparent",
-                  }}
-                >
-                  <button
-                    type="submit"
-                    className="btn-primary"
-                    style={{
-                      flex: 1,
-                      justifyContent: "center",
-                      padding: "12px",
-                      background: "linear-gradient(135deg, #0EA5E9, #38BDF8)",
-                    }}
-                  >
-                    Save Changes
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setEditingStaff(null)}
-                    className="btn-ghost"
-                    style={{ padding: "12px 20px" }}
-                  >
-                    Cancel
+                )}
+                <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                  <button type="button" onClick={() => setShowStaffModal(false)} style={{ flex: 1, padding: 10, borderRadius: 8, border: '1px solid var(--card-border)', background: 'var(--card-bg)', fontSize: 13, cursor: 'pointer' }}>Cancel</button>
+                  <button type="submit" disabled={loading} style={{ flex: 2, padding: 10, border: 'none', background: '#0EA5E9', color: '#FFFFFF', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                    {loading ? 'Processing…' : 'Save Employee Account'}
                   </button>
                 </div>
               </form>
@@ -3150,6 +1117,154 @@ export default function SettingsClient({
           </div>
         </div>
       )}
+
+      {/* ── MAP MODAL ── */}
+      {showMapModal && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 400, background: 'rgba(15,23,42,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div style={{ width: '100%', maxWidth: 720, background: 'var(--card-bg)', borderRadius: 16, border: '1px solid var(--card-border)', display: 'flex', flexDirection: 'column', maxHeight: '92vh', overflow: 'hidden', boxShadow: '0 32px 64px rgba(0,0,0,0.3)' }}>
+            <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--card-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--table-header-bg)', flexShrink: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <MapPin style={{ width: 16, height: 16, color: '#0EA5E9' }} />
+                <span style={{ fontSize: 15, fontWeight: 800 }}>Set Warehouse Location from Map</span>
+              </div>
+              <button onClick={() => { setShowMapModal(false); setMapSearchResults([]); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4 }}>
+                <X style={{ width: 18, height: 18 }} />
+              </button>
+            </div>
+
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--card-border)', background: 'var(--card-bg)', flexShrink: 0 }}>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, background: 'var(--table-header-bg)', border: '1px solid var(--card-border)', borderRadius: 8, padding: '8px 12px' }}>
+                  <Search style={{ width: 14, height: 14, color: 'var(--text-muted)', flexShrink: 0 }} />
+                  <input
+                    type="text"
+                    placeholder="Search for a warehouse, place, or address..."
+                    value={mapSearchQuery}
+                    onChange={(e) => setMapSearchQuery(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleMapSearch()}
+                    style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%', fontSize: 13, color: 'var(--text-primary)' }}
+                  />
+                </div>
+                <button onClick={handleMapSearch} disabled={mapSearchLoading} style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: '#0EA5E9', color: 'white', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
+                  {mapSearchLoading ? '...' : 'Search'}
+                </button>
+              </div>
+              {mapSearchResults.length > 0 && (
+                <div style={{ marginTop: 6, background: 'var(--card-bg)', border: '1px solid var(--card-border)', borderRadius: 8, overflow: 'hidden', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
+                  {mapSearchResults.map((r, i) => (
+                    <button key={i} onClick={() => handleSelectMapResult(r)}
+                      style={{ width: '100%', textAlign: 'left', padding: '10px 14px', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 13, color: 'var(--text-primary)', borderBottom: i < mapSearchResults.length - 1 ? '1px solid var(--card-border)' : 'none' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'var(--table-header-bg)')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                      <div style={{ fontWeight: 600 }}>{r.display_name.split(',')[0]}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{r.display_name}</div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div ref={mapContainerRef} style={{ flex: 1, minHeight: 360, background: '#E5E7EB' }}>
+              {!leafletLoaded && (
+                <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 14 }}>
+                  Loading map...
+                </div>
+              )}
+            </div>
+
+            <div style={{ padding: '12px 20px', borderTop: '1px solid var(--card-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, background: 'var(--table-header-bg)', gap: 12, flexWrap: 'wrap' }}>
+              <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                📍 Click on map or drag marker to set location.{mapPickedLat !== null && <span style={{ marginLeft: 8, fontFamily: 'monospace', fontWeight: 600, color: 'var(--text-primary)' }}>{mapPickedLat?.toFixed(5)}, {mapPickedLng?.toFixed(5)}</span>}
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={() => { setShowMapModal(false); setMapSearchResults([]); }} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--card-border)', background: 'var(--card-bg)', color: 'var(--text-secondary)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                  Cancel
+                </button>
+                <button onClick={handleConfirmMapLocation} style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: '#10B981', color: 'white', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                  Confirm Location
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── DOCUMENT VIEWER MODAL ── */}
+      {showDocViewer && registrationImages.length > 0 && (
+        <div onClick={() => { if (!docZoomed) setShowDocViewer(false); }} style={{ position: 'fixed', inset: 0, zIndex: 500, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 680, background: 'var(--card-bg)', borderRadius: 16, border: '1px solid var(--card-border)', display: 'flex', flexDirection: 'column', maxHeight: '94vh', overflow: 'hidden', boxShadow: '0 32px 64px rgba(0,0,0,0.5)' }}>
+            <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--card-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--table-header-bg)', flexShrink: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <FileImage style={{ width: 16, height: 16, color: '#0EA5E9' }} />
+                <span style={{ fontSize: 14, fontWeight: 800 }}>Registration & License Documents</span>
+                <span style={{ fontSize: 11, background: '#EFF6FF', border: '1px solid #BFDBFE', color: '#1D4ED8', padding: '2px 8px', borderRadius: 10, fontWeight: 700 }}>
+                  {docViewerIndex + 1} / {registrationImages.length}
+                </span>
+              </div>
+              <button onClick={() => setShowDocViewer(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4 }}>
+                <X style={{ width: 18, height: 18 }} />
+              </button>
+            </div>
+
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0F172A', position: 'relative', minHeight: 320 }}>
+              <img
+                src={registrationImages[docViewerIndex]}
+                alt={`Document ${docViewerIndex + 1}`}
+                onClick={() => setDocZoomed(!docZoomed)}
+                style={{
+                  maxWidth: docZoomed ? '100%' : '90%',
+                  maxHeight: docZoomed ? 'none' : 420,
+                  objectFit: 'contain',
+                  cursor: 'zoom-in',
+                  borderRadius: docZoomed ? 0 : 8,
+                  transition: 'all 0.2s',
+                }}
+              />
+              {docViewerIndex > 0 && (
+                <button onClick={() => setDocViewerIndex(i => i - 1)}
+                  style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '50%', width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'white' }}>
+                  <ChevronLeft style={{ width: 20, height: 20 }} />
+                </button>
+              )}
+              {docViewerIndex < registrationImages.length - 1 && (
+                <button onClick={() => setDocViewerIndex(i => i + 1)}
+                  style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '50%', width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'white' }}>
+                  <ChevronRight style={{ width: 20, height: 20 }} />
+                </button>
+              )}
+              <div style={{ position: 'absolute', bottom: 10, right: 12, background: 'rgba(0,0,0,0.5)', borderRadius: 6, padding: '4px 8px', color: 'rgba(255,255,255,0.6)', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>
+                <ZoomIn style={{ width: 11, height: 11 }} /> Click image to zoom
+              </div>
+            </div>
+
+            <div style={{ padding: '12px 16px', borderTop: '1px solid var(--card-border)', display: 'flex', gap: 8, overflowX: 'auto', background: 'var(--table-header-bg)', flexShrink: 0 }}>
+              {registrationImages.map((src, idx) => (
+                <div key={idx} onClick={() => setDocViewerIndex(idx)}
+                  style={{ width: 56, height: 56, borderRadius: 7, overflow: 'hidden', border: `2px solid ${idx === docViewerIndex ? '#0EA5E9' : 'var(--card-border)'}`, flexShrink: 0, cursor: 'pointer', opacity: idx === docViewerIndex ? 1 : 0.6, transition: 'all 0.15s', position: 'relative' }}>
+                  <img src={src} alt={`Thumb ${idx + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                </div>
+              ))}
+            </div>
+
+            <div style={{ padding: '10px 16px', borderTop: '1px solid var(--card-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Document {docViewerIndex + 1} of {registrationImages.length}</span>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <a href={registrationImages[docViewerIndex]} target="_blank" rel="noopener noreferrer"
+                  style={{ ...btnStyle, background: '#0EA5E9', fontSize: 12, padding: '7px 14px', textDecoration: 'none' }}>
+                  <Eye style={{ width: 13, height: 13 }} /> Open Full Size
+                </a>
+                {!fieldsLocked && isOwner && (
+                  <button onClick={() => { setRegistrationImages(prev => prev.filter((_, i) => i !== docViewerIndex)); setDocViewerIndex(i => Math.min(i, registrationImages.length - 2)); }}
+                    style={{ ...btnStyle, background: '#EF4444', fontSize: 12, padding: '7px 14px' }}>
+                    <Trash2 style={{ width: 13, height: 13 }} /> Remove
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

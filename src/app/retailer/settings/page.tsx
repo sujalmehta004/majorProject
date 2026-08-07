@@ -94,6 +94,8 @@ export default async function RetailerSettingsPage() {
         role: user.role,
         fullName: dbUser.fullName || user.email.split('@')[0],
         allowedFeatures: dbUser.allowedFeatures,
+        isVerified: dbUser.isVerified,
+        verificationStatus: dbUser.verificationStatus,
       }}
       profile={{
         id: profile.id,
@@ -106,6 +108,11 @@ export default async function RetailerSettingsPage() {
         subscriptionEnd={ownerUser?.subscriptionEnd ? ownerUser.subscriptionEnd.toISOString() : ''}
         initialLogs={serializedLogs}
         initialStaff={serializedStaff}
+        registrationData={{
+          verificationStatus: dbUser.verificationStatus || 'PENDING',
+          verificationRejectReason: dbUser.verificationRejectReason || null,
+          registrationImagesJson: dbUser.registrationImagesJson || '[]',
+        }}
       />
     </RetailerLayout>
   );

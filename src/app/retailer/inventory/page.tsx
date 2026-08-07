@@ -41,11 +41,28 @@ export default async function RetailerInventoryPage() {
     redirect('/subscription-expired');
   }
 
-  // Fetch all products created by this retailer (for manual entry selection)
-  const allProducts = await db.product.findMany({
+  // Fetch all products in this retailer's inventory (products may belong to wholesalers)
+  const inventoryItems = await db.retailerInventory.findMany({
+    where: { retailerId: profile.id },
+    include: { product: true },
+  });
+  const productMap = new Map<string, any>();
+  for (const item of inventoryItems) {
+    if (item.product && !productMap.has(item.product.id)) {
+      productMap.set(item.product.id, item.product);
+    }
+  }
+  // Also include retailer-owned products not yet in inventory
+  const ownProducts = await db.product.findMany({
     where: { retailerId: profile.id },
     orderBy: { name: 'asc' },
   });
+  for (const p of ownProducts) {
+    if (!productMap.has(p.id)) productMap.set(p.id, p);
+  }
+  const allProducts = Array.from(productMap.values()).sort((a: any, b: any) =>
+    a.name.localeCompare(b.name)
+  );
 
   const serializedProducts = JSON.parse(JSON.stringify(allProducts));
 
@@ -57,6 +74,8 @@ export default async function RetailerInventoryPage() {
         role: user.role,
         fullName: dbUser.fullName || user.email.split('@')[0],
         allowedFeatures: dbUser.allowedFeatures,
+        isVerified: dbUser.isVerified,
+        verificationStatus: dbUser.verificationStatus,
       }}
       profile={{
         id: profile.id,

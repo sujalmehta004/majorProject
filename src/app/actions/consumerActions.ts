@@ -48,6 +48,12 @@ function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: numbe
 export async function fetchRetailersWithDistanceAction(buyerLat: number, buyerLng: number) {
   try {
     const retailers = await db.retailerProfile.findMany({
+      where: {
+        user: {
+          isVerified: true,
+          verificationStatus: 'VERIFIED',
+        },
+      },
       select: {
         id: true,
         pharmacyName: true,
@@ -102,16 +108,7 @@ export async function searchMedicinesExpandedAction(query: string, buyerLat: num
           }
         },
         include: {
-          product: {
-            select: {
-              id: true,
-              name: true,
-              sku: true,
-              category: true,
-              tabletsPerStrip: true,
-              stripsPerBox: true,
-            }
-          },
+          product: true,
           retailer: true,
         },
       });
@@ -164,6 +161,8 @@ export async function placeConsumerOrderAction(data: {
   latitude?: number;
   longitude?: number;
   deliveryFee?: number;
+  prescriptionImages?: string[];
+  doctorNmcNumber?: string;
   items: { productId: string; quantity: number; pricePerUnit: number }[];
 }) {
   try {
@@ -194,6 +193,8 @@ export async function placeConsumerOrderAction(data: {
       }
     }
 
+    const hasPrescriptions = Array.isArray(data.prescriptionImages) && data.prescriptionImages.length > 0;
+
     const order = await db.consumerOrder.create({
       data: {
         trackingCode,
@@ -206,6 +207,9 @@ export async function placeConsumerOrderAction(data: {
         longitude: data.longitude || null,
         paymentMethod: 'COD',
         status: 'PENDING',
+        prescriptionImagesJson: hasPrescriptions ? JSON.stringify(data.prescriptionImages) : '[]',
+        prescriptionStatus: hasPrescriptions ? 'PENDING' : 'NOT_REQUIRED',
+        doctorNmcNumber: data.doctorNmcNumber || null,
         totalAmount: grandTotal,
         deliveryFee,
         items: {
@@ -435,6 +439,76 @@ export async function getDeliveryFeeSettingsAction(retailerId: string) {
       select: { deliveryFeesJson: true },
     });
     return { success: true, deliveryFeesJson: profile?.deliveryFeesJson || '[]' };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+/** Update prescription status for a consumer order (APPROVE / REJECT) */
+export async function updateConsumerOrderPrescriptionStatusAction(
+  orderId: string,
+  prescriptionStatus: 'APPROVED' | 'REJECTED',
+  rejectReason?: string
+) {
+  try {
+    const order = await db.consumerOrder.update({
+      where: { id: orderId },
+      data: {
+        prescriptionStatus,
+        prescriptionRejectReason: rejectReason || null,
+      },
+      include: {
+        retailer: true,
+        items: {
+          include: {
+            product: true,
+          },
+        },
+      },
+    });
+
+    return { success: true, order };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+/** Re-upload prescription images for a rejected consumer order */
+export async function reuploadConsumerOrderPrescriptionAction(
+  trackingCode: string,
+  newPrescriptionImages: string[]
+) {
+  try {
+    const existing = await db.consumerOrder.findUnique({
+      where: { trackingCode: trackingCode.trim().toUpperCase() },
+    });
+
+    if (!existing) {
+      return { success: false, error: 'Order not found.' };
+    }
+
+    if (existing.prescriptionStatus !== 'REJECTED') {
+      return { success: false, error: 'Prescription is not rejected for this order.' };
+    }
+
+    const order = await db.consumerOrder.update({
+      where: { id: existing.id },
+      data: {
+        oldPrescriptionImagesJson: existing.prescriptionImagesJson, // Archive previous rejected images
+        prescriptionImagesJson: JSON.stringify(newPrescriptionImages), // Set new uploaded images
+        prescriptionStatus: 'PENDING', // Reset status to PENDING review
+      },
+      include: {
+        retailer: true,
+        items: {
+          include: {
+            product: true,
+          },
+        },
+      },
+    });
+
+    return { success: true, order };
   } catch (error: any) {
     return { success: false, error: error.message };
   }

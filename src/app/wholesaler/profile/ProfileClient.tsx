@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { formatDateNPT, formatTimeNPT, formatDateTimeNPT } from '@/lib/timezone';
 import { 
   User, Building, FileText, Phone, MapPin, Calendar, 
   CheckCircle, AlertCircle, RefreshCw, Key, ShieldAlert, Navigation, Plus, Trash
@@ -512,7 +513,7 @@ export default function ProfileClient({ userRole, initialProfile, subscriptionEn
               <div className="flex justify-between">
                 <span className="text-zinc-450">Expiration Date:</span>
                 <span className="text-zinc-800 font-mono font-bold">
-                  {subscriptionEnd ? new Date(subscriptionEnd).toLocaleDateString() : 'N/A'}
+                  {subscriptionEnd ? formatDateNPT(subscriptionEnd) : 'N/A'}
                 </span>
               </div>
               <div className="flex justify-between">

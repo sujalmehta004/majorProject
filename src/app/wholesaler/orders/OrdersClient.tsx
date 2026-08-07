@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import ReactDOM from 'react-dom';
+import { formatDateNPT, formatTimeNPT, formatDateTimeNPT } from '@/lib/timezone';
 import { 
   Truck, Database, Package, ShoppingCart, User, Clock, 
   CreditCard, ShieldAlert, CheckCircle, AlertCircle, Trash2, ArrowRight, Barcode, 
@@ -122,6 +124,15 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
 
   // Order detail modal (click order ID)
   const [detailOrder, setDetailOrder] = useState<Order | null>(null);
+
+  const [locationMapData, setLocationMapData] = useState<{
+    title: string;
+    subtitle: string;
+    phone?: string;
+    address?: string;
+    lat: number;
+    lng: number;
+  } | null>(null);
 
   // Drawer / details modal for customer profile & history
   const [selectedCustomerHistory, setSelectedCustomerHistory] = useState<Retailer | null>(null);
@@ -400,7 +411,7 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
       setSuccessMsg(`Order ${orderId.substring(0, 8)} dispatched for transport.`);
       const orderObj = orders.find(o => o.id === orderId);
       const retailerText = orderObj ? ` for Customer: ${orderObj.retailer.pharmacyName}` : '';
-      logActivity('DISPATCH_SHIPMENT', `Dispatched sales order shipment: ORD-${orderId.substring(0, 8).toUpperCase()}${retailerText} [Time: ${new Date().toLocaleTimeString()}]`);
+      logActivity('DISPATCH_SHIPMENT', `Dispatched sales order shipment: ORD-${orderId.substring(0, 8).toUpperCase()}${retailerText} [Time: ${formatTimeNPT(new Date())}]`);
       fetchOrdersAndProducts();
     } catch (err: any) {
       setError(err.message || 'Failed to dispatch order.');
@@ -481,7 +492,7 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
     setSuccessMsg(`Payment recorded. Rs. ${inputPaid.toLocaleString()} paid for Order ${orderId.substring(0, 8)}.`);
     const orderObj = orders.find(o => o.id === orderId);
     const retailerName = orderObj ? orderObj.retailer.pharmacyName : 'Walk-in';
-    logActivity('SETTLE_PAYMENT', `Recorded payment of Rs.${inputPaid.toLocaleString()} for Order ORD-${orderId.substring(0, 8).toUpperCase()} (Customer: ${retailerName}). Settle Time: ${new Date().toLocaleTimeString()}`);
+    logActivity('SETTLE_PAYMENT', `Recorded payment of Rs.${inputPaid.toLocaleString()} for Order ORD-${orderId.substring(0, 8).toUpperCase()} (Customer: ${retailerName}). Settle Time: ${formatTimeNPT(new Date())}`);
     setTimeout(() => setSuccessMsg(''), 3000);
   };
 
@@ -767,7 +778,7 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
                               style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'monospace', fontWeight: 800, color: '#0EA5E9', fontSize: 11, padding: 0, textDecoration: 'underline dotted' }}>
                               ORD-{order.id.substring(0, 8).toUpperCase()}
                             </button>
-                            <span style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'monospace', display: 'block', marginTop: 2 }}>{new Date(order.createdAt).toLocaleString()}</span>
+                            <span style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'monospace', display: 'block', marginTop: 2 }}>{formatDateTimeNPT(order.createdAt)}</span>
                           </td>
                           <td>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -776,13 +787,35 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
                             </div>
                           </td>
                           <td onClick={(e) => e.stopPropagation()}>
-                            <a 
-                              href={`https://www.google.com/maps?q=${order.retailer.latitude || 27.7172},${order.retailer.longitude || 85.3240}`}
-                              target="_blank" rel="noopener noreferrer"
-                              style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#0EA5E9', fontWeight: 600 }}
-                            >
-                              <MapPin style={{ width: 12, height: 12 }} /> Map
-                            </a>
+                            {order.retailer.latitude && order.retailer.longitude ? (
+                              <button
+                                onClick={() => setLocationMapData({
+                                  title: order.retailer.pharmacyName,
+                                  subtitle: `Reg: ${order.retailer.registrationNumber || 'N/A'}`,
+                                  phone: order.retailer.phone,
+                                  address: order.retailer.address,
+                                  lat: order.retailer.latitude ?? 27.7172,
+                                  lng: order.retailer.longitude ?? 85.3240,
+                                })}
+                                style={{
+                                  padding: '4px 10px',
+                                  borderRadius: 6,
+                                  border: '1px solid #0EA5E9',
+                                  background: '#F0F9FF',
+                                  color: '#0284C7',
+                                  fontSize: 11,
+                                  fontWeight: 800,
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 4,
+                                }}
+                              >
+                                📍 See Location
+                              </button>
+                            ) : (
+                              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>— GPS N/A</span>
+                            )}
                           </td>
                           <td style={{ maxWidth: 160 }}>
                             {order.items.map((item) => (
@@ -872,7 +905,7 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
                               style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'monospace', fontWeight: 800, color: '#0EA5E9', fontSize: 11, padding: 0, textDecoration: 'underline dotted' }}>
                               ORD-{order.id.substring(0, 8).toUpperCase()}
                             </button>
-                            <span style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'monospace', display: 'block', marginTop: 2 }}>{new Date(order.createdAt).toLocaleString()}</span>
+                            <span style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'monospace', display: 'block', marginTop: 2 }}>{formatDateTimeNPT(order.createdAt)}</span>
                           </td>
                           <td>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -882,13 +915,35 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
                             <span style={{ fontSize: 9, color: 'var(--text-secondary)', display: 'block' }}>Reg: {order.retailer.registrationNumber}</span>
                           </td>
                           <td onClick={(e) => e.stopPropagation()}>
-                            <a 
-                              href={`https://www.google.com/maps?q=${order.retailer.latitude || 27.7172},${order.retailer.longitude || 85.3240}`}
-                              target="_blank" rel="noopener noreferrer"
-                              style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#0EA5E9', fontWeight: 600 }}
-                            >
-                              <MapPin style={{ width: 12, height: 12 }} /> Map
-                            </a>
+                            {order.retailer.latitude && order.retailer.longitude ? (
+                              <button
+                                onClick={() => setLocationMapData({
+                                  title: order.retailer.pharmacyName,
+                                  subtitle: `Reg: ${order.retailer.registrationNumber || 'N/A'}`,
+                                  phone: order.retailer.phone,
+                                  address: order.retailer.address,
+                                  lat: order.retailer.latitude ?? 27.7172,
+                                  lng: order.retailer.longitude ?? 85.3240,
+                                })}
+                                style={{
+                                  padding: '4px 10px',
+                                  borderRadius: 6,
+                                  border: '1px solid #0EA5E9',
+                                  background: '#F0F9FF',
+                                  color: '#0284C7',
+                                  fontSize: 11,
+                                  fontWeight: 800,
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 4,
+                                }}
+                              >
+                                📍 See Location
+                              </button>
+                            ) : (
+                              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>— GPS N/A</span>
+                            )}
                           </td>
                           <td>
                             {order.items.map((item) => (
@@ -1121,7 +1176,7 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
                                           const remaining = b.availableBaseUnits % tabletsPerBox;
                                           const st = Math.floor(remaining / p.tabletsPerStrip);
                                           const tb = remaining % p.tabletsPerStrip;
-                                          const expStr = new Date(b.expiryDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+                                          const expStr = formatDateNPT(b.expiryDate, { month: 'short', year: 'numeric' });
                                           return (
                                             <span key={b.id} style={{ fontSize: 9, color: 'var(--text-secondary)' }}>
                                               Batch: <strong>{b.batchNumber}</strong> | Stock: {bx} Bx, {st} St, {tb} Tb | Exp: {expStr}
@@ -1172,7 +1227,7 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
                               const rem = b.availableBaseUnits % tbx;
                               const st = Math.floor(rem / prodObj.tabletsPerStrip);
                               const tb = rem % prodObj.tabletsPerStrip;
-                              const expStr = new Date(b.expiryDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+                              const expStr = formatDateNPT(b.expiryDate, { month: 'short', year: 'numeric' });
                               const isRecommended = b.id === recommendedBatchId;
                               const isSelected = (selectedBatchIdForOrder || recommendedBatchId) === b.id;
                               const isOutOfStock = b.availableBaseUnits === 0;
@@ -1372,7 +1427,7 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
                   <Package style={{ width: 18, height: 18, color: '#0EA5E9' }} />
                   Order: ORD-{detailOrder.id.substring(0, 12).toUpperCase()}
                 </h3>
-                <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>{detailOrder.retailer.pharmacyName} · {new Date(detailOrder.createdAt).toLocaleString()}</p>
+                <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>{detailOrder.retailer.pharmacyName} · {formatDateTimeNPT(detailOrder.createdAt)}</p>
               </div>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 <span style={{ ...statusStyles[detailOrder.status] && { background: statusStyles[detailOrder.status].bg, color: statusStyles[detailOrder.status].color, border: `1px solid ${statusStyles[detailOrder.status].border}` }, fontSize: 9, fontWeight: 800, padding: '3px 10px', borderRadius: 20, textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: 'monospace' }}>{detailOrder.status}</span>
@@ -1787,7 +1842,7 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
               </div>
               <div style={{ marginBottom: 12 }}>
                 <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Dispatch Date</div>
-                <div>{new Date(printPreviewOrder.createdAt).toLocaleDateString()}</div>
+                <div>{formatDateNPT(printPreviewOrder.createdAt)}</div>
               </div>
 
               {/* Barcode section */}
@@ -1860,7 +1915,7 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
                         </div>
                         <div style="margin-bottom: 12px; font-family: monospace;">
                           <div style="font-size: 9px; font-weight: 700; text-transform: uppercase; color: #64748B;">Dispatch Date</div>
-                          <div>${new Date(printPreviewOrder.createdAt).toLocaleDateString()}</div>
+                          <div>${formatDateNPT(printPreviewOrder.createdAt)}</div>
                         </div>
 
                         <div style="display: flex; flex-direction: column; align-items: center; margin: 14px 0; gap: 6px; font-family: monospace;">
@@ -1941,6 +1996,87 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
             </div>
           </div>
         </div>
+      )}
+
+      {/* Location Map Modal — rendered via portal so it always centers on viewport */}
+      {locationMapData && typeof document !== 'undefined' && ReactDOM.createPortal(
+        <div
+          onClick={() => setLocationMapData(null)}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            width: '100vw',
+            height: '100vh',
+            background: 'rgba(15,23,42,0.65)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 99999,
+            padding: 20,
+            boxSizing: 'border-box',
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: 'var(--card-bg, #FFFFFF)',
+              color: 'var(--text-primary, #0F172A)',
+              borderRadius: 16,
+              width: '100%',
+              maxWidth: 680,
+              display: 'flex',
+              flexDirection: 'column',
+              height: '70vh',
+              overflow: 'hidden',
+              boxShadow: '0 25px 60px rgba(0,0,0,0.3)',
+              border: '1px solid var(--card-border, #CBD5E1)',
+            }}
+          >
+            
+            {/* Modal Header */}
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--card-border, #E2E8F0)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--table-header-bg, #F8FAFC)' }}>
+              <div>
+                <div style={{ fontWeight: 900, fontSize: 16, color: 'var(--text-primary, #0F172A)' }}>📍 Retailer Location Map — {locationMapData.title}</div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted, #64748B)', marginTop: 2 }}>{locationMapData.subtitle} {locationMapData.phone ? `· Phone: ${locationMapData.phone}` : ''}</div>
+              </div>
+              <button onClick={() => setLocationMapData(null)} style={{ border: 'none', background: 'none', cursor: 'pointer', padding: 4, color: 'var(--text-muted, #64748B)' }}>✕</button>
+            </div>
+
+            {/* Map Container */}
+            <div style={{ flex: 1, width: '100%' }}>
+              <iframe
+                title="Retailer Location Map"
+                width="100%"
+                height="100%"
+                style={{ border: 0 }}
+                loading="lazy"
+                allowFullScreen
+                src={`https://maps.google.com/maps?q=${locationMapData.lat},${locationMapData.lng}&z=15&output=embed`}
+              />
+            </div>
+
+            {/* Footer */}
+            <div style={{ padding: '14px 20px', borderTop: '1px solid var(--card-border, #E2E8F0)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--table-header-bg, #F8FAFC)' }}>
+              <div style={{ fontSize: 12, color: 'var(--text-secondary, #475569)', fontFamily: 'monospace' }}>
+                GPS: {locationMapData.lat.toFixed(5)}, {locationMapData.lng.toFixed(5)} {locationMapData.address ? `| ${locationMapData.address}` : ''}
+              </div>
+              <a
+                href={`https://www.google.com/maps?q=${locationMapData.lat},${locationMapData.lng}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ fontSize: 12, fontWeight: 700, color: '#0EA5E9', textDecoration: 'none' }}
+              >
+                Open Google Maps ↗
+              </a>
+            </div>
+
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );

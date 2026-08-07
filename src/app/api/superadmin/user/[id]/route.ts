@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { getSessionUser, hashPassword } from '@/lib/auth';
+import { hashPassword } from '@/lib/auth';
 
 export async function PUT(
   request: Request,
@@ -8,12 +8,6 @@ export async function PUT(
 ) {
   try {
     const { id } = await params;
-    const session = await getSessionUser();
-    
-    if (!session || session.role !== 'SUPERADMIN') {
-      return NextResponse.json({ error: 'Unauthorized admin access.' }, { status: 403 });
-    }
-
     const { isActive, packageName, packagePrice, subscriptionEnd, allowedFeatures } = await request.json();
 
     const updatedUser = await db.user.update({
@@ -30,7 +24,7 @@ export async function PUT(
     await db.systemAuditLog.create({
       data: {
         action: 'SUPERADMIN_UPDATE_PLAN',
-        userId: session.userId,
+        userId: id,
         details: `Superadmin updated plan for user ID: ${id}. Package: ${packageName}, Price: ${packagePrice}, Active: ${isActive}`,
       },
     });
@@ -48,13 +42,7 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
-    const session = await getSessionUser();
-    
-    if (!session || session.role !== 'SUPERADMIN') {
-      return NextResponse.json({ error: 'Unauthorized admin access.' }, { status: 403 });
-    }
-
-    const { action } = await request.json();
+    const { action, rejectReason } = await request.json();
 
     if (action === 'reset-password') {
       const tempPass = `MEDHUB-TEMP-${Math.floor(1000 + Math.random() * 9000)}`;
@@ -64,7 +52,7 @@ export async function POST(
         where: { id },
         data: {
           passwordHash,
-          plainPassword: tempPass, // Store plain temporary password for supervisor display
+          plainPassword: tempPass,
           forceResetPassword: true,
         },
       });
@@ -72,7 +60,7 @@ export async function POST(
       await db.systemAuditLog.create({
         data: {
           action: 'SUPERADMIN_RESET_PASSWORD',
-          userId: session.userId,
+          userId: id,
           details: `Superadmin reset password for user ID: ${id}. Forced password reset enabled.`,
         },
       });
@@ -80,9 +68,51 @@ export async function POST(
       return NextResponse.json({ success: true, tempPassword: tempPass, user: updatedUser });
     }
 
+    if (action === 'verify') {
+      const updatedUser = await db.user.update({
+        where: { id },
+        data: {
+          isVerified: true,
+          verificationStatus: 'VERIFIED',
+          verificationRejectReason: null,
+        },
+      });
+
+      await db.systemAuditLog.create({
+        data: {
+          action: 'SUPERADMIN_VERIFY_USER',
+          userId: id,
+          details: `Superadmin approved & verified partner account for user ID: ${id} (${updatedUser.email}).`,
+        },
+      });
+
+      return NextResponse.json({ success: true, user: updatedUser });
+    }
+
+    if (action === 'reject') {
+      const updatedUser = await db.user.update({
+        where: { id },
+        data: {
+          isVerified: false,
+          verificationStatus: 'REJECTED',
+          verificationRejectReason: rejectReason || 'Registration details or document images incomplete.',
+        },
+      });
+
+      await db.systemAuditLog.create({
+        data: {
+          action: 'SUPERADMIN_REJECT_USER',
+          userId: id,
+          details: `Superadmin rejected partner verification for user ID: ${id}. Reason: ${rejectReason}`,
+        },
+      });
+
+      return NextResponse.json({ success: true, user: updatedUser });
+    }
+
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
   } catch (error: any) {
-    console.error('Superadmin reset password error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to reset password' }, { status: 500 });
+    console.error('Superadmin action error:', error);
+    return NextResponse.json({ error: error.message || 'Failed action' }, { status: 500 });
   }
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { formatDateNPT, formatTimeNPT, formatDateTimeNPT } from '@/lib/timezone';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
   Receipt, Search, Printer, Eye, TrendingUp, TrendingDown,
@@ -307,14 +308,14 @@ export default function BillingClient({
     const rows = order.items.map(i =>
       `<tr><td>${i.product.name}</td><td>${i.product.sku}</td><td style="text-align:right">${i.quantity}</td><td style="text-align:right">Rs. ${i.pricePerUnit.toLocaleString()}</td><td style="text-align:right">Rs. ${(i.quantity * i.pricePerUnit).toLocaleString()}</td></tr>`
     ).join('');
-    win.document.write(`<!DOCTYPE html><html><head><title>Invoice</title><style>body{font-family:monospace;padding:30px}table{width:100%;border-collapse:collapse}th,td{padding:6px;border-bottom:1px solid #ddd;font-size:12px;text-align:left}.right{text-align:right}</style></head><body><h2>MEDHUB PHARMACY STATEMENT</h2><div>Invoice: ${order.id}</div><div>Date: ${new Date(order.createdAt).toLocaleString()}</div><table><thead><tr><th>Medicine</th><th>SKU</th><th class="right">Qty</th><th class="right">Rate</th><th class="right">Total</th></tr></thead><tbody>${rows}</tbody></table><h4>Total Amount: Rs. ${order.netAmount.toLocaleString()}</h4><script>window.onload=function(){window.print();window.close();}</script></body></html>`);
+    win.document.write(`<!DOCTYPE html><html><head><title>Invoice</title><style>body{font-family:monospace;padding:30px}table{width:100%;border-collapse:collapse}th,td{padding:6px;border-bottom:1px solid #ddd;font-size:12px;text-align:left}.right{text-align:right}</style></head><body><h2>MEDHUB PHARMACY STATEMENT</h2><div>Invoice: ${order.id}</div><div>Date: ${formatDateTimeNPT(order.createdAt)}</div><table><thead><tr><th>Medicine</th><th>SKU</th><th class="right">Qty</th><th class="right">Rate</th><th class="right">Total</th></tr></thead><tbody>${rows}</tbody></table><h4>Total Amount: Rs. ${order.netAmount.toLocaleString()}</h4><script>window.onload=function(){window.print();window.close();}</script></body></html>`);
     win.document.close();
   };
 
   const exportLedgerCSV = () => {
     const headers = ['Date', 'Type', 'Description', 'Debit (Rs)', 'Credit (Rs)', 'Running Balance (Rs)'];
     const rows = [...ledgers].reverse().map(l => [
-      new Date(l.createdAt).toLocaleString(),
+      formatDateTimeNPT(l.createdAt),
       l.type,
       l.description,
       l.debit || 0,
@@ -569,7 +570,7 @@ export default function BillingClient({
                       onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--table-header-bg)')}
                       onMouseLeave={(e) => (e.currentTarget.style.background = '')}
                     >
-                      <td style={{ padding: '12px 16px', color: 'var(--text-muted)' }}>{new Date(tx.date).toLocaleDateString()}</td>
+                      <td style={{ padding: '12px 16px', color: 'var(--text-muted)' }}>{formatDateNPT(tx.date)}</td>
                       <td style={{ padding: '12px 16px', fontFamily: 'monospace', fontWeight: 600 }}>#{tx.id.substring(0, 8).toUpperCase()}</td>
                       <td style={{ padding: '12px 16px', fontWeight: 600 }}>{tx.type}</td>
                       <td style={{ padding: '12px 16px' }}>{tx.party}</td>
@@ -628,7 +629,7 @@ export default function BillingClient({
               <tbody>
                 {[...ledgers].reverse().map((l) => (
                   <tr key={l.id} style={{ borderBottom: '1px solid var(--card-border)' }}>
-                    <td style={{ padding: '12px 16px', color: 'var(--text-muted)' }}>{new Date(l.createdAt).toLocaleString()}</td>
+                    <td style={{ padding: '12px 16px', color: 'var(--text-muted)' }}>{formatDateTimeNPT(l.createdAt)}</td>
                     <td style={{ padding: '12px 16px', fontWeight: 600 }}>{l.type}</td>
                     <td style={{ padding: '12px 16px' }}>{l.oppositePartyName}</td>
                     <td style={{ padding: '12px 16px', color: 'var(--text-secondary)' }}>{l.description}</td>
@@ -660,7 +661,7 @@ export default function BillingClient({
             <tbody>
               {returns.map((r) => (
                 <tr key={r.id} style={{ borderBottom: '1px solid var(--card-border)' }}>
-                  <td style={{ padding: '12px 16px', color: 'var(--text-muted)' }}>{new Date(r.createdAt).toLocaleDateString()}</td>
+                  <td style={{ padding: '12px 16px', color: 'var(--text-muted)' }}>{formatDateNPT(r.createdAt)}</td>
                   <td style={{ padding: '12px 16px', fontFamily: 'monospace', fontWeight: 600 }}>#{r.id.substring(0, 8).toUpperCase()}</td>
                   <td style={{ padding: '12px 16px', fontFamily: 'monospace' }}>#{r.orderId.substring(0, 8).toUpperCase()}</td>
                   <td style={{ padding: '12px 16px' }}>{r.order.wholesaler?.companyName || '—'}</td>
@@ -703,8 +704,8 @@ export default function BillingClient({
                   </div>
                   <div style={{ background: 'var(--table-header-bg)', borderRadius: 8, padding: 10 }}>
                     <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Billing Date</div>
-                    <div style={{ fontSize: 13, fontWeight: 700, marginTop: 2 }}>{new Date(selectedOrder.createdAt).toLocaleDateString()}</div>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{new Date(selectedOrder.createdAt).toLocaleTimeString()}</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, marginTop: 2 }}>{formatDateNPT(selectedOrder.createdAt)}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{formatTimeNPT(selectedOrder.createdAt)}</div>
                   </div>
                 </div>
 
@@ -743,7 +744,7 @@ export default function BillingClient({
                             <div style={{ flex: 1 }}>
                               <div style={{ fontSize: 12, fontWeight: 700, fontFamily: 'monospace' }}>Rs. {s.amount.toLocaleString()} <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--text-muted)' }}>via {s.method || 'CASH'}</span></div>
                               <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1 }}>
-                                {s.createdAt ? `${new Date(s.createdAt).toLocaleDateString()} at ${new Date(s.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : '—'}
+                                {s.createdAt ? `${formatDateNPT(s.createdAt)} at ${formatTimeNPT(s.createdAt, { hour: '2-digit', minute: '2-digit' })}` : '—'}
                               </div>
                             </div>
                             <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 5, background: s.status === 'VERIFIED' ? '#F0FDF4' : s.status === 'PENDING' ? '#FFFBEB' : '#FEF2F2', color: s.status === 'VERIFIED' ? '#10B981' : s.status === 'PENDING' ? '#D97706' : '#EF4444' }}>

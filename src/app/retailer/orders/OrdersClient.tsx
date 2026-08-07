@@ -1,16 +1,18 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import ReactDOM from 'react-dom';
+import { formatDateNPT, formatTimeNPT, formatDateTimeNPT } from '@/lib/timezone';
 import { useSearchParams } from 'next/navigation';
 import {
   Truck, Search, QrCode, CheckCircle,
   Eye, Trash2, Printer, X,
   Building, Square, CheckSquare,
   DollarSign, ChevronDown,
-  History, Store, Activity, Plus,
+  History, Store, Activity, Plus, ArrowUpDown,
 } from 'lucide-react';
 import { confirmB2BDeliveryAction } from '@/app/actions/retailerActions';
-import { updateConsumerOrderStatusAction, saveDeliveryFeeSettingsAction } from '@/app/actions/consumerActions';
+import { updateConsumerOrderStatusAction, saveDeliveryFeeSettingsAction, updateConsumerOrderPrescriptionStatusAction } from '@/app/actions/consumerActions';
 import { useRealtimeEvent, broadcastUpdate } from '@/lib/events';
 
 interface Batch {
@@ -124,6 +126,11 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
   const [historySearch, setHistorySearch] = useState('');
   const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
 
+  // Dedicated Online Sales Filters State
+  const [onlineSearch, setOnlineSearch] = useState('');
+  const [onlineStatusFilter, setOnlineStatusFilter] = useState('ALL');
+  const [onlineSortOrder, setOnlineSortOrder] = useState<'desc' | 'asc'>('desc');
+
   const [barcodeInput, setBarcodeInput] = useState('');
   const [barcodeLoading, setBarcodeLoading] = useState(false);
   const [barcodeMessage, setBarcodeMessage] = useState({ text: '', isError: false });
@@ -147,6 +154,45 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
 
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [selectedB2COrder, setSelectedB2COrder] = useState<any | null>(null);
+
+  const [locationMapData, setLocationMapData] = useState<{
+    title: string;
+    subtitle: string;
+    phone?: string;
+    address?: string;
+    lat: number;
+    lng: number;
+  } | null>(null);
+
+  const [prescriptionModalOrder, setPrescriptionModalOrder] = useState<any | null>(null);
+  const [rejectReasonInput, setRejectReasonInput] = useState('');
+  const [showRejectInput, setShowRejectInput] = useState(false);
+  const [updatingPrescription, setUpdatingPrescription] = useState(false);
+  const [zoomedImage, setZoomedImage] = useState<string | null>(null);
+
+  const handlePrescriptionAction = async (status: 'APPROVED' | 'REJECTED') => {
+    if (!prescriptionModalOrder) return;
+    if (status === 'REJECTED' && !showRejectInput) {
+      setShowRejectInput(true);
+      return;
+    }
+    setUpdatingPrescription(true);
+    const res = await updateConsumerOrderPrescriptionStatusAction(
+      prescriptionModalOrder.id,
+      status,
+      rejectReasonInput
+    );
+    setUpdatingPrescription(false);
+    if (res.success && res.order) {
+      setConsumerOrders(prev => prev.map(o => o.id === res.order.id ? { ...o, ...res.order } : o));
+      setPrescriptionModalOrder((prev: any) => prev ? { ...prev, ...res.order } : null);
+      setShowRejectInput(false);
+      setRejectReasonInput('');
+      broadcastUpdate('INVENTORY_UPDATE');
+    } else {
+      alert(res.error || 'Failed to update prescription status');
+    }
+  };
   const [intakeOrder, setIntakeOrder] = useState<any>(null);
   const [intakeCustomPrices, setIntakeCustomPrices] = useState<Record<string, { buyingPrice: number; sellingPrice: number }>>({});
   const [intakeSettleNow, setIntakeSettleNow] = useState(false);
@@ -399,11 +445,31 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
     return o.id.toLowerCase().includes(q) || o.wholesaler.companyName.toLowerCase().includes(q);
   });
 
-  const filteredConsumer = consumerOrders.filter(o => {
-    const matchSt = filterStatus === 'all' || o.status === filterStatus;
-    const matchSr = o.trackingCode.toLowerCase().includes(filterSearch.toLowerCase()) || o.buyerName.toLowerCase().includes(filterSearch.toLowerCase()) || o.buyerPhone.toLowerCase().includes(filterSearch.toLowerCase());
-    return matchSt && matchSr;
-  });
+  const filteredConsumer = useMemo(() => {
+    let result = [...consumerOrders];
+    if (onlineStatusFilter !== 'ALL') {
+      result = result.filter(o => o.status === onlineStatusFilter);
+    }
+    if (onlineSearch.trim()) {
+      const q = onlineSearch.toLowerCase().trim();
+      result = result.filter(o => {
+        return [
+          o.trackingCode,
+          o.buyerName,
+          o.buyerPhone,
+          o.buyerEmail,
+          o.deliveryAddress,
+          o.doctorNmcNumber,
+        ].some(v => v?.toLowerCase().includes(q));
+      });
+    }
+    result.sort((a, b) => {
+      const tA = new Date(a.createdAt).getTime();
+      const tB = new Date(b.createdAt).getTime();
+      return onlineSortOrder === 'desc' ? tB - tA : tA - tB;
+    });
+    return result;
+  }, [consumerOrders, onlineStatusFilter, onlineSearch, onlineSortOrder]);
 
   const cartTotal = cart.reduce((s, i) => s + i.qtyBoxes * i.pricePerBox, 0);
 
@@ -411,7 +477,7 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
     const win = window.open('', '_blank', 'width=800,height=600');
     if (!win) return;
     const rows = order.items.map(i => `<tr><td>${i.product.name}</td><td>${i.product.sku}</td><td style="text-align:right">${i.quantity}</td><td style="text-align:right">Rs.${i.pricePerUnit}</td><td style="text-align:right">Rs.${(i.quantity * i.pricePerUnit).toLocaleString()}</td></tr>`).join('');
-    win.document.write(`<!DOCTYPE html><html><head><title>Invoice</title><style>body{font-family:monospace;padding:20px}table{width:100%;border-collapse:collapse}th,td{padding:6px;border-bottom:1px solid #ddd;font-size:12px}</style></head><body><h2>MEDHUB PURCHASE ORDER</h2><p>ID: ${order.id}</p><p>Date: ${new Date(order.createdAt).toLocaleString()}</p><p>Supplier: ${order.wholesaler.companyName}</p><table><thead><tr><th>Medicine</th><th>SKU</th><th>Qty</th><th>Rate</th><th>Total</th></tr></thead><tbody>${rows}</tbody></table><h4>Net Payable: Rs. ${order.netAmount.toLocaleString()}</h4><script>window.onload=function(){window.print();window.close();}<\/script></body></html>`);
+    win.document.write(`<!DOCTYPE html><html><head><title>Invoice</title><style>body{font-family:monospace;padding:20px}table{width:100%;border-collapse:collapse}th,td{padding:6px;border-bottom:1px solid #ddd;font-size:12px}</style></head><body><h2>MEDHUB PURCHASE ORDER</h2><p>ID: ${order.id}</p><p>Date: ${formatDateTimeNPT(order.createdAt)}</p><p>Supplier: ${order.wholesaler.companyName}</p><table><thead><tr><th>Medicine</th><th>SKU</th><th>Qty</th><th>Rate</th><th>Total</th></tr></thead><tbody>${rows}</tbody></table><h4>Net Payable: Rs. ${order.netAmount.toLocaleString()}</h4><script>window.onload=function(){window.print();window.close();}<\/script></body></html>`);
     win.document.close();
   };
 
@@ -552,7 +618,7 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
                             <td style={{ padding: '12px 16px', color: 'var(--text-secondary)' }}>{order.items.length} item{order.items.length !== 1 ? 's' : ''}</td>
                             <td style={{ padding: '12px 16px', fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'monospace', textAlign: 'right' }}>Rs.&nbsp;{order.netAmount.toLocaleString()}</td>
                             <td style={{ padding: '12px 16px' }}><StatusBadge status={order.status} /></td>
-                            <td style={{ padding: '12px 16px', color: 'var(--text-muted)', fontSize: 12 }}>{new Date(order.createdAt).toLocaleDateString()}</td>
+                            <td style={{ padding: '12px 16px', color: 'var(--text-muted)', fontSize: 12 }}>{formatDateNPT(order.createdAt)}</td>
                             <td style={{ padding: '12px 16px', textAlign: 'center' }} onClick={e => e.stopPropagation()}>
                               <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
                                 {order.status === 'DISPATCHED' && (
@@ -950,9 +1016,70 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
               </div>
 
               <div style={{ background: 'var(--card-bg)', borderRadius: 8, border: '1px solid var(--card-border)', overflow: 'hidden' }}>
-                <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--card-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>Online Orders Registry</span>
-                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{filteredConsumer.length} orders</span>
+                {/* Online Orders Filter Controls Bar */}
+                <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--card-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, background: 'var(--table-header-bg)' }}>
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)' }}>Online Consumer Orders Registry</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Showing {filteredConsumer.length} of {consumerOrders.length} orders</div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                    {/* Search Input */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--card-bg)', border: '1px solid var(--card-border)', padding: '6px 10px', borderRadius: 8 }}>
+                      <Search style={{ width: 13, height: 13, color: 'var(--text-muted)' }} />
+                      <input
+                        type="text"
+                        placeholder="Search patient, tracking #, NMC..."
+                        value={onlineSearch}
+                        onChange={e => setOnlineSearch(e.target.value)}
+                        style={{ border: 'none', outline: 'none', fontSize: 13, width: 190, background: 'transparent', color: 'var(--text-primary)' }}
+                      />
+                      {onlineSearch && (
+                        <button type="button" onClick={() => setOnlineSearch('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0 }}>
+                          <X style={{ width: 12, height: 12 }} />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Sort Order Toggle */}
+                    <button
+                      type="button"
+                      onClick={() => setOnlineSortOrder(o => o === 'desc' ? 'asc' : 'desc')}
+                      style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid var(--card-border)', background: 'var(--card-bg)', color: 'var(--text-primary)', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                    >
+                      <ArrowUpDown style={{ width: 12, height: 12 }} />
+                      Time: {onlineSortOrder === 'desc' ? 'Newest' : 'Oldest'}
+                    </button>
+
+                    {/* Status Pill Filters */}
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      {[
+                        { key: 'ALL', label: 'All' },
+                        { key: 'PENDING', label: 'Pending' },
+                        { key: 'SHIPPED', label: 'Shipped' },
+                        { key: 'DELIVERED', label: 'Delivered' },
+                        { key: 'FAILED', label: 'Failed' },
+                      ].map(st => (
+                        <button
+                          key={st.key}
+                          type="button"
+                          onClick={() => setOnlineStatusFilter(st.key)}
+                          style={{
+                            padding: '5px 12px',
+                            borderRadius: 6,
+                            border: `1px solid ${onlineStatusFilter === st.key ? '#7C3AED' : 'var(--card-border)'}`,
+                            background: onlineStatusFilter === st.key ? '#F5F3FF' : 'var(--card-bg)',
+                            color: onlineStatusFilter === st.key ? '#7C3AED' : 'var(--text-secondary)',
+                            fontSize: 12,
+                            fontWeight: onlineStatusFilter === st.key ? 700 : 500,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {st.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                   <thead>
@@ -960,34 +1087,122 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
                       <th style={thStyle}>Tracking ID</th>
                       <th style={thStyle}>Patient</th>
                       <th style={{ ...thStyle, textAlign: 'right' }}>Total</th>
+                      <th style={thStyle}>Prescription</th>
                       <th style={thStyle}>Address</th>
+                      <th style={thStyle}>See Location</th>
                       <th style={thStyle}>Status</th>
                       <th style={{ ...thStyle, textAlign: 'center' }}>Update</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredConsumer.length === 0 ? (
-                      <tr><td colSpan={6} style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>No online orders yet</td></tr>
-                    ) : filteredConsumer.map(o => (
-                      <tr key={o.id} onClick={() => setSelectedB2COrder(o)} style={{ borderBottom: '1px solid var(--card-border)', cursor: 'pointer' }} onMouseEnter={e => (e.currentTarget.style.background = 'var(--table-header-bg)')} onMouseLeave={e => (e.currentTarget.style.background = '')}>
-                        <td style={{ padding: '12px 16px', fontFamily: 'monospace', fontWeight: 700, fontSize: 12 }}>{o.trackingCode}</td>
-                        <td style={{ padding: '12px 16px' }}>
-                          <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{o.buyerName}</div>
-                          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{o.buyerPhone}</div>
-                        </td>
-                        <td style={{ padding: '12px 16px', fontWeight: 700, textAlign: 'right', fontFamily: 'monospace' }}>Rs. {o.totalAmount}</td>
-                        <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--text-secondary)', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o.deliveryAddress || '—'}</td>
-                        <td style={{ padding: '12px 16px' }}><StatusBadge status={o.status} /></td>
-                        <td style={{ padding: '12px 16px', textAlign: 'center' }} onClick={e => e.stopPropagation()}>
-                          <select value={o.status} onChange={e => handleUpdateOnlineStatus(o.id, e.target.value)} style={{ padding: '5px 8px', borderRadius: 5, border: '1px solid var(--card-border)', background: 'var(--card-bg)', fontSize: 12, color: 'var(--text-primary)', outline: 'none' }}>
-                            <option value="PENDING">Pending</option>
-                            <option value="SHIPPED">Shipped</option>
-                            <option value="DELIVERED">Delivered</option>
-                            <option value="FAILED">Failed</option>
-                          </select>
-                        </td>
-                      </tr>
-                    ))}
+                      <tr><td colSpan={8} style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>No online orders yet</td></tr>
+                    ) : filteredConsumer.map(o => {
+                      const imgs = JSON.parse(o.prescriptionImagesJson || '[]');
+                      const count = Array.isArray(imgs) ? imgs.length : 0;
+                      const pStatus = o.prescriptionStatus || 'NOT_REQUIRED';
+                      const isApproved = pStatus === 'APPROVED';
+                      const isRejected = pStatus === 'REJECTED';
+
+                      return (
+                        <tr key={o.id} onClick={() => setSelectedB2COrder(o)} style={{ borderBottom: '1px solid var(--card-border)', cursor: 'pointer' }} onMouseEnter={e => (e.currentTarget.style.background = 'var(--table-header-bg)')} onMouseLeave={e => (e.currentTarget.style.background = '')}>
+                          <td style={{ padding: '12px 16px', fontFamily: 'monospace', fontWeight: 700, fontSize: 12 }}>{o.trackingCode}</td>
+                          <td style={{ padding: '12px 16px' }}>
+                            <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{o.buyerName}</div>
+                            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{o.buyerPhone}</div>
+                          </td>
+                          <td style={{ padding: '12px 16px', fontWeight: 700, textAlign: 'right', fontFamily: 'monospace' }}>Rs. {o.totalAmount}</td>
+                          <td style={{ padding: '12px 16px' }} onClick={e => e.stopPropagation()}>
+                            {count === 0 && pStatus === 'NOT_REQUIRED' ? (
+                              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>— Not Required</span>
+                            ) : (
+                              <button
+                                onClick={() => {
+                                  setPrescriptionModalOrder(o);
+                                  setShowRejectInput(false);
+                                  setRejectReasonInput('');
+                                }}
+                                style={{
+                                  padding: '4px 10px',
+                                  borderRadius: 6,
+                                  border: `1px solid ${isApproved ? '#A7F3D0' : isRejected ? '#FECACA' : '#FDE68A'}`,
+                                  background: isApproved ? '#ECFDF5' : isRejected ? '#FEF2F2' : '#FFFBEB',
+                                  color: isApproved ? '#047857' : isRejected ? '#DC2626' : '#B45309',
+                                  fontSize: 11,
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 4,
+                                }}
+                              >
+                                📷 See Prescription ({count})
+                                {isApproved && <span>✓</span>}
+                                {isRejected && <span>✕</span>}
+                              </button>
+                            )}
+                          </td>
+                          <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--text-secondary)', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o.deliveryAddress || '—'}</td>
+                          <td style={{ padding: '12px 16px' }} onClick={e => e.stopPropagation()}>
+                            {o.latitude && o.longitude ? (
+                              <button
+                                onClick={() => setLocationMapData({
+                                  title: `Buyer: ${o.buyerName}`,
+                                  subtitle: `Tracking: #${o.trackingCode}`,
+                                  phone: o.buyerPhone,
+                                  address: o.deliveryAddress,
+                                  lat: o.latitude,
+                                  lng: o.longitude,
+                                })}
+                                style={{
+                                  padding: '4px 10px',
+                                  borderRadius: 6,
+                                  border: '1px solid #A7F3D0',
+                                  background: '#ECFDF5',
+                                  color: '#047857',
+                                  fontSize: 11,
+                                  fontWeight: 800,
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 4,
+                                }}
+                              >
+                                📍 See Location
+                              </button>
+                            ) : (
+                              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>— GPS N/A</span>
+                            )}
+                          </td>
+                          <td style={{ padding: '12px 16px' }}><StatusBadge status={o.status} /></td>
+                          <td style={{ padding: '12px 16px', textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+                            {(() => {
+                              const prescNeed = pStatus !== 'NOT_REQUIRED';
+                              const prescBlocked = prescNeed && pStatus !== 'APPROVED';
+                              return (
+                                <>
+                                  <select
+                                    value={o.status}
+                                    onChange={e => handleUpdateOnlineStatus(o.id, e.target.value)}
+                                    disabled={prescBlocked}
+                                    title={prescBlocked ? '🚨 Prescription must be Approved before shipping' : ''}
+                                    style={{ padding: '5px 8px', borderRadius: 5, border: `1px solid ${prescBlocked ? '#FECACA' : 'var(--card-border)'}`, background: prescBlocked ? '#FEF2F2' : 'var(--card-bg)', fontSize: 12, color: prescBlocked ? '#DC2626' : 'var(--text-primary)', outline: 'none', cursor: prescBlocked ? 'not-allowed' : 'pointer', opacity: prescBlocked ? 0.7 : 1 }}
+                                  >
+                                    <option value="PENDING">Pending</option>
+                                    <option value="SHIPPED" disabled={prescBlocked}>Shipped</option>
+                                    <option value="DELIVERED" disabled={prescBlocked}>Delivered</option>
+                                    <option value="FAILED">Failed</option>
+                                  </select>
+                                  {prescBlocked && (
+                                    <div style={{ fontSize: 10, color: '#DC2626', fontWeight: 700, marginTop: 3 }}>🔒 Awaiting Prescription Approval</div>
+                                  )}
+                                </>
+                              );
+                            })()}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -1057,8 +1272,8 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
                       <td style={{ padding: '12px 16px', fontWeight: 700, textAlign: 'right', fontFamily: 'monospace', color: 'var(--text-primary)' }}>Rs. {order.netAmount.toLocaleString()}</td>
                       <td style={{ padding: '12px 16px' }}><StatusBadge status={order.status} /></td>
                       <td style={{ padding: '12px 16px' }}>
-                        <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{new Date(order.createdAt).toLocaleDateString()}</div>
-                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{new Date(order.createdAt).toLocaleTimeString()}</div>
+                        <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{formatDateNPT(order.createdAt)}</div>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{formatTimeNPT(order.createdAt)}</div>
                       </td>
                       <td style={{ padding: '12px 16px', textAlign: 'center' }} onClick={e => e.stopPropagation()}>
                         <button onClick={() => printOrderVoucher(order)} style={{ padding: '5px 10px', border: '1px solid var(--card-border)', borderRadius: 5, background: 'var(--card-bg)', color: 'var(--text-secondary)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600 }}>
@@ -1086,8 +1301,8 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
               </div>
               <div style={{ background: 'var(--table-header-bg)', borderRadius: 6, padding: 12 }}>
                 <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.05em' }}>Date Placed</div>
-                <div style={{ fontSize: 14, fontWeight: 700, marginTop: 4, color: 'var(--text-primary)' }}>{new Date(selectedOrder.createdAt).toLocaleDateString()}</div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{new Date(selectedOrder.createdAt).toLocaleTimeString()}</div>
+                <div style={{ fontSize: 14, fontWeight: 700, marginTop: 4, color: 'var(--text-primary)' }}>{formatDateNPT(selectedOrder.createdAt)}</div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{formatTimeNPT(selectedOrder.createdAt)}</div>
               </div>
             </div>
             <div style={{ border: '1px solid var(--card-border)', borderRadius: 6, overflow: 'hidden' }}>
@@ -1116,46 +1331,170 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
         </Modal>
       )}
 
-      {/* B2C Modal */}
+      {/* B2C Online Order Details Modal */}
       {selectedB2COrder && (
-        <Modal onClose={() => setSelectedB2COrder(null)} title="Online Order Details">
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-              <div style={{ background: 'var(--table-header-bg)', borderRadius: 6, padding: 12 }}>
-                <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.05em' }}>Patient</div>
-                <div style={{ fontSize: 14, fontWeight: 700, marginTop: 4, color: 'var(--text-primary)' }}>{selectedB2COrder.buyerName}</div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{selectedB2COrder.buyerPhone}</div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{selectedB2COrder.buyerEmail}</div>
-              </div>
-              <div style={{ background: 'var(--table-header-bg)', borderRadius: 6, padding: 12 }}>
-                <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.05em' }}>Delivery Address</div>
-                <div style={{ fontSize: 13, fontWeight: 600, marginTop: 4, color: 'var(--text-secondary)' }}>{selectedB2COrder.deliveryAddress || '— No address provided'}</div>
-              </div>
-            </div>
-            <div style={{ border: '1px solid var(--card-border)', borderRadius: 6, overflow: 'hidden' }}>
-              <div style={{ padding: '10px 14px', background: 'var(--table-header-bg)', borderBottom: '1px solid var(--card-border)', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Medicines</div>
-              {selectedB2COrder.items?.map((item: any, idx: number) => (
-                <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, padding: '10px 14px', borderBottom: '1px solid var(--card-border)' }}>
-                  <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{item.product?.name || 'Medicine'} <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>×{item.quantity}</span></span>
-                  <span style={{ fontWeight: 700, fontFamily: 'monospace' }}>Rs. {(item.quantity * item.pricePerUnit).toLocaleString()}</span>
+        <Modal onClose={() => setSelectedB2COrder(null)} title={`Online Order — #${selectedB2COrder.trackingCode}`}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 680 }}>
+            
+            {/* Header info cards */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div style={{ background: 'var(--table-header-bg)', borderRadius: 10, padding: 14, border: '1px solid var(--card-border)' }}>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 800, letterSpacing: '0.05em' }}>👤 Patient Info</div>
+                <div style={{ fontSize: 15, fontWeight: 800, marginTop: 4, color: 'var(--text-primary)' }}>{selectedB2COrder.buyerName}</div>
+                <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+                  📞 {selectedB2COrder.buyerPhone || 'N/A'}
                 </div>
-              ))}
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, fontWeight: 700, padding: '12px 14px', background: 'var(--table-header-bg)' }}>
-                <span>Grand Total</span>
-                <span style={{ fontFamily: 'monospace', color: '#059669' }}>Rs. {selectedB2COrder.totalAmount.toLocaleString()}</span>
+                {selectedB2COrder.buyerEmail && (
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                    ✉️ {selectedB2COrder.buyerEmail}
+                  </div>
+                )}
+              </div>
+
+              <div style={{ background: 'var(--table-header-bg)', borderRadius: 10, padding: 14, border: '1px solid var(--card-border)' }}>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 800, letterSpacing: '0.05em' }}>📍 Delivery Address</div>
+                <div style={{ fontSize: 13, fontWeight: 600, marginTop: 4, color: 'var(--text-primary)', lineHeight: 1.4 }}>
+                  {selectedB2COrder.deliveryAddress || '— No address provided'}
+                </div>
+                {selectedB2COrder.latitude && selectedB2COrder.longitude && (
+                  <div style={{ marginTop: 8 }}>
+                    <button
+                      type="button"
+                      onClick={() => setLocationMapData({
+                        title: `Buyer: ${selectedB2COrder.buyerName}`,
+                        subtitle: `Tracking: #${selectedB2COrder.trackingCode}`,
+                        phone: selectedB2COrder.buyerPhone,
+                        address: selectedB2COrder.deliveryAddress,
+                        lat: selectedB2COrder.latitude,
+                        lng: selectedB2COrder.longitude,
+                      })}
+                      style={{ padding: '3px 8px', borderRadius: 6, border: '1px solid #A7F3D0', background: '#ECFDF5', color: '#047857', fontSize: 11, fontWeight: 800, cursor: 'pointer' }}
+                    >
+                      📍 Open Map Location
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <select value={selectedB2COrder.status} onChange={e => { handleUpdateOnlineStatus(selectedB2COrder.id, e.target.value); setSelectedB2COrder(null); }} style={{ flex: 1, padding: '10px 12px', borderRadius: 6, border: '1px solid var(--card-border)', background: 'var(--card-bg)', fontSize: 13, color: 'var(--text-primary)', outline: 'none' }}>
-                <option value="PENDING">Pending</option>
-                <option value="SHIPPED">Shipped</option>
-                <option value="DELIVERED">Delivered</option>
-                <option value="FAILED">Failed</option>
-              </select>
-              <button onClick={() => setSelectedB2COrder(null)} style={{ flex: 1, padding: 10, background: 'var(--card-bg)', border: '1px solid var(--card-border)', borderRadius: 6, color: 'var(--text-secondary)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Close</button>
+
+            {/* Medicines List with Box/Strip/Unit Breakdown */}
+            <div style={{ border: '1px solid var(--card-border)', borderRadius: 10, overflow: 'hidden' }}>
+              <div style={{ padding: '10px 14px', background: 'var(--table-header-bg)', borderBottom: '1px solid var(--card-border)', fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', justifyContent: 'space-between' }}>
+                <span>Ordered Medicines</span>
+                <span>Quantity Breakdown</span>
+              </div>
+              {selectedB2COrder.items?.map((item: any, idx: number) => {
+                const prod = item.product || {};
+                const tPerStrip = prod.tabletsPerStrip || 10;
+                const sPerBox = prod.stripsPerBox || 10;
+                const totalUnitsPerBox = tPerStrip * sPerBox;
+                const totalRawUnits = item.quantity || 0;
+
+                // Calculate Box / Strip / Unit breakdown
+                let breakdownStr = '';
+                if (totalRawUnits >= totalUnitsPerBox && totalUnitsPerBox > 0 && totalRawUnits % totalUnitsPerBox === 0) {
+                  const boxes = totalRawUnits / totalUnitsPerBox;
+                  breakdownStr = `${boxes} ${boxes === 1 ? 'Box' : 'Boxes'} (${totalRawUnits} units)`;
+                } else if (totalRawUnits >= tPerStrip && tPerStrip > 0 && totalRawUnits % tPerStrip === 0) {
+                  const strips = totalRawUnits / tPerStrip;
+                  breakdownStr = `${strips} ${strips === 1 ? 'Strip' : 'Strips'} (${totalRawUnits} units)`;
+                } else {
+                  const boxes = Math.floor(totalRawUnits / totalUnitsPerBox);
+                  const remAfterBoxes = totalRawUnits % totalUnitsPerBox;
+                  const strips = Math.floor(remAfterBoxes / tPerStrip);
+                  const units = remAfterBoxes % tPerStrip;
+
+                  const parts = [];
+                  if (boxes > 0) parts.push(`${boxes} ${boxes === 1 ? 'Box' : 'Boxes'}`);
+                  if (strips > 0) parts.push(`${strips} ${strips === 1 ? 'Strip' : 'Strips'}`);
+                  if (units > 0) parts.push(`${units} ${units === 1 ? 'Unit' : 'Units'}`);
+                  breakdownStr = `${parts.join(' + ')} (${totalRawUnits} total units)`;
+                }
+
+                return (
+                  <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, padding: '12px 14px', borderBottom: '1px solid var(--card-border)', background: 'var(--card-bg)' }}>
+                    <div>
+                      <div style={{ color: 'var(--text-primary)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        {prod.name || 'Medicine'}
+                        {prod.medicineClass === 'CLASS_A' && (
+                          <span style={{ fontSize: 10, fontWeight: 800, padding: '2px 6px', borderRadius: 4, background: '#FEF2F2', color: '#DC2626', border: '1px solid #FECACA' }}>
+                            CLASS A
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                        Category: {prod.category || 'General'} · Packaging: {sPerBox} Strips × {tPerStrip} Units/Box
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontWeight: 800, color: '#0F766E', fontSize: 13 }}>{breakdownStr}</div>
+                      <div style={{ fontSize: 11, fontWeight: 700, fontFamily: 'monospace', color: 'var(--text-secondary)', marginTop: 2 }}>
+                        Rs. {(totalRawUnits * item.pricePerUnit).toLocaleString()}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Order Totals Summary */}
+              <div style={{ padding: '12px 14px', background: 'var(--table-header-bg)', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {selectedB2COrder.deliveryFee > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-secondary)' }}>
+                    <span>Delivery Fee</span>
+                    <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>Rs. {selectedB2COrder.deliveryFee.toLocaleString()}</span>
+                  </div>
+                )}
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15, fontWeight: 900, color: 'var(--text-primary)', paddingTop: selectedB2COrder.deliveryFee > 0 ? 6 : 0, borderTop: selectedB2COrder.deliveryFee > 0 ? '1px dashed var(--card-border)' : 'none' }}>
+                  <span>Grand Total</span>
+                  <span style={{ fontFamily: 'monospace', color: '#059669' }}>Rs. {selectedB2COrder.totalAmount.toLocaleString()}</span>
+                </div>
+              </div>
             </div>
+
+            {/* Status Update Action Footer */}
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Update Order Status</label>
+                <select
+                  value={selectedB2COrder.status}
+                  onChange={e => {
+                    handleUpdateOnlineStatus(selectedB2COrder.id, e.target.value);
+                    setSelectedB2COrder(null);
+                  }}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--card-border)', background: 'var(--card-bg)', fontSize: 13, color: 'var(--text-primary)', fontWeight: 700, outline: 'none' }}
+                >
+                  <option value="PENDING">Pending</option>
+                  <option value="SHIPPED">Shipped</option>
+                  <option value="DELIVERED">Delivered</option>
+                  <option value="FAILED">Failed</option>
+                </select>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedB2COrder(null)}
+                style={{ padding: '10px 20px', background: 'var(--card-bg)', border: '1px solid var(--card-border)', borderRadius: 8, color: 'var(--text-secondary)', fontSize: 13, fontWeight: 700, cursor: 'pointer', alignSelf: 'flex-end', height: 41 }}
+              >
+                Close
+              </button>
+            </div>
+
           </div>
         </Modal>
+      )}
+
+      {/* Prescription Review Modal */}
+      {prescriptionModalOrder && (
+        <PrescriptionReviewModal
+          order={prescriptionModalOrder}
+          updating={updatingPrescription}
+          onClose={() => setPrescriptionModalOrder(null)}
+          onApprove={() => handlePrescriptionAction('APPROVED')}
+          onReject={(reason) => {
+            setRejectReasonInput(reason);
+            handlePrescriptionAction('REJECTED');
+          }}
+          onZoom={(imgSrc) => setZoomedImage(imgSrc)}
+        />
       )}
 
       {/* Intake Modal */}
@@ -1244,6 +1583,332 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
         </Modal>
       )}
 
+      {/* Location Map Modal */}
+      {locationMapData && (
+        <Modal onClose={() => setLocationMapData(null)} title={`📍 Location Map — ${locationMapData.title}`}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+              <strong>{locationMapData.subtitle}</strong> {locationMapData.phone ? `· Phone: ${locationMapData.phone}` : ''}
+              {locationMapData.address && <div style={{ marginTop: 2, color: 'var(--text-muted)' }}>Address: {locationMapData.address}</div>}
+            </div>
+
+            <div style={{ width: '100%', height: 380, borderRadius: 10, overflow: 'hidden', border: '1px solid var(--card-border)' }}>
+              <iframe
+                title="Location Map"
+                width="100%"
+                height="100%"
+                style={{ border: 0 }}
+                loading="lazy"
+                allowFullScreen
+                src={`https://maps.google.com/maps?q=${locationMapData.lat},${locationMapData.lng}&z=15&output=embed`}
+              />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--table-header-bg)', padding: '10px 14px', borderRadius: 8 }}>
+              <span style={{ fontSize: 11, fontFamily: 'monospace', color: 'var(--text-muted)' }}>
+                GPS: {locationMapData.lat.toFixed(5)}, {locationMapData.lng.toFixed(5)}
+              </span>
+              <a
+                href={`https://www.google.com/maps?q=${locationMapData.lat},${locationMapData.lng}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ fontSize: 12, fontWeight: 700, color: '#059669', textDecoration: 'none' }}
+              >
+                Open Direct Directions ↗
+              </a>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Zoomed Image Lightbox — renders via portal over everything */}
+      {zoomedImage && typeof document !== 'undefined' && ReactDOM.createPortal(
+        <div
+          onClick={() => setZoomedImage(null)}
+          style={{
+            position: 'fixed',
+            top: 0, left: 0, right: 0, bottom: 0,
+            width: '100vw', height: '100vh',
+            background: 'rgba(0,0,0,0.92)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 999999,
+            padding: 20,
+            boxSizing: 'border-box',
+            cursor: 'zoom-out',
+          }}
+        >
+          <div style={{ position: 'relative', maxWidth: '90vw', maxHeight: '90vh' }}>
+            <img
+              src={zoomedImage}
+              alt="Prescription Zoomed"
+              style={{ maxWidth: '90vw', maxHeight: '90vh', objectFit: 'contain', borderRadius: 10, boxShadow: '0 25px 60px rgba(0,0,0,0.5)' }}
+              onClick={e => e.stopPropagation()}
+            />
+            <button
+              onClick={() => setZoomedImage(null)}
+              style={{
+                position: 'absolute', top: -16, right: -16,
+                width: 36, height: 36,
+                background: '#FFFFFF', border: 'none', borderRadius: '50%',
+                fontSize: 18, fontWeight: 900, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: '0 4px 15px rgba(0,0,0,0.4)',
+                color: '#0F172A',
+              }}
+            >
+              ✕
+            </button>
+            <div style={{ position: 'absolute', bottom: -32, left: '50%', transform: 'translateX(-50%)', color: 'rgba(255,255,255,0.6)', fontSize: 12, whiteSpace: 'nowrap' }}>
+              Click anywhere outside the image to close
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+    </div>
+  );
+}
+
+function PrescriptionReviewModal({
+  order,
+  updating,
+  onClose,
+  onApprove,
+  onReject,
+  onZoom
+}: {
+  order: any;
+  updating: boolean;
+  onClose: () => void;
+  onApprove: () => void;
+  onReject: (reason: string) => void;
+  onZoom: (imgSrc: string) => void;
+}) {
+  const [showRejectForm, setShowRejectForm] = useState(false);
+  const [reason, setReason] = useState('');
+
+  const images = JSON.parse(order.prescriptionImagesJson || '[]');
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(15,23,42,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 650, background: 'var(--card-bg)', borderRadius: 12, border: '1px solid var(--card-border)', display: 'flex', flexDirection: 'column', maxHeight: '90vh', overflow: 'hidden', boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }}>
+        
+        {/* Header */}
+        <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--card-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--table-header-bg)' }}>
+          <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-primary)' }}>
+            Prescription Review — Order #{order.trackingCode}
+          </span>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4, display: 'flex' }}>
+            <X style={{ width: 18, height: 18 }} />
+          </button>
+        </div>
+
+        {/* Modal Body */}
+        <div style={{ padding: 20, overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 16 }}>
+          
+          {/* Patient Info & Current Status */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--table-header-bg)', padding: '12px 16px', borderRadius: 10, border: '1px solid var(--card-border)' }}>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)' }}>{order.buyerName}</div>
+              <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>Phone: {order.buyerPhone || 'N/A'}</div>
+              {order.doctorNmcNumber && (
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#7C3AED', marginTop: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span>🩺 Doctor NMC No:</span>
+                  <code style={{ background: '#F5F3FF', border: '1px solid #DDD6FE', padding: '1px 6px', borderRadius: 4, fontFamily: 'monospace' }}>{order.doctorNmcNumber}</code>
+                </div>
+              )}
+            </div>
+            <span style={{
+              fontSize: 11,
+              fontWeight: 800,
+              padding: '5px 14px',
+              borderRadius: 20,
+              background: order.prescriptionStatus === 'APPROVED' ? '#ECFDF5' : order.prescriptionStatus === 'REJECTED' ? '#FEF2F2' : '#FFFBEB',
+              color: order.prescriptionStatus === 'APPROVED' ? '#047857' : order.prescriptionStatus === 'REJECTED' ? '#DC2626' : '#D97706',
+              border: `1px solid ${order.prescriptionStatus === 'APPROVED' ? '#A7F3D0' : order.prescriptionStatus === 'REJECTED' ? '#FECACA' : '#FDE68A'}`
+            }}>
+              STATUS: {order.prescriptionStatus || 'PENDING'}
+            </span>
+          </div>
+
+          {/* Past Rejection Reason Warning & Re-upload Notification Banner */}
+          {order.oldPrescriptionImagesJson && JSON.parse(order.oldPrescriptionImagesJson || '[]').length > 0 && (
+            <div style={{ padding: '10px 14px', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 10, color: '#1E40AF', fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span>🔄 Customer has uploaded a NEW updated prescription! Review below:</span>
+            </div>
+          )}
+
+          {order.prescriptionRejectReason && (
+            <div style={{ padding: '12px 14px', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 10, color: '#DC2626', fontSize: 13, lineHeight: 1.4 }}>
+              <strong>Previous Rejection Reason:</strong> {order.prescriptionRejectReason}
+            </div>
+          )}
+
+          {/* New / Current Prescription Images Grid */}
+          <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span>
+              {order.oldPrescriptionImagesJson && JSON.parse(order.oldPrescriptionImagesJson || '[]').length > 0
+                ? `🆕 Newly Uploaded Prescription Images (${images.length}):`
+                : `Uploaded Prescription Images (${images.length}):`}
+            </span>
+            <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-muted)' }}>— click image to zoom</span>
+          </div>
+
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, maxHeight: '35vh', overflowY: 'auto', paddingRight: 4 }}>
+            {images.map((imgSrc: string, idx: number) => (
+              <div
+                key={idx}
+                onClick={() => onZoom(imgSrc)}
+                style={{
+                  width: 130, height: 130,
+                  border: '2px solid #0F766E',
+                  borderRadius: 10,
+                  overflow: 'hidden',
+                  background: '#000',
+                  cursor: 'zoom-in',
+                  flexShrink: 0,
+                  position: 'relative',
+                  transition: 'transform 0.15s, border-color 0.15s',
+                }}
+                title={`Click to zoom New Prescription Image ${idx + 1}`}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'scale(1.02)'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = 'scale(1)'; }}
+              >
+                <img src={imgSrc} alt={`New Prescription ${idx + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '4px 6px', background: 'rgba(15,118,110,0.85)', color: '#fff', fontSize: 10, fontWeight: 800, textAlign: 'center' }}>
+                  NEW Image {idx + 1} 🔍
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Archived / Old Rejected Images Grid */}
+          {(() => {
+            const oldImgs = JSON.parse(order.oldPrescriptionImagesJson || '[]');
+            if (oldImgs.length === 0) return null;
+            return (
+              <div style={{ borderTop: '1px dashed var(--card-border)', paddingTop: 14, marginTop: 6, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ fontSize: 12, fontWeight: 800, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  📁 Previous Rejected Prescription Images ({oldImgs.length}):
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, maxHeight: '25vh', overflowY: 'auto', opacity: 0.8 }}>
+                  {oldImgs.map((imgSrc: string, idx: number) => (
+                    <div
+                      key={idx}
+                      onClick={() => onZoom(imgSrc)}
+                      style={{
+                        width: 100, height: 100,
+                        border: '1.5px solid #CBD5E1',
+                        borderRadius: 8,
+                        overflow: 'hidden',
+                        background: '#000',
+                        cursor: 'zoom-in',
+                        flexShrink: 0,
+                        position: 'relative',
+                      }}
+                      title={`Click to zoom Previously Rejected Image ${idx + 1}`}
+                    >
+                      <img src={imgSrc} alt={`Old Prescription ${idx + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'grayscale(30%)' }} />
+                      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '3px 4px', background: 'rgba(220,38,38,0.8)', color: '#fff', fontSize: 9, fontWeight: 700, textAlign: 'center' }}>
+                        OLD Image {idx + 1} 🔍
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Action Footer */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, borderTop: '1px solid var(--card-border)', paddingTop: 14, marginTop: 4 }}>
+            
+            {/* Styled Rejection Reason Textarea (Rendered inside component state to preserve focus) */}
+            {showRejectForm && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: '#FEF2F2', border: '1px solid #FECACA', padding: 14, borderRadius: 10 }}>
+                <label style={{ fontSize: 12, fontWeight: 800, color: '#DC2626', display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Reason for Rejection (Optional but recommended):</span>
+                  <span style={{ fontSize: 11, fontWeight: 500, color: '#991B1B' }}>Visible to buyer on tracking tab</span>
+                </label>
+                <textarea
+                  placeholder="e.g. Doctor stamp missing, expired prescription date, unreadable handwriting, invalid dosage..."
+                  value={reason}
+                  onChange={e => setReason(e.target.value)}
+                  rows={3}
+                  autoFocus
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    borderRadius: 8,
+                    border: '1px solid #FCA5A5',
+                    background: '#FFFFFF',
+                    color: '#1E293B',
+                    fontSize: 13,
+                    outline: 'none',
+                    resize: 'vertical',
+                    fontFamily: 'inherit',
+                    lineHeight: 1.5,
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+            )}
+
+            {/* External NMC Doctor Verification Button */}
+            <div style={{ display: 'flex', gap: 10, marginBottom: 4 }}>
+              <button
+                type="button"
+                onClick={() => {
+                  if (order.doctorNmcNumber) {
+                    navigator.clipboard.writeText(order.doctorNmcNumber);
+                  }
+                  window.open('https://www.nmc.org.np/search-registered-doctor/', '_blank');
+                }}
+                style={{
+                  flex: 1, padding: '9px 14px', background: '#F5F3FF', color: '#7C3AED', border: '1px solid #DDD6FE', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6
+                }}
+              >
+                🩺 {order.doctorNmcNumber ? `Copy NMC (${order.doctorNmcNumber}) & Verify` : 'Verify Doctor License (NMC Nepal)'} ↗
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                type="button"
+                onClick={onApprove}
+                disabled={updating}
+                style={{ flex: 1, padding: '12px 16px', background: '#10B981', color: '#FFFFFF', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 800, cursor: updating ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, opacity: updating ? 0.6 : 1 }}
+              >
+                ✓ Approve Prescription
+              </button>
+
+              {!showRejectForm ? (
+                <button
+                  type="button"
+                  onClick={() => setShowRejectForm(true)}
+                  disabled={updating}
+                  style={{ flex: 1, padding: '12px 16px', background: '#EF4444', color: '#FFFFFF', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                >
+                  ✕ Reject Prescription...
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => onReject(reason)}
+                  disabled={updating}
+                  style={{ flex: 1, padding: '12px 16px', background: '#B91C1C', color: '#FFFFFF', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 800, cursor: updating ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, opacity: updating ? 0.6 : 1 }}
+                >
+                  Confirm Rejection ➔
+                </button>
+              )}
+            </div>
+
+          </div>
+
+        </div>
+      </div>
     </div>
   );
 }

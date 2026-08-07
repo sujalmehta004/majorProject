@@ -24,6 +24,7 @@ export async function POST(request: Request) {
       // Clinic fields
       clinicName,
       licenseNumber,
+      registrationImages,
     } = body;
 
     // Validate request
@@ -79,6 +80,7 @@ export async function POST(request: Request) {
           otpCode: null,
           otpExpiry: null,
           plainPassword: password, // For owner visibility during evaluation
+          registrationImagesJson: Array.isArray(registrationImages) && registrationImages.length > 0 ? JSON.stringify(registrationImages) : '[]',
         },
       });
 

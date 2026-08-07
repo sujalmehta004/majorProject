@@ -112,6 +112,8 @@ export default async function WholesalerSettingsPage() {
         role: user.role,
         fullName: dbUser?.fullName,
         allowedFeatures: dbUser?.allowedFeatures,
+        isVerified: dbUser?.isVerified,
+        verificationStatus: dbUser?.verificationStatus,
       }}
       profile={{
         id: profile.id,
@@ -126,6 +128,11 @@ export default async function WholesalerSettingsPage() {
         subscriptionEnd={ownerUser?.subscriptionEnd ? ownerUser.subscriptionEnd.toISOString() : ''}
         initialStaff={serializedStaff}
         initialLogs={serializedLogs}
+        registrationData={{
+          verificationStatus: dbUser?.verificationStatus || 'PENDING',
+          verificationRejectReason: dbUser?.verificationRejectReason || null,
+          registrationImagesJson: dbUser?.registrationImagesJson || '[]',
+        }}
       />
     </WholesalerLayout>
   );

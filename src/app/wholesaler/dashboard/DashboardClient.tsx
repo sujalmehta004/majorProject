@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDateNPT, formatTimeNPT, formatDateTimeNPT } from '@/lib/timezone';
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import {
@@ -67,6 +68,8 @@ interface DashboardClientProps {
     latitude: number | null;
     longitude: number | null;
     companyName: string;
+    verificationStatus?: string;
+    verificationRejectReason?: string | null;
   };
   auditLogs: AuditLog[];
   pendingSettlements?: any[];
@@ -213,7 +216,40 @@ export default function DashboardClient({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
 
-      {/* ── Page Header ── */}
+      {/* Account Verification Alert Banner */}
+      {metrics.verificationStatus === 'PENDING' && (
+        <div style={{ background: '#FFFBEB', border: '1.5px solid #FDE68A', borderRadius: 14, padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, flexWrap: 'wrap' as const }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#FEF3C7', border: '1px solid #FCD34D', color: '#D97706', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>⏳</div>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 800, color: '#92400E' }}>Account Verification Pending Review</div>
+              <div style={{ fontSize: 12, color: '#B45309', marginTop: 2 }}>
+                Your company registration details and document images are currently under review by Superadmin. POS B2C & B2B Ordering features will activate automatically once verified.
+              </div>
+            </div>
+          </div>
+          <Link href="/wholesaler/settings" style={{ padding: '8px 16px', background: '#D97706', color: '#FFFFFF', borderRadius: 8, fontSize: 12, fontWeight: 800, textDecoration: 'none', flexShrink: 0 }}>
+            View Settings ➔
+          </Link>
+        </div>
+      )}
+
+      {metrics.verificationStatus === 'REJECTED' && (
+        <div style={{ background: '#FEF2F2', border: '1.5px solid #FECACA', borderRadius: 14, padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, flexWrap: 'wrap' as const }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#FEE2E2', border: '1px solid #FCA5A5', color: '#DC2626', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>✕</div>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 800, color: '#991B1B' }}>Account Verification Rejected</div>
+              <div style={{ fontSize: 12, color: '#7F1D1D', marginTop: 2, background: 'rgba(220,38,38,0.06)', padding: '6px 10px', borderRadius: 6, borderLeft: '3px solid #DC2626' }}>
+                <strong>Reason:</strong> {metrics.verificationRejectReason || 'Incomplete registration documents or details.'}
+              </div>
+            </div>
+          </div>
+          <Link href="/wholesaler/settings" style={{ padding: '10px 18px', background: '#DC2626', color: '#FFFFFF', borderRadius: 8, fontSize: 12, fontWeight: 800, textDecoration: 'none', flexShrink: 0 }}>
+            ✏️ Reapply / Update Information
+          </Link>
+        </div>
+      )}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: 12 }}>
         <div>
           <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
@@ -519,7 +555,7 @@ export default function DashboardClient({
                   auditLogs.map((log) => (
                     <tr key={log.id} style={{ borderBottom: "1px solid #F9FAFB" }}>
                       <td style={{ padding: "11px 16px", fontFamily: "monospace", color: "#6B7280", whiteSpace: "nowrap" }}>
-                        {new Date(log.timestamp).toLocaleTimeString()}
+                        {formatTimeNPT(log.timestamp)}
                       </td>
                       <td style={{ padding: "11px 16px" }}>
                         <span style={{

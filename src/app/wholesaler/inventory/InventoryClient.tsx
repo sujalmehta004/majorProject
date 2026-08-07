@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { formatDateNPT, formatTimeNPT, formatDateTimeNPT } from '@/lib/timezone';
 import { 
   Package, Database, Search, Plus, Calendar, DollarSign, FileText, 
   ChevronDown, ChevronUp, Printer, Check, AlertCircle, RefreshCw, Barcode, Globe, X,
@@ -104,6 +105,7 @@ export default function InventoryClient({ profileId }: InventoryClientProps) {
   const [newTabletsPerStrip, setNewTabletsPerStrip] = useState('10');
   const [newStripsPerBox, setNewStripsPerBox] = useState('10');
   const [newProductCategory, setNewProductCategory] = useState('Uncategorized');
+  const [newProductClass, setNewProductClass] = useState('CLASS_NORMAL');
   const [customCategory, setCustomCategory] = useState('');
   const [showCustomCategoryInput, setShowCustomCategoryInput] = useState(false);
   const [pricingTiers, setPricingTiers] = useState<Array<{ minQty: number; maxQty: number; pricePerBox: number }>>([]);
@@ -217,6 +219,7 @@ export default function InventoryClient({ profileId }: InventoryClientProps) {
         stripsPerBox: parseInt(newStripsPerBox),
         category: categoryToSubmit,
         tierPricing: pricingTiers,
+        medicineClass: newProductClass,
       };
 
       const res = await fetch('/api/wholesaler/products', {
@@ -237,6 +240,7 @@ export default function InventoryClient({ profileId }: InventoryClientProps) {
       setNewTabletsPerStrip('10');
       setNewStripsPerBox('10');
       setNewProductCategory('Uncategorized');
+      setNewProductClass('CLASS_NORMAL');
       setCustomCategory('');
       setShowCustomCategoryInput(false);
       setPricingTiers([]);
@@ -377,6 +381,7 @@ export default function InventoryClient({ profileId }: InventoryClientProps) {
     setNewTabletsPerStrip(prod.tabletsPerStrip.toString());
     setNewStripsPerBox(prod.stripsPerBox.toString());
     setNewProductCategory(prod.category || 'Uncategorized');
+    setNewProductClass((prod as any).medicineClass || 'CLASS_NORMAL');
     setCustomCategory('');
     setShowCustomCategoryInput(false);
     try {
@@ -515,7 +520,7 @@ export default function InventoryClient({ profileId }: InventoryClientProps) {
           <div class="details"><span>SKU: ${sku}</span><span>B: ${batchNumber}</span></div>
           <img id="barcodeImg" class="barcode-img" src="${barcodeUrl}" />
           <div class="barcode-text">${sku}-${batchNumber}</div>
-          <div class="footer">EXPIRY: ${new Date(expiryDate).toLocaleDateString()}</div>
+          <div class="footer">EXPIRY: ${formatDateNPT(expiryDate)}</div>
           <script>
             var printed = false;
             function doPrint() {
@@ -554,7 +559,7 @@ export default function InventoryClient({ profileId }: InventoryClientProps) {
           <div class="details"><span>SKU: ${sku}</span><span>B: ${batchNumber} (${i+1}/${totalBoxes})</span></div>
           <img class="barcode-img" src="${barcodeUrl}" />
           <div class="barcode-text">${sku}-${batchNumber}</div>
-          <div class="footer">EXPIRY: ${new Date(expiryDate).toLocaleDateString()}</div>
+          <div class="footer">EXPIRY: ${formatDateNPT(expiryDate)}</div>
         </div>
       `;
     }
@@ -643,14 +648,14 @@ export default function InventoryClient({ profileId }: InventoryClientProps) {
             <div class="field"><span class="label">Medicine Name:</span><span class="value">${batch.product.name}</span></div>
             <div class="field"><span class="label">SKU / Code:</span><span class="value">${batch.product.sku}</span></div>
             <div class="field"><span class="label">Batch number:</span><span class="value">${batch.batchNumber}</span></div>
-            <div class="field"><span class="label">Expiry date:</span><span class="value">${new Date(batch.expiryDate).toLocaleDateString()}</span></div>
+            <div class="field"><span class="label">Expiry date:</span><span class="value">${formatDateNPT(batch.expiryDate)}</span></div>
             <div class="field"><span class="label">Ingested quantity:</span><span class="value">${batch.totalBaseUnits} units</span></div>
             <div class="field"><span class="label">Available quantity:</span><span class="value">${batch.availableBaseUnits} units</span></div>
             <div class="field"><span class="label">Purchase Price/Box:</span><span class="value">Rs. ${batch.purchasePricePerBox.toFixed(2)}</span></div>
             <div class="field"><span class="label">Selling Price/Box:</span><span class="value">Rs. ${batch.sellingPricePerBox.toFixed(2)}</span></div>
             <div class="field"><span class="label">Supplier:</span><span class="value">${batch.supplierName || 'N/A'}</span></div>
             <div class="field"><span class="label">Manufacturer:</span><span class="value">${batch.manufacturerName || 'N/A'}</span></div>
-            <div class="field"><span class="label">Purchase Date:</span><span class="value">${new Date(batch.purchaseDate).toLocaleDateString()}</span></div>
+            <div class="field"><span class="label">Purchase Date:</span><span class="value">${formatDateNPT(batch.purchaseDate)}</span></div>
             
             <div class="barcode-box">
               <img id="barcodeImg" class="barcode-img" src="${batch.barcodeUrl}" />
@@ -790,7 +795,7 @@ export default function InventoryClient({ profileId }: InventoryClientProps) {
                       <td>
                         <div className="flex items-center gap-1.5 text-zinc-700">
                           <Calendar className="w-3.5 h-3.5 text-orange-500 shrink-0" />
-                          {new Date(batch.expiryDate).toLocaleDateString()}
+                          {formatDateNPT(batch.expiryDate)}
                         </div>
                       </td>
                       <td>
@@ -964,7 +969,7 @@ export default function InventoryClient({ profileId }: InventoryClientProps) {
                     const strips = Math.floor(remainingTablets / b.product.tabletsPerStrip);
                     const tablets = remainingTablets % b.product.tabletsPerStrip;
                     const stockStr = `${boxes} Bx, ${strips} St, ${tablets} Tb`;
-                    const expiryStr = new Date(b.expiryDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+                    const expiryStr = formatDateNPT(b.expiryDate, { month: 'short', year: 'numeric' });
                     return (
                       <div
                         key={b.id}
@@ -1142,7 +1147,9 @@ export default function InventoryClient({ profileId }: InventoryClientProps) {
                         <span style={{ fontWeight: 600, fontSize: 13, color: '#111827' }}>{product.name}</span>
                         {isLowStock && <span style={{ fontSize: 9, fontWeight: 700, background: '#FEF2F2', border: '1px solid #FECACA', color: '#DC2626', padding: '1px 6px', borderRadius: 4 }}>LOW STOCK</span>}
                       </div>
-                      <p style={{ fontSize: 11, color: '#9CA3AF', marginTop: 1 }}>SKU: <span style={{ fontFamily: 'monospace', fontWeight: 600, color: '#6B7280' }}>{product.sku}</span> · {product.category || 'Uncategorized'}</p>
+                       <p style={{ fontSize: 11, color: '#9CA3AF', marginTop: 1 }}>
+                        SKU: <span style={{ fontFamily: 'monospace', fontWeight: 600, color: '#6B7280' }}>{product.sku}</span> · {product.category || 'Uncategorized'} · <span style={{ color: (product as any).medicineClass === 'CLASS_A' ? '#EF4444' : '#10B981', fontWeight: 600 }}>{(product as any).medicineClass === 'CLASS_A' ? 'Class A (Rx Required)' : 'Class Normal'}</span>
+                      </p>
                     </div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -1211,6 +1218,9 @@ export default function InventoryClient({ profileId }: InventoryClientProps) {
                             <Database style={{ width: 13, height: 13, color: '#0EA5E9' }} />
                             {product.name}
                           </button>
+                          <div style={{ fontSize: 10, color: (product as any).medicineClass === 'CLASS_A' ? '#EF4444' : '#10B981', fontWeight: 600, paddingLeft: 19, marginTop: 2 }}>
+                            {(product as any).medicineClass === 'CLASS_A' ? 'Class A (Rx Required)' : 'Class Normal'}
+                          </div>
                         </td>
                         {visibleColumns.sku && <td style={{ fontFamily: 'monospace', fontSize: 11 }}>{product.sku}</td>}
                         {visibleColumns.tabletsPerStrip && <td style={{ fontFamily: 'monospace' }}>{product.tabletsPerStrip}</td>}
@@ -1312,50 +1322,64 @@ export default function InventoryClient({ profileId }: InventoryClientProps) {
                 </div>
               </div>
 
-              <div>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 6 }}>Medicine Category</label>
-                <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                  {!showCustomCategoryInput ? (
-                    <select
-                      value={newProductCategory}
-                      onChange={(e) => {
-                        if (e.target.value === 'ADD_NEW') {
-                          setShowCustomCategoryInput(true);
-                        } else {
-                          setNewProductCategory(e.target.value);
-                        }
-                      }}
-                      className="select-crisp"
-                      style={{ flex: 1, fontSize: 14 }}
-                    >
-                      {Array.from(new Set(['Uncategorized', 'Gel', 'Drink', 'Tablet', 'Capsule', 'Injection', 'Syrup', 'Ointment', ...products.map(p => p.category || 'Uncategorized')])).map(cat => (
-                        <option key={cat} value={cat}>{cat}</option>
-                      ))}
-                      <option value="ADD_NEW" style={{ fontWeight: 'bold', color: '#EA580C' }}>+ Add Custom Category...</option>
-                    </select>
-                  ) : (
-                    <div style={{ display: 'flex', gap: 6, width: '100%' }}>
-                      <input
-                        type="text"
-                        placeholder="Enter category name..."
-                        value={customCategory}
-                        onChange={(e) => setCustomCategory(e.target.value)}
-                        className="input-crisp"
-                        style={{ flex: 1, fontSize: 14 }}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowCustomCategoryInput(false);
-                          setCustomCategory('');
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 6 }}>Medicine Category</label>
+                  <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                    {!showCustomCategoryInput ? (
+                      <select
+                        value={newProductCategory}
+                        onChange={(e) => {
+                          if (e.target.value === 'ADD_NEW') {
+                            setShowCustomCategoryInput(true);
+                          } else {
+                            setNewProductCategory(e.target.value);
+                          }
                         }}
-                        className="btn-ghost"
-                        style={{ padding: '6px 12px', fontSize: 12 }}
+                        className="select-crisp"
+                        style={{ flex: 1, fontSize: 14 }}
                       >
-                        Cancel
-                      </button>
-                    </div>
-                  )}
+                        {Array.from(new Set(['Uncategorized', 'Gel', 'Drink', 'Tablet', 'Capsule', 'Injection', 'Syrup', 'Ointment', ...products.map(p => p.category || 'Uncategorized')])).map(cat => (
+                          <option key={cat} value={cat}>{cat}</option>
+                        ))}
+                        <option value="ADD_NEW" style={{ fontWeight: 'bold', color: '#EA580C' }}>+ Add Custom Category...</option>
+                      </select>
+                    ) : (
+                      <div style={{ display: 'flex', gap: 6, width: '100%' }}>
+                        <input
+                          type="text"
+                          placeholder="Enter category name..."
+                          value={customCategory}
+                          onChange={(e) => setCustomCategory(e.target.value)}
+                          className="input-crisp"
+                          style={{ flex: 1, fontSize: 14 }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowCustomCategoryInput(false);
+                            setCustomCategory('');
+                          }}
+                          className="btn-ghost"
+                          style={{ padding: '6px 12px', fontSize: 12 }}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 6 }}>Medicine Class</label>
+                  <select
+                    value={newProductClass}
+                    onChange={(e) => setNewProductClass(e.target.value)}
+                    className="select-crisp"
+                    style={{ width: '100%', fontSize: 14 }}
+                  >
+                    <option value="CLASS_NORMAL">Class Normal (Prescription Not Required)</option>
+                    <option value="CLASS_A">Class A (Prescription Required)</option>
+                  </select>
                 </div>
               </div>
 
@@ -1684,7 +1708,7 @@ export default function InventoryClient({ profileId }: InventoryClientProps) {
                   <div><strong>MED:</strong> {printPreviewBatch.product.name}</div>
                   <div><strong>SKU:</strong> {printPreviewBatch.product.sku}</div>
                   <div><strong>BATCH:</strong> {printPreviewBatch.batchNumber}</div>
-                  <div><strong>EXP:</strong> {new Date(printPreviewBatch.expiryDate).toLocaleDateString()}</div>
+                  <div><strong>EXP:</strong> {formatDateNPT(printPreviewBatch.expiryDate)}</div>
                   
                   {/* Barcode representation */}
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '10px 0', gap: 4 }}>
@@ -1747,7 +1771,7 @@ export default function InventoryClient({ profileId }: InventoryClientProps) {
                         <div class="med">${batch.product.name}</div>
                         <div class="details"><span>SKU: ${batch.product.sku}</span><span>BATCH: ${batch.batchNumber}${copies > 1 ? ` (${i+1}/${copies})` : ''}</span></div>
                         <div class="barcode-text">${barcodeText}</div>
-                        <div class="footer">EXPIRY: ${new Date(batch.expiryDate).toLocaleDateString()}</div>
+                        <div class="footer">EXPIRY: ${formatDateNPT(batch.expiryDate)}</div>
                       </div>
                     `;
                   }
@@ -1857,7 +1881,7 @@ export default function InventoryClient({ profileId }: InventoryClientProps) {
                       <div><strong>MEDICINE:</strong> {b.product.name}</div>
                       <div><strong>SKU:</strong> {b.product.sku}</div>
                       <div><strong>BATCH NO:</strong> {b.batchNumber}</div>
-                      <div><strong>EXPIRY:</strong> {new Date(b.expiryDate).toLocaleDateString()}</div>
+                      <div><strong>EXPIRY:</strong> {formatDateNPT(b.expiryDate)}</div>
                       
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '10px 0', gap: 4 }}>
                         <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'center', height: 40, background: 'var(--card-bg)', padding: '4px 6px', border: '1px solid #000', borderRadius: 4, width: '100%' }}>
@@ -1889,7 +1913,7 @@ export default function InventoryClient({ profileId }: InventoryClientProps) {
                             <div class="med">${b.product.name}</div>
                             <div class="details"><span>SKU: ${b.product.sku}</span><span>BATCH: ${b.batchNumber}</span></div>
                             <div class="barcode-text">${barcodeText}</div>
-                            <div class="footer">EXPIRY: ${new Date(b.expiryDate).toLocaleDateString()}</div>
+                            <div class="footer">EXPIRY: ${formatDateNPT(b.expiryDate)}</div>
                           </div>
                         `;
                       });

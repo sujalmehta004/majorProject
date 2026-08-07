@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getSessionUser } from '@/lib/auth';
+import { formatDateNPT } from '@/lib/timezone';
 
 export const dynamic = 'force-dynamic';
 
@@ -58,7 +59,7 @@ export async function GET(request: NextRequest) {
     const getLabelForDate = (date: Date) => {
       switch (period) {
         case 'daily':
-          return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+          return formatDateNPT(date, { month: 'short', day: 'numeric' });
         case 'weekly': {
           const weekNum = Math.floor(
             (date.getTime() - startDate.getTime()) / (7 * 24 * 3600 * 1000)
@@ -66,9 +67,9 @@ export async function GET(request: NextRequest) {
           return `W${weekNum + 1}`;
         }
         case 'yearly':
-          return String(date.getFullYear());
+          return String(date.toLocaleString('en-US', { timeZone: 'Asia/Kathmandu', year: 'numeric' }));
         default:
-          return date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+          return formatDateNPT(date, { month: 'short', year: '2-digit' });
       }
     };
 

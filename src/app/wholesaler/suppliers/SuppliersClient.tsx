@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { formatDateNPT, formatTimeNPT, formatDateTimeNPT } from '@/lib/timezone';
 import { 
   Users, Search, ChevronRight, ShoppingBag, CreditCard, Mail, Phone, 
   MapPin, Calendar, Receipt, TrendingUp, Info, Plus, X, UserPlus, 
@@ -694,7 +695,7 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
                                 <div style={{ fontWeight: 700 }}>{b.product.name}</div>
                                 <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>SKU: {b.product.sku}</div>
                               </td>
-                              <td>{new Date(b.expiryDate).toLocaleDateString()}</td>
+                              <td>{formatDateNPT(b.expiryDate)}</td>
                               <td style={{ textAlign: 'right', fontFamily: 'monospace' }}>
                                 {boxes} Box{boxes !== 1 ? 'es' : ''} {remUnits > 0 ? `(${remUnits} units)` : ''}
                               </td>
@@ -749,7 +750,7 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
                           const isFullyPaid = b.paidAmount >= b.totalAmount;
                           return (
                             <tr key={b.id}>
-                              <td>{new Date(b.billDate).toLocaleDateString()}</td>
+                              <td>{formatDateNPT(b.billDate)}</td>
                               <td>
                                 <button onClick={() => setActiveBill(b)} style={{ background: 'none', border: 'none', color: '#0EA5E9', fontWeight: 800, cursor: 'pointer', fontFamily: 'monospace', textDecoration: 'underline' }}>
                                   {b.billNumber}
@@ -809,7 +810,7 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
                           <div key={settle.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, borderBottom: '1px solid #F1F5F9', paddingBottom: 6 }}>
                             <div>
                               <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>Bill: {settle.billNumber}</span>
-                              <span style={{ color: 'var(--text-secondary)', marginLeft: 8 }}>{new Date(settle.date).toLocaleString()}</span>
+                              <span style={{ color: 'var(--text-secondary)', marginLeft: 8 }}>{formatDateTimeNPT(settle.date)}</span>
                               {settle.notes && <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 1 }}>{settle.notes}</div>}
                             </div>
                             <span style={{ fontWeight: 800, color: '#059669' }}>+ Rs. {settle.amount.toLocaleString()} ({settle.paymentMethod})</span>
@@ -1042,7 +1043,7 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
                   <h3 style={{ fontSize: 14, fontWeight: 900, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
                     <Receipt style={{ width: 18, height: 18, color: '#0EA5E9' }} /> Supplier Invoice Details
                   </h3>
-                  <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4 }}>Invoice: {activeBill.billNumber} · Registered on {new Date(activeBill.billDate).toLocaleDateString()}</p>
+                  <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4 }}>Invoice: {activeBill.billNumber} · Registered on {formatDateNPT(activeBill.billDate)}</p>
                 </div>
                 <button onClick={() => setActiveBill(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
                   <X style={{ width: 20, height: 20 }} />
@@ -1114,7 +1115,7 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
                         {activeBill.settlements.map((settle) => (
                           <div key={settle.id} style={{ display: 'flex', justifySelf: 'space-between', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, borderBottom: '1px solid #F1F5F9', paddingBottom: 6 }}>
                             <div>
-                              <span style={{ color: 'var(--text-secondary)' }}>{new Date(settle.date).toLocaleString()}</span>
+                              <span style={{ color: 'var(--text-secondary)' }}>{formatDateTimeNPT(settle.date)}</span>
                               {settle.notes && <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 1 }}>{settle.notes}</div>}
                             </div>
                             <span style={{ fontWeight: 800, color: '#059669' }}>+ Rs. {settle.amount.toLocaleString()} ({settle.paymentMethod})</span>
@@ -1231,7 +1232,7 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, fontSize: 14 }}>
                 <div>
                   <div style={{ color: 'var(--text-muted)', fontSize: 9, fontWeight: 800, textTransform: 'uppercase' }}>Expiry Date</div>
-                  <div style={{ color: '#334155', fontWeight: 700, marginTop: 2 }}>{new Date(selectedBatchDetails.expiryDate).toLocaleDateString()}</div>
+                  <div style={{ color: '#334155', fontWeight: 700, marginTop: 2 }}>{formatDateNPT(selectedBatchDetails.expiryDate)}</div>
                 </div>
                 <div>
                   <div style={{ color: 'var(--text-muted)', fontSize: 9, fontWeight: 800, textTransform: 'uppercase' }}>Available Stock</div>
@@ -1276,7 +1277,7 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                         <span style={{ color: '#166534', fontWeight: 600 }}>Bill Date:</span>
-                        <span>{new Date(linkedBill.billDate).toLocaleDateString()}</span>
+                        <span>{formatDateNPT(linkedBill.billDate)}</span>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                         <span style={{ color: '#166534', fontWeight: 600 }}>Total Bill Amount:</span>

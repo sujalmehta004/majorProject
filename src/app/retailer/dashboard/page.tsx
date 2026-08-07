@@ -146,6 +146,8 @@ export default async function RetailerDashboard() {
         role: user.role,
         fullName: dbUser.fullName || user.email.split('@')[0],
         allowedFeatures: dbUser.allowedFeatures,
+        isVerified: dbUser.isVerified,
+        verificationStatus: dbUser.verificationStatus,
       }}
       profile={{
         id: profile.id,
@@ -167,6 +169,8 @@ export default async function RetailerDashboard() {
           consumerOrderPending,
           consumerOrderShipped,
           consumerOrderDelivered,
+          verificationStatus: dbUser.verificationStatus || 'PENDING',
+          verificationRejectReason: dbUser.verificationRejectReason || null,
         }}
         auditLogs={serializedLogs}
         rejectedSettlements={serializedRejected}
