@@ -11,7 +11,7 @@ import {
   ChevronDown, FileText, ArrowDownLeft, ArrowUpLeft, Download
 } from 'lucide-react';
 import { settleB2CDueAction } from '@/app/actions/retailerActions';
-import { useRealtimeEvent } from '@/lib/events';
+import { useRealtimeEvent, useWebSocketEvent } from '@/lib/events';
 
 interface OrderItem {
   id: string;
@@ -178,6 +178,12 @@ export default function BillingClient({
   const searchRef = useRef<HTMLInputElement>(null);
 
   useRealtimeEvent('BILLING_UPDATE', () => { fetchBillingData(); });
+
+  // ── Real-Time WebSocket Listeners for Retailer Billing Page ──
+  useWebSocketEvent('BILLING_UPDATE', () => { fetchBillingData(); });
+  useWebSocketEvent('CONSUMER_ORDER_NEW', () => { fetchBillingData(); });
+  useWebSocketEvent('CONSUMER_ORDER_UPDATE', () => { fetchBillingData(); });
+  useWebSocketEvent('ORDER_UPDATE', () => { fetchBillingData(); });
 
   const fetchBillingData = async () => {
     try {

@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { logActivity } from '@/components/WholesalerLayout';
 import { useSSEListener } from '@/hooks/useRealtimeData';
+import { useWebSocketEvent } from '@/lib/events';
 
 interface Retailer {
   id: string;
@@ -252,12 +253,36 @@ export default function OrdersClient({ profileId, retailers: initialRetailers }:
     if (storedLogs) setSettleLogs(JSON.parse(storedLogs));
   }, []);
 
-  // SSE real-time auto-refresh
+  // SSE real-time auto-refresh (legacy fallback)
   useSSEListener(profileId, (type) => {
     if (['ORDER_CREATED', 'ORDER_STATUS_CHANGED', 'INVENTORY_UPDATED', 'RETAILER_UPDATED'].includes(type as string)) {
       fetchOrdersAndProducts();
     }
   });
+
+  // ── WebSocket real-time listeners ───────────────────────────────────────
+  // Silently refresh orders when wholesaler receives any order/billing update
+  const silentFetchOrders = async () => {
+    try {
+      const [orderRes, customerRes] = await Promise.all([
+        fetch(`/api/orders?wholesalerId=${profileId}`),
+        fetch('/api/wholesaler/customers'),
+      ]);
+      const orderData = await orderRes.json();
+      const customerData = await customerRes.json();
+      if (orderRes.ok && orderData.orders) setOrders(orderData.orders);
+      if (customerRes.ok && customerData.customers) setRetailers(customerData.customers);
+    } catch (e) { console.error('Silent order refresh error:', e); }
+  };
+
+  useWebSocketEvent('ORDER_UPDATE', silentFetchOrders);
+  useWebSocketEvent('WHOLESALER_UPDATE', (data) => {
+    // Only refresh on order-related wholesaler events
+    if (!data || ['ORDER_UPDATE', 'NEW_ORDER', 'BILLING_UPDATE'].includes(data.type)) {
+      silentFetchOrders();
+    }
+  });
+  useWebSocketEvent('BILLING_UPDATE', silentFetchOrders);
 
   // Click outside to close dropdowns
   useEffect(() => {

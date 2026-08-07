@@ -14,6 +14,7 @@ import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis,
   CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
+import { useWebSocketEvent } from '@/lib/events';
 
 interface AuditLog {
   id: string;
@@ -110,17 +111,39 @@ export default function DashboardClient({ profileId, metrics, auditLogs, rejecte
     }
   }, []);
 
+  const [chartData, setChartData] = useState<{ name: string; Sales: number; Spend: number }[]>(() => {
+    const now = new Date();
+    return Array.from({ length: 6 }, (_, i) => {
+      const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
+      return { name: d.toLocaleString('en-US', { month: 'short' }), Sales: 0, Spend: 0 };
+    });
+  });
+
+  const fetchAnalytics = async () => {
+    try {
+      const res = await fetch('/api/retailer/analytics');
+      const data = await res.json();
+      if (data.success && data.chartData && data.chartData.length > 0) {
+        setChartData(data.chartData);
+      }
+    } catch (e) {
+      console.error('Failed to load retailer analytics:', e);
+    }
+  };
+
+  useEffect(() => {
+    fetchAnalytics();
+  }, []);
+
+  // ── Real-Time WebSocket Listeners for Retailer Dashboard metrics & alert cards ──
+  useWebSocketEvent('CONSUMER_ORDER_NEW', fetchAnalytics);
+  useWebSocketEvent('CONSUMER_ORDER_UPDATE', fetchAnalytics);
+  useWebSocketEvent('INVENTORY_UPDATE', fetchAnalytics);
+  useWebSocketEvent('ORDER_UPDATE', fetchAnalytics);
+  useWebSocketEvent('BILLING_UPDATE', fetchAnalytics);
+
   const margin = metrics.totalSalesRevenue - metrics.lifetimeSpend;
   const marginPct = metrics.lifetimeSpend > 0 ? ((margin / metrics.lifetimeSpend) * 100).toFixed(1) : '0.0';
-
-  const chartData = [
-    { name: 'Jan', Sales: Math.round(metrics.totalSalesRevenue * 0.15), Spend: Math.round(metrics.lifetimeSpend * 0.12) },
-    { name: 'Feb', Sales: Math.round(metrics.totalSalesRevenue * 0.28), Spend: Math.round(metrics.lifetimeSpend * 0.22) },
-    { name: 'Mar', Sales: Math.round(metrics.totalSalesRevenue * 0.42), Spend: Math.round(metrics.lifetimeSpend * 0.35) },
-    { name: 'Apr', Sales: Math.round(metrics.totalSalesRevenue * 0.58), Spend: Math.round(metrics.lifetimeSpend * 0.52) },
-    { name: 'May', Sales: Math.round(metrics.totalSalesRevenue * 0.78), Spend: Math.round(metrics.lifetimeSpend * 0.73) },
-    { name: 'Jun', Sales: Math.round(metrics.totalSalesRevenue), Spend: Math.round(metrics.lifetimeSpend) },
-  ];
 
   const kpiCards = [
     { title: 'Medicine Catalog', value: metrics.productCount.toLocaleString(), unit: 'SKUs', sub: `${metrics.totalStockQty.toLocaleString()} base units`, icon: Package, color: '#3B82F6', link: '/retailer/inventory' },
@@ -128,7 +151,6 @@ export default function DashboardClient({ profileId, metrics, auditLogs, rejecte
     { title: 'B2C Sales Revenue', value: `Rs. ${metrics.totalSalesRevenue.toLocaleString()}`, unit: '', sub: `Margin ~ ${marginPct}%`, icon: TrendingUp, color: '#10B981', link: '/retailer/billing' },
     { title: 'B2C Online Orders', value: ((metrics.consumerOrderPending || 0) + (metrics.consumerOrderShipped || 0)).toLocaleString(), unit: 'Active', sub: `${metrics.consumerOrderDelivered || 0} delivered`, icon: ShoppingBag, color: '#EC4899', link: '/retailer/orders' },
     { title: 'Near Expiry Batches', value: metrics.nearExpiryCount.toLocaleString(), unit: 'Batches', sub: 'Expiring within 30 days', icon: ShieldAlert, color: '#EF4444', link: '/retailer/inventory' },
-    { title: 'Lifetime Procurement', value: `Rs. ${metrics.lifetimeSpend.toLocaleString()}`, unit: '', sub: `Credit: Rs. ${metrics.creditLimit.toLocaleString()}`, icon: ShoppingBag, color: '#8B5CF6', link: '/retailer/orders' },
   ];
 
   const quickActions = [
@@ -275,10 +297,6 @@ export default function DashboardClient({ profileId, metrics, auditLogs, rejecte
             <SlidersHorizontal style={{ width: 14, height: 14 }} />
             Configure
           </button>
-          <div style={{ border: '1px solid var(--card-border)', background: 'var(--card-bg)', padding: '7px 14px', borderRadius: 8, textAlign: 'right' as const }}>
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' as const }}>B2B Credit</div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: '#F59E0B' }}>Rs. {metrics.creditLimit.toLocaleString()}</div>
-          </div>
         </div>
       </div>
 
@@ -345,7 +363,7 @@ export default function DashboardClient({ profileId, metrics, auditLogs, rejecte
             </div>
           </div>
           <div style={{ width: '100%', height: 240 }}>
-            <ResponsiveContainer>
+            <ResponsiveContainer width="100%" height="100%">
               {activeChart === 'area' ? (
                 <AreaChart data={chartData}>
                   <defs>
@@ -382,7 +400,6 @@ export default function DashboardClient({ profileId, metrics, auditLogs, rejecte
           <div style={{ display: 'flex', gap: 10, paddingTop: 14, borderTop: '1px solid var(--card-border)', marginTop: 14, flexWrap: 'wrap' as const }}>
             {[
               { label: 'Total Revenue', val: `Rs. ${metrics.totalSalesRevenue.toLocaleString()}`, color: '#F59E0B' },
-              { label: 'Total Spend', val: `Rs. ${metrics.lifetimeSpend.toLocaleString()}`, color: 'var(--text-secondary)' },
               { label: 'Net Margin', val: `Rs. ${margin.toLocaleString()} (${marginPct}%)`, color: margin >= 0 ? '#10B981' : '#EF4444' },
             ].map((s) => (
               <div key={s.label} style={{ flex: 1, minWidth: 110, background: 'var(--table-header-bg)', padding: '10px 14px', borderRadius: 8 }}>

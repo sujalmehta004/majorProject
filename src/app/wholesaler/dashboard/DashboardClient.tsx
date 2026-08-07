@@ -32,6 +32,7 @@ import {
   BarChart2,
 } from "lucide-react";
 import { useRealtimeData } from "@/hooks/useRealtimeData";
+import { useWebSocketEvent } from "@/lib/events";
 import {
   BarChart,
   Bar,
@@ -111,6 +112,37 @@ export default function DashboardClient({
   const [lowStockTablets, setLowStockTablets] = useState(0);
   const [expiryDays, setExpiryDays] = useState(30);
 
+  // Live state — refreshed from the dashboard API on WebSocket events
+  const [liveMetrics, setLiveMetrics] = useState(metrics);
+  const [livePendingSettlements, setLivePendingSettlements] = useState(pendingSettlements);
+  const [liveRejectedSettlements, setLiveRejectedSettlements] = useState(rejectedSettlements);
+  const [liveAuditLogs, setLiveAuditLogs] = useState(auditLogs);
+
+  const fetchDashboardData = async () => {
+    try {
+      refreshDashboard();
+      const res = await fetch('/api/wholesaler/dashboard');
+      const data = await res.json();
+      if (data.success) {
+        setLiveMetrics(data.metrics);
+        setLivePendingSettlements(data.pendingSettlements || []);
+        setLiveRejectedSettlements(data.rejectedSettlements || []);
+        setLiveAuditLogs(data.auditLogs || []);
+      }
+    } catch (e) { console.error('Dashboard refresh error:', e); }
+  };
+
+  // Fetch fresh data on mount and on every WebSocket event
+  useEffect(() => { fetchDashboardData(); }, []);
+  useWebSocketEvent('ORDER_UPDATE', fetchDashboardData);
+  useWebSocketEvent('BILLING_UPDATE', fetchDashboardData);
+  useWebSocketEvent('INVENTORY_UPDATED', fetchDashboardData);
+  useWebSocketEvent('WHOLESALER_UPDATE', (data: any) => {
+    if (!data || ['NEW_ORDER', 'ORDER_UPDATE', 'BILLING_UPDATE', 'SETTLEMENT_REQUEST', 'INVENTORY_UPDATED'].includes(data.type)) {
+      fetchDashboardData();
+    }
+  });
+
   useEffect(() => {
     if (typeof window !== "undefined") {
       const storedBoxes = localStorage.getItem("medhub_low_stock_threshold_boxes");
@@ -143,17 +175,21 @@ export default function DashboardClient({
     }
   };
 
-  const { data: analyticsData } = useRealtimeData<{
+  const { data: analyticsData, refresh: refreshAnalytics } = useRealtimeData<{
     chartData: Array<{ label: string; revenue: number; profit: number; orders: number }>;
     period: string;
     totalOrders: number;
     allProductStocks: Array<{ id: string; name: string; sku: string; units: number; stripsPerBox?: number; tabletsPerStrip?: number }>;
   }>(`/api/wholesaler/analytics?period=${period}&wholesalerId=${profileId}`, profileId);
 
-  const { data: batchesResponse } = useRealtimeData<{
+  const { data: batchesResponse, refresh: refreshBatches } = useRealtimeData<{
     success: boolean;
     batches: Array<{ id: string; batchNumber: string; availableBaseUnits: number; expiryDate: string; product: { name: string; sku: string } }>;
   }>(`/api/wholesaler/batches`, profileId);
+
+  // Also trigger SWR revalidation on WebSocket events for chart data
+  const refreshDashboard = () => { refreshAnalytics(); refreshBatches(); };
+
 
   const lowStockItems = analyticsData?.allProductStocks?.filter((item) => {
     const spb = item.stripsPerBox || 10;
@@ -177,7 +213,7 @@ export default function DashboardClient({
   const statCards = [
     {
       label: "Medicines Registered",
-      value: metrics.productCount,
+      value: liveMetrics.productCount,
       unit: "SKUs",
       icon: Package,
       href: "/wholesaler/inventory",
@@ -186,7 +222,7 @@ export default function DashboardClient({
     },
     {
       label: "Active Batches",
-      value: metrics.activeBatches,
+      value: liveMetrics.activeBatches,
       unit: "batches",
       icon: Database,
       href: "/wholesaler/inventory",
@@ -195,16 +231,16 @@ export default function DashboardClient({
     },
     {
       label: "Pending Orders",
-      value: metrics.pendingOrders,
+      value: liveMetrics.pendingOrders,
       unit: "orders",
       icon: ShieldAlert,
       href: "/wholesaler/orders",
-      accent: metrics.pendingOrders > 0 ? "#DC2626" : "#6B7280",
-      lightBg: metrics.pendingOrders > 0 ? "#FEF2F2" : "#F9FAFB",
+      accent: liveMetrics.pendingOrders > 0 ? "#DC2626" : "#6B7280",
+      lightBg: liveMetrics.pendingOrders > 0 ? "#FEF2F2" : "#F9FAFB",
     },
     {
       label: "In-Transit",
-      value: metrics.dispatchedOrders,
+      value: liveMetrics.dispatchedOrders,
       unit: "shipped",
       icon: Truck,
       href: "/wholesaler/orders",
@@ -217,7 +253,7 @@ export default function DashboardClient({
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
 
       {/* Account Verification Alert Banner */}
-      {metrics.verificationStatus === 'PENDING' && (
+      {liveMetrics.verificationStatus === 'PENDING' && (
         <div style={{ background: '#FFFBEB', border: '1.5px solid #FDE68A', borderRadius: 14, padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, flexWrap: 'wrap' as const }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
             <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#FEF3C7', border: '1px solid #FCD34D', color: '#D97706', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>⏳</div>
@@ -234,14 +270,14 @@ export default function DashboardClient({
         </div>
       )}
 
-      {metrics.verificationStatus === 'REJECTED' && (
+      {liveMetrics.verificationStatus === 'REJECTED' && (
         <div style={{ background: '#FEF2F2', border: '1.5px solid #FECACA', borderRadius: 14, padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, flexWrap: 'wrap' as const }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
             <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#FEE2E2', border: '1px solid #FCA5A5', color: '#DC2626', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>✕</div>
             <div>
               <div style={{ fontSize: 14, fontWeight: 800, color: '#991B1B' }}>Account Verification Rejected</div>
               <div style={{ fontSize: 12, color: '#7F1D1D', marginTop: 2, background: 'rgba(220,38,38,0.06)', padding: '6px 10px', borderRadius: 6, borderLeft: '3px solid #DC2626' }}>
-                <strong>Reason:</strong> {metrics.verificationRejectReason || 'Incomplete registration documents or details.'}
+                <strong>Reason:</strong> {liveMetrics.verificationRejectReason || 'Incomplete registration documents or details.'}
               </div>
             </div>
           </div>
@@ -257,7 +293,7 @@ export default function DashboardClient({
             Operations Overview
           </h1>
           <p style={{ fontSize: 13, color: "var(--text-secondary)" }}>
-            {metrics.companyName} · Real-time supply chain summary
+            {liveMetrics.companyName} · Real-time supply chain summary
           </p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
@@ -273,13 +309,13 @@ export default function DashboardClient({
       </div>
 
       {/* ── Rejected Settlement Alert ── */}
-      {rejectedSettlements.length > 0 && (
+      {liveRejectedSettlements.length > 0 && (
         <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 8, padding: "14px 18px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
             <AlertTriangle style={{ width: 16, height: 16, color: "#DC2626", flexShrink: 0 }} />
             <div>
               <div style={{ fontSize: 13, fontWeight: 700, color: "#991B1B" }}>
-                Rejected Payment Settlements ({rejectedSettlements.length})
+                Rejected Payment Settlements ({liveRejectedSettlements.length})
               </div>
               <div style={{ fontSize: 12, color: "#B91C1C", marginTop: 1 }}>
                 Awaiting manual settlement or retailer action
@@ -287,7 +323,7 @@ export default function DashboardClient({
             </div>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {rejectedSettlements.map((s: any) => (
+            {liveRejectedSettlements.map((s: any) => (
               <div key={s.id} style={{
                 display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12,
                 background: "#fff", border: "1px solid #FECACA", borderRadius: 6, padding: "10px 14px",
@@ -311,13 +347,13 @@ export default function DashboardClient({
       )}
 
       {/* ── Pending Settlement Verification ── */}
-      {pendingSettlements.length > 0 && (
+      {livePendingSettlements.length > 0 && (
         <div style={{ background: "#F5F3FF", border: "1px solid #DDD6FE", borderRadius: 8, padding: "14px 18px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
             <Bell style={{ width: 16, height: 16, color: "#7C3AED", flexShrink: 0 }} />
             <div>
               <div style={{ fontSize: 13, fontWeight: 700, color: "#5B21B6" }}>
-                Settlement Verification Required ({pendingSettlements.length})
+                Settlement Verification Required ({livePendingSettlements.length})
               </div>
               <div style={{ fontSize: 12, color: "#7C3AED", marginTop: 1 }}>
                 Retailers awaiting your payment confirmation
@@ -325,7 +361,7 @@ export default function DashboardClient({
             </div>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {pendingSettlements.map((s: any) => (
+            {livePendingSettlements.map((s: any) => (
               <div key={s.id} style={{
                 display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12,
                 background: "#fff", border: "1px solid #DDD6FE", borderRadius: 6, padding: "10px 14px",
@@ -545,14 +581,14 @@ export default function DashboardClient({
                 </tr>
               </thead>
               <tbody>
-                {auditLogs.length === 0 ? (
+                {liveAuditLogs.length === 0 ? (
                   <tr>
                     <td colSpan={4} style={{ padding: "32px", textAlign: "center", color: "#9CA3AF", fontSize: 13 }}>
                       No recent activity recorded.
                     </td>
                   </tr>
                 ) : (
-                  auditLogs.map((log) => (
+                  liveAuditLogs.map((log) => (
                     <tr key={log.id} style={{ borderBottom: "1px solid #F9FAFB" }}>
                       <td style={{ padding: "11px 16px", fontFamily: "monospace", color: "#6B7280", whiteSpace: "nowrap" }}>
                         {formatTimeNPT(log.timestamp)}
@@ -594,8 +630,8 @@ export default function DashboardClient({
                 <div>
                   <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#9CA3AF" }}>GPS Location</div>
                   <div style={{ fontSize: 11, fontWeight: 600, fontFamily: "monospace", color: "#111827", marginTop: 1 }}>
-                    {metrics.latitude && metrics.longitude
-                      ? `${metrics.latitude.toFixed(4)}N, ${metrics.longitude.toFixed(4)}E`
+                {liveMetrics.latitude && liveMetrics.longitude
+                      ? `${liveMetrics.latitude.toFixed(4)}N, ${liveMetrics.longitude.toFixed(4)}E`
                       : "UNCONFIGURED"}
                   </div>
                 </div>
@@ -603,7 +639,7 @@ export default function DashboardClient({
               {[
                 { label: "System Monitor", value: <span style={{ fontSize: 11, fontWeight: 600, color: "#059669", background: "#ECFDF5", border: "1px solid #A7F3D0", padding: "1px 8px", borderRadius: 4 }}>Stable</span> },
                 { label: "Dispatch Queue", value: <span style={{ fontSize: 11, fontWeight: 600, color: "#374151", fontFamily: "monospace" }}>FIFO</span> },
-                { label: "Company Node", value: <span style={{ fontSize: 11, fontWeight: 600, color: "#374151", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 110, display: "block" }} title={metrics.companyName}>{metrics.companyName}</span> },
+                { label: "Company Node", value: <span style={{ fontSize: 11, fontWeight: 600, color: "#374151", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 110, display: "block" }} title={liveMetrics.companyName}>{liveMetrics.companyName}</span> },
               ].map((row, i) => (
                 <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: i < 2 ? 8 : 0, borderBottom: i < 2 ? "1px solid #F3F4F6" : "none" }}>
                   <span style={{ fontSize: 11, color: "#6B7280" }}>{row.label}</span>

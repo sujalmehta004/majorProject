@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { hashPassword } from '@/lib/auth';
+import { broadcastToSuperadmin } from '@/app/api/events/route';
 
 export async function PUT(
   request: Request,
@@ -28,6 +29,8 @@ export async function PUT(
         details: `Superadmin updated plan for user ID: ${id}. Package: ${packageName}, Price: ${packagePrice}, Active: ${isActive}`,
       },
     });
+
+    broadcastToSuperadmin('USER_PLAN_UPDATE', { userId: id, packageName, isActive });
 
     return NextResponse.json({ success: true, user: updatedUser });
   } catch (error: any) {
@@ -86,6 +89,8 @@ export async function POST(
         },
       });
 
+      broadcastToSuperadmin('VERIFICATION_UPDATE', { userId: id, action: 'verify', email: updatedUser.email });
+
       return NextResponse.json({ success: true, user: updatedUser });
     }
 
@@ -106,6 +111,8 @@ export async function POST(
           details: `Superadmin rejected partner verification for user ID: ${id}. Reason: ${rejectReason}`,
         },
       });
+
+      broadcastToSuperadmin('VERIFICATION_UPDATE', { userId: id, action: 'reject', email: updatedUser.email });
 
       return NextResponse.json({ success: true, user: updatedUser });
     }

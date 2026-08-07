@@ -223,24 +223,38 @@ export default function RegisterPage() {
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
                     {roles.map((r) => {
                       const Icon = r.icon;
+                      const isDisabled = r.id === 'CLINIC';
                       return (
                         <button
                           key={r.id}
                           type="button"
-                          onClick={() => setRole(r.id as any)}
+                          disabled={isDisabled}
+                          onClick={() => !isDisabled && setRole(r.id as any)}
                           style={{
                             padding: '14px 10px',
                             border: role === r.id ? `2px solid ${r.color}` : '1.5px solid #E2E8F0',
                             borderRadius: 12,
-                            background: role === r.id ? r.bg : 'white',
-                            cursor: 'pointer',
+                            background: isDisabled ? '#F8FAFC' : role === r.id ? r.bg : 'white',
+                            cursor: isDisabled ? 'not-allowed' : 'pointer',
                             textAlign: 'center',
                             fontFamily: 'inherit',
                             transition: 'all 0.2s',
+                            opacity: isDisabled ? 0.6 : 1,
+                            position: 'relative',
                           }}
                         >
-                          <Icon style={{ width: 20, height: 20, color: role === r.id ? r.color : '#94A3B8', margin: '0 auto 6px' }} />
-                          <div style={{ fontSize: 11, fontWeight: 700, color: role === r.id ? r.color : '#64748B' }}>{r.label}</div>
+                          {isDisabled && (
+                            <span style={{
+                              position: 'absolute', top: 4, right: 4,
+                              fontSize: 8, fontWeight: 800, textTransform: 'uppercase',
+                              background: '#F1F5F9', color: '#64748B',
+                              padding: '2px 5px', borderRadius: 4, border: '1px solid #CBD5E1'
+                            }}>
+                              Coming Soon
+                            </span>
+                          )}
+                          <Icon style={{ width: 20, height: 20, color: isDisabled ? '#94A3B8' : role === r.id ? r.color : '#94A3B8', margin: '0 auto 6px' }} />
+                          <div style={{ fontSize: 11, fontWeight: 700, color: isDisabled ? '#94A3B8' : role === r.id ? r.color : '#64748B' }}>{r.label}</div>
                         </button>
                       );
                     })}

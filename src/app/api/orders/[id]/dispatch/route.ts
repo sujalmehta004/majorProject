@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getSessionUser } from '@/lib/auth';
 import { OrderStatus } from '@prisma/client';
+import { broadcastToWholesaler, broadcastToRetailer } from '@/app/api/events/route';
 
 export async function POST(
   request: Request,
@@ -66,6 +67,9 @@ export async function POST(
 
       return updated;
     });
+
+    broadcastToWholesaler(order.wholesalerId, 'ORDER_UPDATE', { type: 'DISPATCH', orderId: order.id });
+    broadcastToRetailer(order.retailerId, 'ORDER_UPDATE', { type: 'DISPATCH', orderId: order.id });
 
     return NextResponse.json({ success: true, order: updatedOrder });
   } catch (error: any) {

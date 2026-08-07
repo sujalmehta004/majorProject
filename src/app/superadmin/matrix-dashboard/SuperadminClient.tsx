@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { formatDateNPT, formatDateTimeNPT } from '@/lib/timezone';
 import {
   Users, Building, ShieldAlert, ShieldCheck,
@@ -202,6 +202,62 @@ export default function SuperadminClient({ initialUsers, initialLogs, initialPac
 
   const now = new Date();
   const pending = users.filter(u => (u.verificationStatus || 'PENDING') === 'PENDING' && u.role !== 'SUPERADMIN');
+
+  // ── SSE Live Connection (Superadmin channel) ──────────────────────────────
+  const [sseConnected, setSseConnected] = useState(false);
+  const [toasts, setToasts] = useState<{ id: string; message: string; type: 'success' | 'info' | 'warning' }[]>([]);
+
+  const addToast = useCallback((message: string, type: 'success' | 'info' | 'warning' = 'info') => {
+    const id = Date.now().toString();
+    setToasts(prev => [...prev, { id, message, type }]);
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 6000);
+  }, []);
+
+  const refreshUsers = useCallback(async () => {
+    try {
+      const res = await fetch('/api/superadmin/users');
+      const data = await res.json();
+      if (data.users) setUsers(data.users);
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    let es: EventSource;
+    let retryTimer: ReturnType<typeof setTimeout>;
+
+    const connect = () => {
+      es = new EventSource('/api/events?superadmin=true');
+
+      es.onmessage = (e) => {
+        try {
+          const { type, payload } = JSON.parse(e.data);
+          if (type === 'CONNECTED') { setSseConnected(true); return; }
+
+          if (type === 'VERIFICATION_UPDATE') {
+            refreshUsers();
+            const action = payload?.action === 'verify' ? 'verified' : 'rejected';
+            addToast(`✅ Partner ${payload?.email || ''} was ${action}.`, action === 'verified' ? 'success' : 'warning');
+          } else if (type === 'USER_PLAN_UPDATE') {
+            refreshUsers();
+            addToast(`📋 Plan updated for user ${payload?.userId || ''}.`, 'info');
+          } else if (type === 'CONSUMER_ORDER_NEW') {
+            addToast(`🛒 New online order placed at a pharmacy.`, 'success');
+          }
+        } catch {}
+      };
+
+      es.onerror = () => {
+        setSseConnected(false);
+        es.close();
+        retryTimer = setTimeout(connect, 5000);
+      };
+    };
+
+    connect();
+    return () => { es?.close(); clearTimeout(retryTimer); };
+  }, [refreshUsers, addToast]);
+  // ─────────────────────────────────────────────────────────────────────────
 
   /* ── Filtered Verification Requests ── */
   const filteredVerifications = useMemo(() => {
@@ -425,10 +481,17 @@ export default function SuperadminClient({ initialUsers, initialLogs, initialPac
         ))}
         <div style={{ marginTop: 'auto', paddingTop: 20, borderTop: `1px solid ${C.border}` }}>
           <div style={{ fontSize: 12, color: C.textMuted, padding: '0 4px' }}>
-            <div style={{ fontWeight: 600, color: C.textMid, marginBottom: 2 }}>System Status</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: C.success }}>
-              <span style={{ width: 6, height: 6, borderRadius: '50%', background: C.success }} />
-              All systems operational
+            <div style={{ fontWeight: 600, color: C.textMid, marginBottom: 6 }}>System Status</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              <span style={{
+                width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
+                background: sseConnected ? C.success : '#F59E0B',
+                boxShadow: sseConnected ? `0 0 0 2px ${C.successBg}` : '0 0 0 2px #FFFBEB',
+                animation: sseConnected ? 'pulse 2s infinite' : 'none',
+              }} />
+              <span style={{ color: sseConnected ? C.success : '#B45309', fontWeight: 600, fontSize: 11 }}>
+                {sseConnected ? 'Live — All systems online' : 'Connecting…'}
+              </span>
             </div>
           </div>
         </div>
@@ -1134,6 +1197,46 @@ export default function SuperadminClient({ initialUsers, initialLogs, initialPac
           )}
         </div>
       )}
+
+      {/* ── Real-time Toast Notifications ── */}
+      {toasts.length > 0 && (
+        <div style={{
+          position: 'fixed', bottom: 24, right: 24,
+          display: 'flex', flexDirection: 'column', gap: 10,
+          zIndex: 9999, maxWidth: 380,
+        }}>
+          {toasts.map(toast => (
+            <div
+              key={toast.id}
+              onClick={() => setToasts(prev => prev.filter(t => t.id !== toast.id))}
+              style={{
+                display: 'flex', alignItems: 'flex-start', gap: 10,
+                padding: '12px 16px', borderRadius: 10,
+                boxShadow: '0 8px 30px rgba(0,0,0,0.12)',
+                background: toast.type === 'success' ? '#ECFDF5' : toast.type === 'warning' ? '#FFFBEB' : '#EFF6FF',
+                border: `1.5px solid ${toast.type === 'success' ? '#A7F3D0' : toast.type === 'warning' ? '#FDE68A' : '#BFDBFE'}`,
+                color: toast.type === 'success' ? '#065F46' : toast.type === 'warning' ? '#92400E' : '#1E40AF',
+                fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                animation: 'slideInRight 0.3s ease',
+              }}
+            >
+              <span style={{ flex: 1, lineHeight: 1.5 }}>{toast.message}</span>
+              <span style={{ fontSize: 14, opacity: 0.45, flexShrink: 0 }}>✕</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <style>{`
+        @keyframes slideInRight {
+          from { opacity: 0; transform: translateX(30px); }
+          to   { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50%       { opacity: 0.4; }
+        }
+      `}</style>
     </div>
   );
 }

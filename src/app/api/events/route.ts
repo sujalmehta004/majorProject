@@ -1,37 +1,67 @@
 import { NextRequest } from 'next/server';
+import { emitWebSocketEvent } from '@/lib/ws';
 
-// SSE broadcast registry - maps targetId (wholesalerId or retailerId) → set of writer functions
+// ─── Subscriber Registry ─────────────────────────────────────────────────────
+// Maps targetId (wholesalerId | retailerId | 'SUPERADMIN') → set of send fns
 const subscribers = new Map<string, Set<(data: string) => void>>();
 
-// Called by any mutation API to push updates to all connected wholesaler clients
+// Special key for superadmin global channel
+const SUPERADMIN_KEY = 'SUPERADMIN';
+
+// ─── Internal Helpers ─────────────────────────────────────────────────────────
+function broadcastTo(targetId: string, eventType: string, payload?: object) {
+  const subs = subscribers.get(targetId);
+  if (subs && subs.size > 0) {
+    const message = `data: ${JSON.stringify({ type: eventType, payload, ts: Date.now() })}\n\n`;
+    subs.forEach(send => {
+      try { send(message); } catch {}
+    });
+  }
+  // Also emit over Socket.IO WebSocket
+  emitWebSocketEvent(eventType, { targetId, payload, ts: Date.now() });
+}
+
+// ─── Public Broadcast API ─────────────────────────────────────────────────────
+
+/** Push event to all connected wholesaler clients */
 export function broadcastToWholesaler(wholesalerId: string, eventType: string, payload?: object) {
-  const subs = subscribers.get(wholesalerId);
-  if (!subs || subs.size === 0) return;
-  const message = `data: ${JSON.stringify({ type: eventType, payload, ts: Date.now() })}\n\n`;
-  subs.forEach(send => {
-    try { send(message); } catch {}
-  });
+  broadcastTo(wholesalerId, eventType, payload);
+  emitWebSocketEvent('WHOLESALER_UPDATE', { wholesalerId, type: eventType, payload });
 }
 
-// Called by any mutation API to push updates to all connected retailer clients
+/** Push event to all connected retailer clients */
 export function broadcastToRetailer(retailerId: string, eventType: string, payload?: object) {
-  const subs = subscribers.get(retailerId);
-  if (!subs || subs.size === 0) return;
-  const message = `data: ${JSON.stringify({ type: eventType, payload, ts: Date.now() })}\n\n`;
-  subs.forEach(send => {
-    try { send(message); } catch {}
-  });
+  broadcastTo(retailerId, eventType, payload);
+  emitWebSocketEvent('RETAILER_UPDATE', { retailerId, type: eventType, payload });
 }
 
+/** Push event to all connected superadmin clients */
+export function broadcastToSuperadmin(eventType: string, payload?: object) {
+  broadcastTo(SUPERADMIN_KEY, eventType, payload);
+  emitWebSocketEvent('SUPERADMIN_UPDATE', { type: eventType, payload });
+}
+
+/** Push event to EVERY connected client (retailers + wholesalers + superadmin) */
+export function broadcastToAll(eventType: string, payload?: object) {
+  const message = `data: ${JSON.stringify({ type: eventType, payload, ts: Date.now() })}\n\n`;
+  subscribers.forEach(subs => {
+    subs.forEach(send => {
+      try { send(message); } catch {}
+    });
+  });
+  // Emit WebSocket event to ALL connected clients
+  emitWebSocketEvent(eventType, payload);
+  emitWebSocketEvent('GLOBAL_UPDATE', { type: eventType, payload });
+}
+
+// ─── SSE Endpoint ─────────────────────────────────────────────────────────────
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const wholesalerId = searchParams.get('wholesalerId');
-  const retailerId = searchParams.get('retailerId');
-  const targetId = wholesalerId || retailerId;
+  const retailerId   = searchParams.get('retailerId');
+  const isSuperadmin = searchParams.get('superadmin') === 'true';
 
-  if (!targetId) {
-    return new Response('Missing targetId (wholesalerId or retailerId)', { status: 400 });
-  }
+  const targetId = isSuperadmin ? SUPERADMIN_KEY : (wholesalerId || retailerId || 'GLOBAL');
 
   let send: (data: string) => void;
   let closed = false;
@@ -51,13 +81,13 @@ export async function GET(request: NextRequest) {
       subscribers.get(targetId)!.add(send);
 
       // Send initial connection event
-      send(`data: ${JSON.stringify({ type: 'CONNECTED', ts: Date.now() })}\n\n`);
+      send(`data: ${JSON.stringify({ type: 'CONNECTED', targetId, ts: Date.now() })}\n\n`);
 
-      // Keep-alive heartbeat every 15s
+      // Keep-alive heartbeat every 20s
       const heartbeat = setInterval(() => {
         if (closed) { clearInterval(heartbeat); return; }
         try { send(`: heartbeat\n\n`); } catch {}
-      }, 15000);
+      }, 20000);
 
       // Cleanup on disconnect
       request.signal.addEventListener('abort', () => {
@@ -77,8 +107,7 @@ export async function GET(request: NextRequest) {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache, no-store',
       'Connection': 'keep-alive',
-      'X-Accel-Buffering': 'no', // Disable Nginx buffering
+      'X-Accel-Buffering': 'no',
     },
   });
 }
-

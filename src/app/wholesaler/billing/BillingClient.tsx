@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { logActivity } from '@/components/WholesalerLayout';
 import { useSSEListener } from '@/hooks/useRealtimeData';
+import { useWebSocketEvent } from '@/lib/events';
 import { BarChart, Bar, Line, LineChart, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ComposedChart } from 'recharts';
 
 interface Retailer {
@@ -197,6 +198,17 @@ export default function BillingClient({ profileId, initialOrders, initialSupplie
   const [supBillSupplierSearch, setSupBillSupplierSearch] = useState('');
   const [supBillDateFrom, setSupBillDateFrom] = useState('');
   const [supBillDateTo, setSupBillDateTo] = useState('');
+
+  const fetchWholesalerBilling = async () => {
+    try {
+      const res = await fetch('/api/wholesaler/orders');
+      const data = await res.json();
+      if (data.success && data.orders) setOrders(data.orders);
+    } catch {}
+  };
+
+  useWebSocketEvent('BILLING_UPDATE', () => { fetchWholesalerBilling(); });
+  useWebSocketEvent('ORDER_UPDATE', () => { fetchWholesalerBilling(); });
 
   useEffect(() => {
     // Fetch wholesaler products catalog

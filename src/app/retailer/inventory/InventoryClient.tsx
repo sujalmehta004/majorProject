@@ -13,7 +13,7 @@ import {
   updateInventoryQuantityAction,
   deleteInventoryBatchAction
 } from '@/app/actions/retailerActions';
-import { useRealtimeEvent, broadcastUpdate } from '@/lib/events';
+import { useRealtimeEvent, broadcastUpdate, useWebSocketEvent } from '@/lib/events';
 
 interface Product {
   id: string;
@@ -130,17 +130,11 @@ export default function InventoryClient({ profileId, allProducts: initialProduct
   const [batchPrintSelectedItems, setBatchPrintSelectedItems] = useState<Record<string, boolean>>({});
   const [batchPrintCopies, setBatchPrintCopies] = useState<Record<string, number>>({});
 
-  useRealtimeEvent('INVENTORY_UPDATE', () => { fetchInventory(); fetchProducts(); });
+  useRealtimeEvent('INVENTORY_UPDATE', () => { fetchInventory(true); fetchProducts(); });
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const es = new EventSource(`/api/events?retailerId=${profileId}`);
-    es.onmessage = (e) => {
-      try { const p = JSON.parse(e.data); if (p.type === 'INVENTORY_UPDATE') { fetchInventory(); fetchProducts(); } } catch {}
-    };
-    es.onerror = () => { es.close(); };
-    return () => { es.close(); };
-  }, [profileId]);
+  useWebSocketEvent('INVENTORY_UPDATE', () => { fetchInventory(true); fetchProducts(); });
+  useWebSocketEvent('CONSUMER_ORDER_NEW', () => { fetchInventory(true); fetchProducts(); });
+  useWebSocketEvent('CONSUMER_ORDER_UPDATE', () => { fetchInventory(true); fetchProducts(); });
 
   useEffect(() => {
     if (selectedBatchNumber) {
@@ -167,13 +161,13 @@ export default function InventoryClient({ profileId, allProducts: initialProduct
     return () => window.removeEventListener('keydown', handler);
   }, [showAddModal, detailBatch, editingItem]);
 
-  const fetchInventory = async () => {
+  const fetchInventory = async (isBackground = false) => {
     try {
-      setLoading(true);
+      if (!isBackground) setLoading(true);
       const res = await fetch('/api/retailer/inventory');
       const data = await res.json();
       if (data.success) setInventory(data.inventory);
-    } catch (e) { console.error(e); } finally { setLoading(false); }
+    } catch (e) { console.error(e); } finally { if (!isBackground) setLoading(false); }
   };
 
   const fetchProducts = async () => {
@@ -189,8 +183,6 @@ export default function InventoryClient({ profileId, allProducts: initialProduct
   useEffect(() => {
     fetchInventory();
     fetchProducts();
-    const interval = setInterval(fetchInventory, 5000);
-    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {

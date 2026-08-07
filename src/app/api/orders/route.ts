@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getSessionUser } from '@/lib/auth';
 import { OrderStatus } from '@prisma/client';
+import { broadcastToWholesaler, broadcastToRetailer } from '@/app/api/events/route';
 
 enum ClientTier {
   BRONZE = 'BRONZE',
@@ -362,6 +363,21 @@ export async function POST(request: Request) {
 
       return { newOrder, appliedAdvance };
     });
+
+    // ── Real-time notifications ──────────────────────────────────────────────
+    // Notify wholesaler: new order arrived from a retailer
+    broadcastToWholesaler(wholesaler.id, 'ORDER_UPDATE', {
+      type: 'NEW_ORDER',
+      orderId: result.newOrder.id,
+      retailerName: retailer.pharmacyName,
+      netAmount: result.newOrder.netAmount,
+    });
+    // Notify retailer: order placed successfully, billing & orders should refresh
+    broadcastToRetailer(retailer.id, 'ORDER_UPDATE', {
+      type: 'ORDER_PLACED',
+      orderId: result.newOrder.id,
+    });
+    broadcastToRetailer(retailer.id, 'BILLING_UPDATE', { orderId: result.newOrder.id });
 
     return NextResponse.json({ success: true, order: result.newOrder, appliedAdvance: result.appliedAdvance });
   } catch (error: any) {

@@ -3,6 +3,7 @@
 import { db } from '@/lib/db';
 import { sendConsumerOrderConfirmation, sendConsumerOrderStatusUpdate } from '@/lib/mailer';
 import { createLedgerEntry } from '@/lib/ledger';
+import { broadcastToRetailer, broadcastToSuperadmin, broadcastToAll } from '@/app/api/events/route';
 
 function generateTrackingCode(): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -168,7 +169,7 @@ export async function placeConsumerOrderAction(data: {
   try {
     const trackingCode = generateTrackingCode();
 
-    // Calculate total from provided prices (no inventory deduction at order placement)
+    // Calculate total from provided prices
     let totalAmount = 0;
     for (const item of data.items) {
       totalAmount += item.quantity * item.pricePerUnit;
@@ -176,59 +177,82 @@ export async function placeConsumerOrderAction(data: {
 
     const deliveryFee = data.deliveryFee || 0;
     const grandTotal = totalAmount + deliveryFee;
-
-    // Validate that inventory is sufficient before placing
-    for (const item of data.items) {
-      const inventoryItems = await db.retailerInventory.findMany({
-        where: {
-          retailerId: data.retailerId,
-          productId: item.productId,
-          quantity: { gt: 0 },
-          expiryDate: { gt: new Date() },
-        },
-      });
-      const totalAvailable = inventoryItems.reduce((sum: number, i: any) => sum + i.quantity, 0);
-      if (totalAvailable < item.quantity) {
-        throw new Error(`Insufficient stock for one or more items. Please refresh and try again.`);
-      }
-    }
-
     const hasPrescriptions = Array.isArray(data.prescriptionImages) && data.prescriptionImages.length > 0;
 
-    const order = await db.consumerOrder.create({
-      data: {
-        trackingCode,
-        retailerId: data.retailerId,
-        buyerName: data.buyerName,
-        buyerEmail: data.buyerEmail,
-        buyerPhone: data.buyerPhone,
-        deliveryAddress: data.deliveryAddress,
-        latitude: data.latitude || null,
-        longitude: data.longitude || null,
-        paymentMethod: 'COD',
-        status: 'PENDING',
-        prescriptionImagesJson: hasPrescriptions ? JSON.stringify(data.prescriptionImages) : '[]',
-        prescriptionStatus: hasPrescriptions ? 'PENDING' : 'NOT_REQUIRED',
-        doctorNmcNumber: data.doctorNmcNumber || null,
-        totalAmount: grandTotal,
-        deliveryFee,
-        items: {
-          create: data.items.map(item => ({
+    // ─── Atomic stock check + order creation (prevents race conditions) ────────
+    // Using a serializable transaction: if two simultaneous orders hit at the same
+    // millisecond, the DB serializes them. The second will see 0 stock and fail.
+    const order = await db.$transaction(async (tx) => {
+      // Re-check inventory inside the transaction
+      for (const item of data.items) {
+        const inventoryItems = await tx.retailerInventory.findMany({
+          where: {
+            retailerId: data.retailerId,
             productId: item.productId,
-            quantity: item.quantity,
-            pricePerUnit: item.pricePerUnit,
-          })),
-        },
-      },
-      include: {
-        retailer: true,
-        items: {
-          include: {
-            product: true,
+            quantity: { gt: 0 },
+            expiryDate: { gt: new Date() },
+          },
+          include: { product: true },
+        });
+        const totalAvailable = inventoryItems.reduce((sum: number, i: any) => sum + i.quantity, 0);
+        if (totalAvailable < item.quantity) {
+          const productName = (inventoryItems[0] as any)?.product?.name || 'A medicine';
+          throw new Error(
+            `${productName} is sold out — another customer just ordered the last unit(s). Please refresh and try a different quantity.`
+          );
+        }
+      }
+
+      return tx.consumerOrder.create({
+        data: {
+          trackingCode,
+          retailerId: data.retailerId,
+          buyerName: data.buyerName,
+          buyerEmail: data.buyerEmail,
+          buyerPhone: data.buyerPhone,
+          deliveryAddress: data.deliveryAddress,
+          latitude: data.latitude || null,
+          longitude: data.longitude || null,
+          paymentMethod: 'COD',
+          status: 'PENDING',
+          prescriptionImagesJson: hasPrescriptions ? JSON.stringify(data.prescriptionImages) : '[]',
+          prescriptionStatus: hasPrescriptions ? 'PENDING' : 'NOT_REQUIRED',
+          doctorNmcNumber: data.doctorNmcNumber || null,
+          totalAmount,
+          deliveryFee,
+          items: {
+            create: data.items.map(item => ({
+              productId: item.productId,
+              quantity: item.quantity,
+              pricePerUnit: item.pricePerUnit,
+            })),
           },
         },
-      },
-    });
+        include: {
+          retailer: true,
+          items: { include: { product: true } },
+        },
+      });
+    }, { isolationLevel: 'Serializable' });
+    // ─────────────────────────────────────────────────────────────────────────
+
+    // Notify retailer dashboard & all connected tabs in real-time
+    try {
+      broadcastToRetailer(data.retailerId, 'CONSUMER_ORDER_NEW', {
+        orderId: order.id,
+        trackingCode: order.trackingCode,
+        buyerName: order.buyerName,
+        totalAmount: order.totalAmount,
+      });
+      broadcastToSuperadmin('CONSUMER_ORDER_NEW', { retailerId: data.retailerId });
+      broadcastToAll('CONSUMER_ORDER_NEW', {
+        retailerId: data.retailerId,
+        orderId: order.id,
+        trackingCode: order.trackingCode,
+        buyerName: order.buyerName,
+      });
+      broadcastToAll('INVENTORY_UPDATE', { retailerId: data.retailerId });
+    } catch {}
 
     // Send confirmation email
     try {
@@ -412,6 +436,26 @@ export async function updateConsumerOrderStatusAction(orderId: string, status: s
       console.error(e);
     }
 
+    // Real-time broadcast to retailer & all tabs
+    try {
+      broadcastToRetailer(order.retailerId, 'CONSUMER_ORDER_UPDATE', {
+        orderId: order.id,
+        status,
+        trackingCode: order.trackingCode,
+      });
+      broadcastToAll('CONSUMER_ORDER_UPDATE', {
+        retailerId: order.retailerId,
+        orderId: order.id,
+        status,
+        trackingCode: order.trackingCode,
+      });
+      // Inventory changed on SHIPPED/FAILED — notify inventory watchers too
+      if (status === 'SHIPPED' || status === 'FAILED') {
+        broadcastToRetailer(order.retailerId, 'INVENTORY_UPDATE', { source: 'consumer_order' });
+        broadcastToAll('INVENTORY_UPDATE', { retailerId: order.retailerId });
+      }
+    } catch {}
+
     return { success: true, order };
   } catch (error: any) {
     return { success: false, error: error.message };
@@ -466,6 +510,15 @@ export async function updateConsumerOrderPrescriptionStatusAction(
         },
       },
     });
+
+    // Real-time broadcast prescription update to retailer
+    try {
+      broadcastToRetailer(order.retailerId, 'PRESCRIPTION_UPDATE', {
+        orderId: order.id,
+        prescriptionStatus,
+        trackingCode: order.trackingCode,
+      });
+    } catch {}
 
     return { success: true, order };
   } catch (error: any) {

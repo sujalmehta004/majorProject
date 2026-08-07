@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { confirmB2BDeliveryAction } from '@/app/actions/retailerActions';
 import { updateConsumerOrderStatusAction, saveDeliveryFeeSettingsAction, updateConsumerOrderPrescriptionStatusAction } from '@/app/actions/consumerActions';
-import { useRealtimeEvent, broadcastUpdate } from '@/lib/events';
+import { useRealtimeEvent, broadcastUpdate, useWebSocketEvent } from '@/lib/events';
 
 interface Batch {
   id: string;
@@ -170,6 +170,16 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
   const [updatingPrescription, setUpdatingPrescription] = useState(false);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
 
+  // Real-time toast notifications state
+  const [toasts, setToasts] = useState<{ id: string; message: string; type: 'success' | 'info' | 'warning' }[]>([]);
+
+  const addToast = (message: string, type: 'success' | 'info' | 'warning' = 'success') => {
+    const id = Date.now().toString();
+    setToasts(prev => [...prev, { id, message, type }]);
+    // Auto-dismiss after 6 seconds
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 6000);
+  };
+
   const handlePrescriptionAction = async (status: 'APPROVED' | 'REJECTED') => {
     if (!prescriptionModalOrder) return;
     if (status === 'REJECTED' && !showRejectInput) {
@@ -215,19 +225,20 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
     }
   }, [selectedWholesalerId, wholesalers, selectedWholesaler]);
 
-  useRealtimeEvent('ORDER_UPDATE', () => { fetchOrders(); });
+  // ── Real-Time WebSocket Event Handlers ──
+  useWebSocketEvent('CONSUMER_ORDER_NEW', (payload: any) => {
+    fetchOrders();
+    addToast(`🛒 New online order from ${payload?.buyerName || 'a customer'}! (${payload?.trackingCode || ''})`, 'success');
+  });
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const es = new EventSource(`/api/events?retailerId=${profileId}`);
-    es.onmessage = (e) => {
-      try {
-        const parsed = JSON.parse(e.data);
-        if (parsed.type === 'ORDER_UPDATE' || parsed.type === 'CONSUMER_ORDER_UPDATE') fetchOrders();
-      } catch (err) {}
-    };
-    return () => { es.close(); };
-  }, [profileId]);
+  useWebSocketEvent('CONSUMER_ORDER_UPDATE', (payload: any) => {
+    fetchOrders();
+    addToast(`📦 Order ${payload?.trackingCode || ''} updated to ${payload?.status || 'new status'}.`, 'info');
+  });
+
+  useWebSocketEvent('INVENTORY_UPDATE', () => {
+    fetchOrders();
+  });
 
   const fetchOrders = async () => {
     try {
@@ -445,8 +456,8 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
     return o.id.toLowerCase().includes(q) || o.wholesaler.companyName.toLowerCase().includes(q);
   });
 
-  const filteredConsumer = useMemo(() => {
-    let result = [...consumerOrders];
+  const filteredConsumerActive = useMemo(() => {
+    let result = consumerOrders.filter(o => o.status === 'PENDING' || o.status === 'SHIPPED');
     if (onlineStatusFilter !== 'ALL') {
       result = result.filter(o => o.status === onlineStatusFilter);
     }
@@ -470,6 +481,24 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
     });
     return result;
   }, [consumerOrders, onlineStatusFilter, onlineSearch, onlineSortOrder]);
+
+  const filteredConsumerHistory = useMemo(() => {
+    let result = consumerOrders.filter(o => o.status === 'DELIVERED' || o.status === 'FAILED' || o.status === 'RETURNED');
+    if (historySearch.trim()) {
+      const q = historySearch.toLowerCase().trim();
+      result = result.filter(o => {
+        return [
+          o.trackingCode,
+          o.buyerName,
+          o.buyerPhone,
+          o.buyerEmail,
+          o.deliveryAddress,
+        ].some(v => v?.toLowerCase().includes(q));
+      });
+    }
+    result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    return result;
+  }, [consumerOrders, historySearch]);
 
   const cartTotal = cart.reduce((s, i) => s + i.qtyBoxes * i.pricePerBox, 0);
 
@@ -501,6 +530,7 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
   ];
 
   return (
+    <>
     <div style={{ display: 'flex', flexDirection: 'column', gap: 0, minHeight: 'calc(100vh - 80px)' }}>
 
       {/* Page Header */}
@@ -1019,8 +1049,8 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
                 {/* Online Orders Filter Controls Bar */}
                 <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--card-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, background: 'var(--table-header-bg)' }}>
                   <div>
-                    <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)' }}>Online Consumer Orders Registry</div>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Showing {filteredConsumer.length} of {consumerOrders.length} orders</div>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)' }}>Active Online Sales Registry</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Showing {filteredConsumerActive.length} active orders (Delivered & Failed moved to History)</div>
                   </div>
 
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -1054,11 +1084,9 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
                     {/* Status Pill Filters */}
                     <div style={{ display: 'flex', gap: 4 }}>
                       {[
-                        { key: 'ALL', label: 'All' },
+                        { key: 'ALL', label: 'All Active' },
                         { key: 'PENDING', label: 'Pending' },
                         { key: 'SHIPPED', label: 'Shipped' },
-                        { key: 'DELIVERED', label: 'Delivered' },
-                        { key: 'FAILED', label: 'Failed' },
                       ].map(st => (
                         <button
                           key={st.key}
@@ -1095,9 +1123,9 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredConsumer.length === 0 ? (
-                      <tr><td colSpan={8} style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>No online orders yet</td></tr>
-                    ) : filteredConsumer.map(o => {
+                    {filteredConsumerActive.length === 0 ? (
+                      <tr><td colSpan={8} style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>No active online orders. Delivered and Failed orders appear in Order History.</td></tr>
+                    ) : filteredConsumerActive.map(o => {
                       const imgs = JSON.parse(o.prescriptionImagesJson || '[]');
                       const count = Array.isArray(imgs) ? imgs.length : 0;
                       const pStatus = o.prescriptionStatus || 'NOT_REQUIRED';
@@ -1216,8 +1244,12 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
             {(['DELIVERED', 'RETURNED', 'FAILED'] as const).map(s => {
-              const cnt = orders.filter(o => o.status === s).length;
-              const total = orders.filter(o => o.status === s).reduce((sum, o) => sum + o.netAmount, 0);
+              const b2bCnt = orders.filter(o => o.status === s).length;
+              const b2bTotal = orders.filter(o => o.status === s).reduce((sum, o) => sum + o.netAmount, 0);
+              const consumerCnt = consumerOrders.filter(o => o.status === s).length;
+              const consumerTotal = consumerOrders.filter(o => o.status === s).reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+              const cnt = b2bCnt + consumerCnt;
+              const total = b2bTotal + consumerTotal;
               const meta = STATUS_META[s];
               return (
                 <div key={s} style={{ flex: 1, minWidth: 150, background: 'var(--card-bg)', border: '1px solid var(--card-border)', borderRadius: 8, padding: '14px 18px' }}>
@@ -1238,52 +1270,96 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
           </div>
 
           <div style={{ background: 'var(--card-bg)', borderRadius: 8, border: '1px solid var(--card-border)', overflow: 'hidden' }}>
-            {filteredHistory.length === 0 ? (
+            {filteredHistory.length === 0 && filteredConsumerHistory.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '56px 20px', color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
                 <History style={{ width: 36, height: 36, color: 'var(--card-border)' }} />
                 <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>No order history yet</div>
                 <div style={{ fontSize: 13 }}>Completed, returned, and failed orders will appear here</div>
               </div>
             ) : (
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 13 }}>
-                <thead>
-                  <tr style={{ background: 'var(--table-header-bg)', borderBottom: '1px solid var(--card-border)' }}>
-                    <th style={thStyle}>Order ID</th>
-                    <th style={thStyle}>Wholesaler</th>
-                    <th style={thStyle}>Items</th>
-                    <th style={{ ...thStyle, textAlign: 'right' }}>Net Amount</th>
-                    <th style={thStyle}>Status</th>
-                    <th style={thStyle}>Order Date</th>
-                    <th style={{ ...thStyle, textAlign: 'center' }}>Invoice</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredHistory.map(order => (
-                    <tr key={order.id} onClick={() => setSelectedOrder(order)} style={{ borderBottom: '1px solid var(--card-border)', cursor: 'pointer' }} onMouseEnter={e => (e.currentTarget.style.background = 'var(--table-header-bg)')} onMouseLeave={e => (e.currentTarget.style.background = '')}>
-                      <td style={{ padding: '12px 16px', fontFamily: 'monospace', fontWeight: 700, fontSize: 12, color: 'var(--text-primary)' }}>#{order.id.substring(0, 8).toUpperCase()}</td>
-                      <td style={{ padding: '12px 16px' }}>
-                        <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{order.wholesaler.companyName}</div>
-                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{order.wholesaler.phone}</div>
-                      </td>
-                      <td style={{ padding: '12px 16px', color: 'var(--text-secondary)' }}>
-                        <div>{order.items.length} item{order.items.length !== 1 ? 's' : ''}</div>
-                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{order.items.map(i => i.product.name).join(', ')}</div>
-                      </td>
-                      <td style={{ padding: '12px 16px', fontWeight: 700, textAlign: 'right', fontFamily: 'monospace', color: 'var(--text-primary)' }}>Rs. {order.netAmount.toLocaleString()}</td>
-                      <td style={{ padding: '12px 16px' }}><StatusBadge status={order.status} /></td>
-                      <td style={{ padding: '12px 16px' }}>
-                        <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{formatDateNPT(order.createdAt)}</div>
-                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{formatTimeNPT(order.createdAt)}</div>
-                      </td>
-                      <td style={{ padding: '12px 16px', textAlign: 'center' }} onClick={e => e.stopPropagation()}>
-                        <button onClick={() => printOrderVoucher(order)} style={{ padding: '5px 10px', border: '1px solid var(--card-border)', borderRadius: 5, background: 'var(--card-bg)', color: 'var(--text-secondary)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600 }}>
-                          <Printer style={{ width: 12, height: 12 }} /> Print
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                {filteredHistory.length > 0 && (
+                  <>
+                    <div style={{ padding: '10px 16px', background: 'var(--table-header-bg)', fontWeight: 700, fontSize: 12, color: 'var(--text-primary)', borderBottom: '1px solid var(--card-border)' }}>
+                      B2B Procurement History ({filteredHistory.length})
+                    </div>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 13 }}>
+                      <thead>
+                        <tr style={{ background: 'var(--card-bg)', borderBottom: '1px solid var(--card-border)' }}>
+                          <th style={thStyle}>Order ID</th>
+                          <th style={thStyle}>Wholesaler</th>
+                          <th style={thStyle}>Items</th>
+                          <th style={{ ...thStyle, textAlign: 'right' }}>Net Amount</th>
+                          <th style={thStyle}>Status</th>
+                          <th style={thStyle}>Order Date</th>
+                          <th style={{ ...thStyle, textAlign: 'center' }}>Invoice</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredHistory.map(order => (
+                          <tr key={order.id} onClick={() => setSelectedOrder(order)} style={{ borderBottom: '1px solid var(--card-border)', cursor: 'pointer' }} onMouseEnter={e => (e.currentTarget.style.background = 'var(--table-header-bg)')} onMouseLeave={e => (e.currentTarget.style.background = '')}>
+                            <td style={{ padding: '12px 16px', fontFamily: 'monospace', fontWeight: 700, fontSize: 12, color: 'var(--text-primary)' }}>#{order.id.substring(0, 8).toUpperCase()}</td>
+                            <td style={{ padding: '12px 16px' }}>
+                              <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{order.wholesaler.companyName}</div>
+                              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{order.wholesaler.phone}</div>
+                            </td>
+                            <td style={{ padding: '12px 16px', color: 'var(--text-secondary)' }}>
+                              <div>{order.items.length} item{order.items.length !== 1 ? 's' : ''}</div>
+                              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{order.items.map(i => i.product.name).join(', ')}</div>
+                            </td>
+                            <td style={{ padding: '12px 16px', fontWeight: 700, textAlign: 'right', fontFamily: 'monospace', color: 'var(--text-primary)' }}>Rs. {order.netAmount.toLocaleString()}</td>
+                            <td style={{ padding: '12px 16px' }}><StatusBadge status={order.status} /></td>
+                            <td style={{ padding: '12px 16px' }}>
+                              <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{formatDateNPT(order.createdAt)}</div>
+                              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{formatTimeNPT(order.createdAt)}</div>
+                            </td>
+                            <td style={{ padding: '12px 16px', textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+                              <button onClick={() => printOrderVoucher(order)} style={{ padding: '5px 10px', border: '1px solid var(--card-border)', borderRadius: 5, background: 'var(--card-bg)', color: 'var(--text-secondary)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600 }}>
+                                <Printer style={{ width: 12, height: 12 }} /> Print
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </>
+                )}
+
+                {filteredConsumerHistory.length > 0 && (
+                  <>
+                    <div style={{ padding: '10px 16px', background: 'var(--table-header-bg)', fontWeight: 700, fontSize: 12, color: 'var(--text-primary)', borderBottom: '1px solid var(--card-border)', borderTop: filteredHistory.length > 0 ? '1px solid var(--card-border)' : 'none' }}>
+                      Online B2C Completed / Failed Sales History ({filteredConsumerHistory.length})
+                    </div>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 13 }}>
+                      <thead>
+                        <tr style={{ background: 'var(--card-bg)', borderBottom: '1px solid var(--card-border)' }}>
+                          <th style={thStyle}>Tracking ID</th>
+                          <th style={thStyle}>Patient</th>
+                          <th style={{ ...thStyle, textAlign: 'right' }}>Total</th>
+                          <th style={thStyle}>Address</th>
+                          <th style={thStyle}>Status</th>
+                          <th style={thStyle}>Date</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredConsumerHistory.map(o => (
+                          <tr key={o.id} onClick={() => setSelectedB2COrder(o)} style={{ borderBottom: '1px solid var(--card-border)', cursor: 'pointer' }} onMouseEnter={e => (e.currentTarget.style.background = 'var(--table-header-bg)')} onMouseLeave={e => (e.currentTarget.style.background = '')}>
+                            <td style={{ padding: '12px 16px', fontFamily: 'monospace', fontWeight: 700, fontSize: 12 }}>{o.trackingCode}</td>
+                            <td style={{ padding: '12px 16px' }}>
+                              <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{o.buyerName}</div>
+                              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{o.buyerPhone}</div>
+                            </td>
+                            <td style={{ padding: '12px 16px', fontWeight: 700, textAlign: 'right', fontFamily: 'monospace' }}>Rs. {o.totalAmount}</td>
+                            <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--text-secondary)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o.deliveryAddress || '—'}</td>
+                            <td style={{ padding: '12px 16px' }}><StatusBadge status={o.status} /></td>
+                            <td style={{ padding: '12px 16px', color: 'var(--text-muted)', fontSize: 12 }}>{formatDateTimeNPT(o.createdAt)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </>
+                )}
+              </div>
             )}
           </div>
         </div>
@@ -1660,15 +1736,47 @@ export default function OrdersClient({ initialOrders, wholesalers, profileId, in
             >
               ✕
             </button>
-            <div style={{ position: 'absolute', bottom: -32, left: '50%', transform: 'translateX(-50%)', color: 'rgba(255,255,255,0.6)', fontSize: 12, whiteSpace: 'nowrap' }}>
-              Click anywhere outside the image to close
-            </div>
           </div>
         </div>,
         document.body
       )}
 
     </div>
+      {/* ── Real-time Toast Notifications ── */}
+      {toasts.length > 0 && (
+        <div style={{
+          position: 'fixed', bottom: 24, right: 24,
+          display: 'flex', flexDirection: 'column', gap: 10,
+          zIndex: 9999, maxWidth: 360, pointerEvents: 'auto',
+        }}>
+          {toasts.map(toast => (
+            <div
+              key={toast.id}
+              style={{
+                display: 'flex', alignItems: 'flex-start', gap: 10,
+                padding: '12px 16px', borderRadius: 10,
+                boxShadow: '0 8px 30px rgba(0,0,0,0.15)',
+                background: toast.type === 'success' ? '#ECFDF5' : toast.type === 'warning' ? '#FFFBEB' : '#EFF6FF',
+                border: `1.5px solid ${toast.type === 'success' ? '#A7F3D0' : toast.type === 'warning' ? '#FDE68A' : '#BFDBFE'}`,
+                fontSize: 13, fontWeight: 600,
+                color: toast.type === 'success' ? '#065F46' : toast.type === 'warning' ? '#92400E' : '#1E40AF',
+                animation: 'ocSlideInRight 0.3s ease', cursor: 'pointer',
+              }}
+              onClick={() => setToasts(prev => prev.filter(t => t.id !== toast.id))}
+            >
+              <span style={{ flex: 1, lineHeight: 1.4 }}>{toast.message}</span>
+              <span style={{ fontSize: 16, opacity: 0.5, flexShrink: 0 }}>✕</span>
+            </div>
+          ))}
+        </div>
+      )}
+      <style>{`
+        @keyframes ocSlideInRight {
+          from { opacity: 0; transform: translateX(40px); }
+          to   { opacity: 1; transform: translateX(0); }
+        }
+      `}</style>
+    </>
   );
 }
 
@@ -1912,3 +2020,4 @@ function PrescriptionReviewModal({
     </div>
   );
 }
+

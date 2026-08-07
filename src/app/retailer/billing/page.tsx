@@ -65,7 +65,7 @@ export default async function RetailerBillingPage() {
   const consumerSales = await db.consumerOrder.findMany({
     where: {
       retailerId: profile.id,
-      status: 'DELIVERED',
+      // Include all statuses so pending/shipped consumer orders also appear
     },
     include: {
       items: {
@@ -77,45 +77,48 @@ export default async function RetailerBillingPage() {
     orderBy: { createdAt: 'desc' },
   });
 
-  const mappedConsumerSales = consumerSales.map((c) => ({
-    id: c.id,
-    wholesaler: null,
-    status: c.status,
-    totalAmount: c.totalAmount,
-    discountAmount: 0,
-    netAmount: c.totalAmount,
-    advanceApplied: 0,
-    overrideJustification: `B2C POS: ${c.buyerName} (Online) | Phone: ${c.buyerPhone} | Method: COD | Paid: Rs. ${c.totalAmount} | Due: Rs. 0`,
-    createdAt: c.createdAt,
-    items: c.items.map((item) => ({
-      id: item.id,
-      quantity: item.quantity,
-      pricePerUnit: item.pricePerUnit,
-      product: {
-        name: item.product.name,
-        sku: item.product.sku,
-      },
-    })),
-    b2bSettlements: [],
-  }));
+  const mappedConsumerSales = consumerSales.map((c) => {
+    const isDelivered = c.status === 'DELIVERED';
+    const netAmt = (c.totalAmount || 0) + (c.deliveryFee || 0);
+    const paidAmt = isDelivered ? netAmt : 0;
+    const dueAmt  = isDelivered ? 0 : netAmt;
+    return {
+      id: c.id,
+      wholesaler: null,
+      status: c.status,
+      totalAmount: c.totalAmount,
+      discountAmount: 0,
+      netAmount: netAmt,
+      advanceApplied: 0,
+      overrideJustification: `B2C POS: ${c.buyerName} (Online) | Phone: ${c.buyerPhone} | Method: ${c.paymentMethod || 'COD'} | Paid: Rs. ${paidAmt.toFixed(2)} | Due: Rs. ${dueAmt.toFixed(2)}`,
+      createdAt: c.createdAt,
+      items: c.items.map((item) => ({
+        id: item.id,
+        quantity: item.quantity,
+        pricePerUnit: item.pricePerUnit,
+        product: {
+          name: item.product.name,
+          sku: item.product.sku,
+        },
+      })),
+      b2bSettlements: [],
+      settleStatus: isDelivered ? 'VERIFIED' : 'UNPAID',
+      settleAmount: paidAmt,
+      settleMethod: c.paymentMethod || 'COD',
+    };
+  });
+
 
   const sales = [
     ...salesRaw,
     ...mappedConsumerSales,
   ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-  // Load B2B purchases
+  // Load B2B purchases only — orders where overrideJustification is NULL (pure B2B)
   const purchases = await db.order.findMany({
     where: {
       retailerId: profile.id,
-      OR: [
-        { overrideJustification: null },
-        {
-          NOT: {
-            overrideJustification: { contains: 'B2C POS' },
-          },
-        },
-      ],
+      overrideJustification: null,
     },
     include: {
       wholesaler: true,
@@ -128,6 +131,7 @@ export default async function RetailerBillingPage() {
     },
     orderBy: { createdAt: 'desc' },
   });
+
 
   // Load wholesaler relations (advance balances)
   const relations = await db.wholesalerRetailerRelation.findMany({

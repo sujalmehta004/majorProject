@@ -18,43 +18,70 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Retailer profile not found' }, { status: 404 });
     }
 
-    // Load B2C sales (where overrideJustification contains B2C POS)
-    const sales = await db.order.findMany({
+    // Load B2C POS sales (overrideJustification contains 'B2C POS')
+    const posOrders = await db.order.findMany({
       where: {
         retailerId: retailer.id,
         overrideJustification: { contains: 'B2C POS' },
       },
       include: {
-        items: {
-          include: {
-            product: true,
-          },
-        },
+        items: { include: { product: true } },
         b2bSettlements: true,
       },
       orderBy: { createdAt: 'desc' },
     });
 
-    // Load B2B purchases (where status is DELIVERED or any, excluding B2C POS)
+    // Load online ConsumerOrders (all statuses so nothing is hidden)
+    const consumerOrders = await db.consumerOrder.findMany({
+      where: { retailerId: retailer.id },
+      include: { items: { include: { product: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // Map ConsumerOrder → same shape as Order so the client can handle both uniformly
+    // COD: payment is only confirmed on delivery; until then show as due
+    const mappedConsumerSales = consumerOrders.map((c: any) => {
+      const isDelivered = c.status === 'DELIVERED';
+      const netAmt = (c.totalAmount || 0) + (c.deliveryFee || 0);
+      const paidAmt = isDelivered ? netAmt : 0;
+      const dueAmt  = isDelivered ? 0 : netAmt;
+      return {
+        id: c.id,
+        wholesaler: null,
+        status: c.status,
+        totalAmount: c.totalAmount,
+        discountAmount: 0,
+        netAmount: netAmt,
+        advanceApplied: 0,
+        overrideJustification: `B2C POS: ${c.buyerName} (Online) | Phone: ${c.buyerPhone} | Method: ${c.paymentMethod || 'COD'} | Paid: Rs. ${paidAmt.toFixed(2)} | Due: Rs. ${dueAmt.toFixed(2)}`,
+        createdAt: c.createdAt,
+        items: c.items.map((item: any) => ({
+          id: item.id,
+          quantity: item.quantity,
+          pricePerUnit: item.pricePerUnit,
+          product: { name: item.product.name, sku: item.product.sku },
+        })),
+        b2bSettlements: [],
+        settleStatus: isDelivered ? 'VERIFIED' : 'UNPAID',
+        settleAmount: paidAmt,
+        settleMethod: c.paymentMethod || 'COD',
+      };
+    });
+
+    // Merge POS + consumer orders as unified sales list
+    const sales = [...posOrders, ...mappedConsumerSales].sort(
+      (a, b) => new Date(b.createdAt as any).getTime() - new Date(a.createdAt as any).getTime()
+    );
+
+    // Load B2B purchases only — orders where overrideJustification is NULL (pure B2B)
     const purchases = await db.order.findMany({
       where: {
         retailerId: retailer.id,
-        OR: [
-          { overrideJustification: null },
-          {
-            NOT: {
-              overrideJustification: { contains: 'B2C POS' },
-            },
-          },
-        ],
+        overrideJustification: null,
       },
       include: {
         wholesaler: true,
-        items: {
-          include: {
-            product: true,
-          },
-        },
+        items: { include: { product: true } },
         b2bSettlements: true,
       },
       orderBy: { createdAt: 'desc' },

@@ -18,6 +18,7 @@ import {
   reuploadConsumerOrderPrescriptionAction
 } from '@/app/actions/consumerActions';
 import { compressImageToBase64 } from '@/lib/imageCompressor';
+import { useWebSocketEvent } from '@/lib/events';
 
 type OrderMode = 'unit' | 'strip' | 'box';
 
@@ -245,6 +246,23 @@ export default function BuyMedicinePage() {
       { enableHighAccuracy: true, timeout: 5000 }
     );
   }, []);
+
+  // ── Real-Time WebSocket Listeners for Instant Stock Refresh ──
+  useWebSocketEvent('CONSUMER_ORDER_NEW', async () => {
+    if (!searchQuery.trim()) return;
+    const currentLat = lat || 27.7172;
+    const currentLng = lng || 85.324;
+    const res = await searchMedicinesExpandedAction(searchQuery, currentLat, currentLng);
+    if (res.success && res.results) setSearchResults(res.results);
+  });
+
+  useWebSocketEvent('INVENTORY_UPDATE', async () => {
+    if (!searchQuery.trim()) return;
+    const currentLat = lat || 27.7172;
+    const currentLng = lng || 85.324;
+    const res = await searchMedicinesExpandedAction(searchQuery, currentLat, currentLng);
+    if (res.success && res.results) setSearchResults(res.results);
+  });
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();

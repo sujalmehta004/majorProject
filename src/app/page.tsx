@@ -468,7 +468,7 @@ export default function LandingPage() {
         background: 'rgba(255,255,255,0.3)',
       }}>
         <div style={{ fontSize: 10, fontWeight: 700, color: '#94A3B8', fontFamily: 'monospace', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-          MedHub Core Network · Port 5432 · PostGIS Active
+          MedHub Core Network · PostGIS Active
         </div>
         <div style={{ display: 'flex', gap: 20 }}>
           {['12ms Latency', 'FIFO Active', 'Encrypted'].map((t) => (
