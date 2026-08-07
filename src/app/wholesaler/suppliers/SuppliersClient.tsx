@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { useSSEListener } from '@/hooks/useRealtimeData';
 import { useRouter } from 'next/navigation';
+import { isValidEmail, isValidPhone } from '@/lib/validation';
 
 interface Product {
   id: string;
@@ -187,6 +188,16 @@ export default function SuppliersClient({ initialSuppliers, products, wholesaler
   const handleAddSupplier = async (e: React.FormEvent) => {
     e.preventDefault();
     setSupError('');
+
+    if (supEmail && !isValidEmail(supEmail)) {
+      setSupError('Please enter a valid email address (e.g. supplier@example.com).');
+      return;
+    }
+    if (supPhone && !isValidPhone(supPhone)) {
+      setSupError('Supplier phone number must be exactly 10 digits.');
+      return;
+    }
+
     setSupLoading(true);
     try {
       const url = '/api/wholesaler/suppliers';

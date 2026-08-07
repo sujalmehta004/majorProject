@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Shield, Check, Sparkles, Building, AlertCircle, RefreshCw, Key, Building2, Hospital, Pill, ArrowRight, Mail, Lock, MapPin, Phone } from 'lucide-react';
+import { isValidEmail, isValidPhone } from '@/lib/validation';
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -43,9 +44,19 @@ export default function RegisterPage() {
     e.preventDefault();
     setError('');
     if (!email || !password) { setError('Please provide login credentials.'); return; }
-    if (role === 'WHOLESALER' && (!companyName || !taxId || !wholesalerAddress || !wholesalerPhone)) { setError('Please fill in all Distributor details.'); return; }
-    if (role === 'RETAILER' && (!pharmacyName || !registrationNumber || !retailerAddress || !retailerPhone)) { setError('Please fill in all Pharmacy details.'); return; }
-    if (role === 'CLINIC' && (!clinicName || !licenseNumber || !clinicAddress || !clinicPhone)) { setError('Please fill in all Clinic details.'); return; }
+    if (!isValidEmail(email)) { setError('Please enter a valid email address (e.g. name@company.com).'); return; }
+    if (password.length < 6) { setError('Password must be at least 6 characters long.'); return; }
+
+    if (role === 'WHOLESALER') {
+      if (!companyName || !taxId || !wholesalerAddress || !wholesalerPhone) { setError('Please fill in all Distributor details.'); return; }
+      if (!isValidPhone(wholesalerPhone)) { setError('Distributor phone number must be exactly 10 digits.'); return; }
+    } else if (role === 'RETAILER') {
+      if (!pharmacyName || !registrationNumber || !retailerAddress || !retailerPhone) { setError('Please fill in all Pharmacy details.'); return; }
+      if (!isValidPhone(retailerPhone)) { setError('Pharmacy phone number must be exactly 10 digits.'); return; }
+    } else if (role === 'CLINIC') {
+      if (!clinicName || !licenseNumber || !clinicAddress || !clinicPhone) { setError('Please fill in all Clinic details.'); return; }
+      if (!isValidPhone(clinicPhone)) { setError('Clinic phone number must be exactly 10 digits.'); return; }
+    }
     setStep('pricing');
   };
 
@@ -304,7 +315,16 @@ export default function RegisterPage() {
                           <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 6 }}>Phone Number</label>
                           <div style={{ position: 'relative' }}>
                             <Phone style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', width: 13, height: 13, color: '#94A3B8' }} />
-                            <input type="tel" required value={wholesalerPhone} onChange={(e) => setWholesalerPhone(e.target.value)} placeholder="+977-1-440234" className="input-crisp" style={{ paddingLeft: 32, fontFamily: 'monospace' }} />
+                            <input
+                              type="tel"
+                              required
+                              maxLength={10}
+                              value={wholesalerPhone}
+                              onChange={(e) => setWholesalerPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                              placeholder="10-digit number (e.g. 9812345678)"
+                              className="input-crisp"
+                              style={{ paddingLeft: 32, fontFamily: 'monospace' }}
+                            />
                           </div>
                         </div>
                       </div>
@@ -332,7 +352,16 @@ export default function RegisterPage() {
                         </div>
                         <div>
                           <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 6 }}>Phone</label>
-                          <input type="tel" required value={retailerPhone} onChange={(e) => setRetailerPhone(e.target.value)} placeholder="+977-1-472093" className="input-crisp" style={{ fontFamily: 'monospace' }} />
+                          <input
+                            type="tel"
+                            required
+                            maxLength={10}
+                            value={retailerPhone}
+                            onChange={(e) => setRetailerPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                            placeholder="10-digit number (e.g. 9812345678)"
+                            className="input-crisp"
+                            style={{ fontFamily: 'monospace' }}
+                          />
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                           <div>
@@ -369,7 +398,16 @@ export default function RegisterPage() {
                         </div>
                         <div>
                           <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 6 }}>Phone</label>
-                          <input type="tel" required value={clinicPhone} onChange={(e) => setClinicPhone(e.target.value)} placeholder="+977-1-401984" className="input-crisp" style={{ fontFamily: 'monospace' }} />
+                          <input
+                            type="tel"
+                            required
+                            maxLength={10}
+                            value={clinicPhone}
+                            onChange={(e) => setClinicPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                            placeholder="10-digit number (e.g. 9812345678)"
+                            className="input-crisp"
+                            style={{ fontFamily: 'monospace' }}
+                          />
                         </div>
                       </div>
                     </div>

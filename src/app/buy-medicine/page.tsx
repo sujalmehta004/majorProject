@@ -19,6 +19,7 @@ import {
 } from '@/app/actions/consumerActions';
 import { compressImageToBase64 } from '@/lib/imageCompressor';
 import { useWebSocketEvent } from '@/lib/events';
+import { isValidEmail, isValidPhone, isValidNmcNumber } from '@/lib/validation';
 
 type OrderMode = 'unit' | 'strip' | 'box';
 
@@ -426,6 +427,16 @@ export default function BuyMedicinePage() {
       return;
     }
 
+    if (!isValidEmail(buyerEmail)) {
+      alert('Please enter a valid email address (e.g. patient@example.com).');
+      return;
+    }
+
+    if (!isValidPhone(buyerPhone)) {
+      alert('Patient phone number must be exactly 10 digits.');
+      return;
+    }
+
     // MANDATORY PRESCRIPTION & DOCTOR NMC CHECK FOR CLASS A MEDICINES IN CART
     if (cartHasClassA) {
       if (prescriptionImages.length === 0) {
@@ -434,6 +445,10 @@ export default function BuyMedicinePage() {
       }
       if (!doctorNmcNumber.trim()) {
         alert('🚨 Doctor NMC Number Required: Your cart contains Class A medicine. Please enter your Doctor\'s NMC Registration Number before placing the order.');
+        return;
+      }
+      if (!isValidNmcNumber(doctorNmcNumber.trim())) {
+        alert('🚨 Invalid Doctor NMC Number: Please enter numbers only for the Doctor\'s NMC Registration Number (e.g. 12345).');
         return;
       }
     }
@@ -1059,9 +1074,9 @@ Thank you for ordering with MedHub!
                       </label>
                       <input
                         type="text"
-                        placeholder="e.g. NMC-12345 or 12345"
+                        placeholder="Numbers only (e.g. 12345)"
                         value={doctorNmcNumber}
-                        onChange={e => setDoctorNmcNumber(e.target.value)}
+                        onChange={e => setDoctorNmcNumber(e.target.value.replace(/\D/g, ''))}
                         required={cartHasClassA}
                         style={{
                           width: '100%',
@@ -1126,16 +1141,24 @@ Thank you for ordering with MedHub!
                     )}
 
                     {[
-                      { label: 'Patient / Buyer Name', value: buyerName, onChange: setBuyerName, type: 'text', placeholder: 'e.g. John Doe' },
-                      { label: 'Email Address', value: buyerEmail, onChange: setBuyerEmail, type: 'email', placeholder: 'e.g. john@example.com' },
-                      { label: 'Contact Phone Number', value: buyerPhone, onChange: setBuyerPhone, type: 'text', placeholder: 'e.g. 9841XXXXXX' },
-                      { label: 'Delivery Location Address', value: deliveryAddress, onChange: setDeliveryAddress, type: 'text', placeholder: 'Street details, Ward No., City' },
+                      { label: 'Patient / Buyer Name', value: buyerName, onChange: setBuyerName, type: 'text', placeholder: 'e.g. John Doe', maxLen: undefined },
+                      { label: 'Email Address', value: buyerEmail, onChange: setBuyerEmail, type: 'email', placeholder: 'e.g. john@example.com', maxLen: undefined },
+                      {
+                        label: 'Contact Phone Number',
+                        value: buyerPhone,
+                        onChange: (val: string) => setBuyerPhone(val.replace(/\D/g, '').slice(0, 10)),
+                        type: 'tel',
+                        placeholder: '10-digit number (e.g. 9841234567)',
+                        maxLen: 10
+                      },
+                      { label: 'Delivery Location Address', value: deliveryAddress, onChange: setDeliveryAddress, type: 'text', placeholder: 'Street details, Ward No., City', maxLen: undefined },
                     ].map(f => (
                       <div key={f.label} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                         <label style={{ fontSize: 11, fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>{f.label}</label>
                         <input
                           type={f.type}
                           required
+                          maxLength={f.maxLen}
                           placeholder={f.placeholder}
                           value={f.value}
                           onChange={(e) => f.onChange(e.target.value)}

@@ -7,6 +7,7 @@ import {
   AlertCircle, ChevronRight, Hash, Clock, Users,
   RefreshCw, Receipt, ShoppingBag
 } from 'lucide-react';
+import { isValidEmail, isValidPhone } from '@/lib/validation';
 
 interface Customer {
   id: string;
@@ -63,6 +64,8 @@ export default function CustomersClient({ initialCustomers }: CustomersClientPro
     e.preventDefault();
     setError('');
     if (!fullName || !email) { setError('Name and email are required.'); return; }
+    if (!isValidEmail(email)) { setError('Please enter a valid email address (e.g. patient@example.com).'); return; }
+    if (phone && !isValidPhone(phone)) { setError('Phone number must be exactly 10 digits.'); return; }
     try {
       setSubmitting(true);
       const res  = await fetch('/api/retailer/customers', {

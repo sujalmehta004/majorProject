@@ -13,6 +13,7 @@ import {
   deleteCustomSupplierAction
 } from '@/app/actions/retailerActions';
 import { useRealtimeEvent, broadcastUpdate } from '@/lib/events';
+import { isValidEmail, isValidPhone } from '@/lib/validation';
 
 interface Batch {
   id: string;
@@ -154,6 +155,9 @@ export default function SuppliersClient({ profile, initialWholesalers, initialCu
     e.preventDefault();
     setSupplierError('');
     if (!supName) { setSupplierError('Supplier name is required'); return; }
+    if (supEmail && !isValidEmail(supEmail)) { setSupplierError('Please enter a valid email address (e.g. supplier@example.com).'); return; }
+    if (supPhone && !isValidPhone(supPhone)) { setSupplierError('Supplier phone number must be exactly 10 digits.'); return; }
+
     try {
       setSupplierSubmitting(true);
       const payload = { name: supName, contactPerson: supContact, phone: supPhone, email: supEmail, address: supAddress };

@@ -698,7 +698,15 @@ export default function SettingsClient({
               <span style={{ fontSize: 10, background: '#F0FDF4', border: '1px solid #BBF7D0', color: '#059669', padding: '1px 7px', borderRadius: 10, fontWeight: 700 }}>ALWAYS EDITABLE</span>
             </div>
             <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-              <input type="text" value={phone} onChange={(e) => setPhone(e.target.value)} disabled={!isOwner} style={{ ...inputStyle, flex: 1 }} placeholder="e.g. 98xxxxxxxx" />
+              <input
+                type="tel"
+                maxLength={10}
+                value={phone}
+                onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                disabled={!isOwner}
+                style={{ ...inputStyle, flex: 1 }}
+                placeholder="10-digit number (e.g. 9812345678)"
+              />
               {isOwner && (
                 <button type="button" onClick={handleSavePhoneOnly} disabled={phoneLoading} style={{ ...btnStyle, background: '#10B981', flexShrink: 0 }}>
                   {phoneLoading ? '...' : <><Check style={{ width: 14, height: 14 }} /> Save Phone</>}

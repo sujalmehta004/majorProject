@@ -208,6 +208,13 @@ export default function InventoryClient({ profileId }: InventoryClientProps) {
       return;
     }
 
+    const tabsPerStrip = parseInt(newTabletsPerStrip);
+    const strpsPerBox = parseInt(newStripsPerBox);
+    if (isNaN(tabsPerStrip) || tabsPerStrip <= 0 || isNaN(strpsPerBox) || strpsPerBox <= 0) {
+      setError('Tablets per strip and Strips per box must be positive numbers.');
+      return;
+    }
+
     try {
       const categoryToSubmit = showCustomCategoryInput && customCategory.trim() ? customCategory.trim() : newProductCategory;
       const method = editingProduct ? 'PUT' : 'POST';

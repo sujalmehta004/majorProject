@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Shield, Key, RefreshCw, CheckCircle, AlertCircle, LogIn, HelpCircle, Users, Lock, Mail, ArrowRight, Activity } from 'lucide-react';
+import { isValidEmail } from '@/lib/validation';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -42,6 +43,13 @@ export default function LoginPage() {
     setLoading(true);
     setError('');
     setSuccessMsg('');
+
+    if (!isValidEmail(email)) {
+      setError('Please enter a valid email address (e.g. user@company.com).');
+      setLoading(false);
+      return;
+    }
+
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST',

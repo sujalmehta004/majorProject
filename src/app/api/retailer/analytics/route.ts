@@ -29,7 +29,7 @@ export async function GET(request: Request) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const startOfMonth = new Date(d.getFullYear(), d.getMonth(), 1);
       const endOfMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999);
-      const monthLabel = d.toLocaleString('en-US', { month: 'Short' });
+      const monthLabel = d.toLocaleString('en-US', { month: 'short' });
 
       // B2C POS sales in this month
       const posSales = await db.order.aggregate({
