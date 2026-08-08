@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Shield, Check, Sparkles, Building, AlertCircle, RefreshCw, Key, Building2, Hospital, Pill, ArrowRight, Mail, Lock, MapPin, Phone } from 'lucide-react';
@@ -34,11 +34,35 @@ export default function RegisterPage() {
   const [registrationImages, setRegistrationImages] = useState<string[]>([]);
   const [uploadingImages, setUploadingImages] = useState(false);
 
+  const [packages, setPackages] = useState<any[]>([]);
+  const [loadingPackages, setLoadingPackages] = useState(false);
+  const [selectedPackage, setSelectedPackage] = useState<any>(null);
+
   const [otpCode, setOtpCode] = useState('');
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+
+  useEffect(() => {
+    const fetchPackages = async () => {
+      setLoadingPackages(true);
+      try {
+        const res = await fetch('/api/superadmin/packages');
+        const data = await res.json();
+        if (res.ok && data.packages) {
+          setPackages(data.packages);
+          const active = data.packages.find((p: any) => p.isActive);
+          if (active) setSelectedPackage(active);
+        }
+      } catch (err) {
+        console.error('Failed to fetch subscription packages:', err);
+      } finally {
+        setLoadingPackages(false);
+      }
+    };
+    fetchPackages();
+  }, []);
 
   const handleNext = (e: React.FormEvent) => {
     e.preventDefault();
@@ -86,7 +110,11 @@ export default function RegisterPage() {
     if (!otpCode) { setError('Please enter the 6-digit verification code.'); return; }
     setLoading(true);
     setError('');
-    const payload: Record<string, any> = { email, password, role, otpCode, registrationImages };
+    const payload: Record<string, any> = {
+      email, password, role, otpCode, registrationImages,
+      packageName: selectedPackage?.name || 'Free Plan',
+      packagePrice: selectedPackage?.price ?? 0,
+    };
     if (role === 'WHOLESALER') { payload.companyName = companyName; payload.taxId = taxId; payload.address = wholesalerAddress; payload.phone = wholesalerPhone; }
     else if (role === 'RETAILER') { payload.pharmacyName = pharmacyName; payload.registrationNumber = registrationNumber; payload.address = retailerAddress; payload.phone = retailerPhone; payload.latitude = parseFloat(latitude); payload.longitude = parseFloat(longitude); }
     else if (role === 'CLINIC') { payload.clinicName = clinicName; payload.licenseNumber = licenseNumber; payload.address = clinicAddress; payload.phone = clinicPhone; }
@@ -278,8 +306,13 @@ export default function RegisterPage() {
                     <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Email</label>
                     <div style={{ position: 'relative' }}>
                       <Mail style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', width: 13, height: 13, color: '#94A3B8' }} />
-                      <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@company.com" className="input-crisp" style={{ paddingLeft: 32 }} />
+                      <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@company.com" className="input-crisp" style={{ paddingLeft: 32, borderColor: email && !isValidEmail(email) ? '#EF4444' : undefined }} />
                     </div>
+                    {email && !isValidEmail(email) && (
+                      <span style={{ fontSize: 10, color: '#EF4444', fontWeight: 600, display: 'block', marginTop: 3 }}>
+                        Invalid email structure (e.g. name@company.com)
+                      </span>
+                    )}
                   </div>
                   <div>
                     <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Password</label>
@@ -509,63 +542,81 @@ export default function RegisterPage() {
                 </button>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                {/* Free Plan */}
-                <div style={{
-                  border: '2px solid #0EA5E9', background: 'linear-gradient(to br, #F0F9FF, white)',
-                  borderRadius: 16, padding: 24, position: 'relative', overflow: 'hidden',
-                }}>
-                  <div style={{ position: 'absolute', top: 0, right: 0, background: '#0EA5E9', color: 'white', fontSize: 8, fontWeight: 800, fontFamily: 'monospace', padding: '3px 10px', borderBottomLeftRadius: 8, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                    Free Trial
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                    <Sparkles style={{ width: 18, height: 18, color: '#F97316' }} />
-                    <span style={{ fontSize: 13, fontWeight: 800, color: '#1E293B', textTransform: 'uppercase', letterSpacing: '0.03em' }}>Free Plan</span>
-                  </div>
-                  <div style={{ fontSize: 10, color: '#64748B', fontFamily: 'monospace', fontWeight: 600, marginBottom: 12, textTransform: 'uppercase' }}>365 days full access</div>
-                  <div style={{ fontSize: 28, fontWeight: 900, color: '#1E293B', fontFamily: 'monospace', marginBottom: 16 }}>
-                    Rs. 0 <span style={{ fontSize: 11, color: '#94A3B8', fontWeight: 400 }}>/ year</span>
-                  </div>
-                  <ul style={{ listStyle: 'none', marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {['Complete Distributor Tools', 'Inventory Packaging Tools', 'Expiry Tracking Alerts'].map(f => (
-                      <li key={f} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: '#475569' }}>
-                        <Check style={{ width: 14, height: 14, color: '#10B981', flexShrink: 0 }} />
-                        {f}
-                      </li>
-                    ))}
-                  </ul>
-                  <button type="button" onClick={handleSendOtpRequest} disabled={loading} className="btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '11px' }}>
-                    {loading ? <RefreshCw style={{ width: 13, height: 13, animation: 'spin 0.8s linear infinite' }} /> : null}
-                    Select Free Plan
-                  </button>
+              {loadingPackages ? (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, padding: 40, color: '#94A3B8', fontSize: 13 }}>
+                  <RefreshCw style={{ width: 16, height: 16, animation: 'spin 0.8s linear infinite' }} />
+                  Loading available plans...
                 </div>
-
-                {/* Paid Plan (Disabled by default) */}
-                <div style={{ border: '1.5px solid #E2E8F0', background: 'rgba(248,250,252,0.7)', borderRadius: 16, padding: 24, opacity: 0.55, position: 'relative' }}>
-                  <div style={{ position: 'absolute', top: 0, right: 0, background: '#94A3B8', color: 'white', fontSize: 8, fontWeight: 800, fontFamily: 'monospace', padding: '3px 10px', borderBottomLeftRadius: 8, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                    Currently Disabled
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                    <Building style={{ width: 18, height: 18, color: '#94A3B8' }} />
-                    <span style={{ fontSize: 13, fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.03em' }}>Paid Package</span>
-                  </div>
-                  <div style={{ fontSize: 10, color: '#94A3B8', fontFamily: 'monospace', fontWeight: 600, marginBottom: 12, textTransform: 'uppercase' }}>Priority support node</div>
-                  <div style={{ fontSize: 28, fontWeight: 900, color: '#64748B', fontFamily: 'monospace', marginBottom: 16 }}>
-                    Rs. 10,000 <span style={{ fontSize: 11, color: '#94A3B8', fontWeight: 400 }}>/ year</span>
-                  </div>
-                  <ul style={{ listStyle: 'none', marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {['Unlimited Pharmacy Links', 'Custom Letterhead Invoicing', 'Priority API Integrations'].map(f => (
-                      <li key={f} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: '#94A3B8' }}>
-                        <Check style={{ width: 14, height: 14, color: '#CBD5E1', flexShrink: 0 }} />
-                        {f}
-                      </li>
-                    ))}
-                  </ul>
-                  <button type="button" disabled style={{ width: '100%', justifyContent: 'center', padding: '11px', background: '#E2E8F0', color: '#94A3B8', border: 'none', borderRadius: 10, cursor: 'not-allowed', fontWeight: 700, fontSize: 12 }}>
-                    Plan Currently Unavailable
-                  </button>
+              ) : packages.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: 40, color: '#94A3B8', fontSize: 13 }}>No subscription plans available at this time. Please contact the administrator.</div>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: packages.length === 1 ? '1fr' : '1fr 1fr', gap: 16 }}>
+                  {packages.map((pkg: any, idx: number) => {
+                    const isSelected = selectedPackage?.id === pkg.id;
+                    const features: string[] = pkg.features ? pkg.features.split(',').map((f: string) => f.trim()).filter(Boolean) : [];
+                    const isFree = pkg.price === 0;
+                    const accentColor = isFree ? '#0EA5E9' : idx === 1 ? '#10B981' : '#F97316';
+                    const bgColor = isFree ? '#F0F9FF' : idx === 1 ? '#ECFDF5' : '#FFF7ED';
+                    return (
+                      <div
+                        key={pkg.id}
+                        onClick={() => pkg.isActive && setSelectedPackage(pkg)}
+                        style={{
+                          border: isSelected ? `2px solid ${accentColor}` : '1.5px solid #E2E8F0',
+                          background: isSelected ? `linear-gradient(to br, ${bgColor}, white)` : 'rgba(248,250,252,0.7)',
+                          borderRadius: 16, padding: 24, position: 'relative', overflow: 'hidden',
+                          cursor: pkg.isActive ? 'pointer' : 'not-allowed',
+                          opacity: pkg.isActive ? 1 : 0.5,
+                          transition: 'all 0.2s',
+                          boxShadow: isSelected ? `0 0 0 4px ${accentColor}22` : 'none',
+                        }}
+                      >
+                        <div style={{ position: 'absolute', top: 0, right: 0, background: pkg.isActive ? accentColor : '#94A3B8', color: 'white', fontSize: 8, fontWeight: 800, fontFamily: 'monospace', padding: '3px 10px', borderBottomLeftRadius: 8, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                          {pkg.isActive ? (isFree ? 'Free Trial' : 'Active') : 'Unavailable'}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                          {isFree
+                            ? <Sparkles style={{ width: 18, height: 18, color: accentColor }} />
+                            : <Building style={{ width: 18, height: 18, color: accentColor }} />}
+                          <span style={{ fontSize: 13, fontWeight: 800, color: pkg.isActive ? '#1E293B' : '#64748B', textTransform: 'uppercase', letterSpacing: '0.03em' }}>{pkg.name}</span>
+                        </div>
+                        {pkg.description && (
+                          <div style={{ fontSize: 10, color: '#64748B', fontFamily: 'monospace', fontWeight: 600, marginBottom: 12, textTransform: 'uppercase' }}>{pkg.description}</div>
+                        )}
+                        <div style={{ fontSize: 28, fontWeight: 900, color: pkg.isActive ? '#1E293B' : '#94A3B8', fontFamily: 'monospace', marginBottom: 16 }}>
+                          Rs. {Number(pkg.price).toLocaleString('en-IN')} <span style={{ fontSize: 11, color: '#94A3B8', fontWeight: 400 }}>/ year</span>
+                        </div>
+                        {features.length > 0 && (
+                          <ul style={{ listStyle: 'none', marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                            {features.map((f: string) => (
+                              <li key={f} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: pkg.isActive ? '#475569' : '#94A3B8' }}>
+                                <Check style={{ width: 14, height: 14, color: pkg.isActive ? '#10B981' : '#CBD5E1', flexShrink: 0 }} />
+                                {f}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                        {pkg.isActive ? (
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setSelectedPackage(pkg); handleSendOtpRequest(); }}
+                            disabled={loading}
+                            className="btn-primary"
+                            style={{ width: '100%', justifyContent: 'center', padding: '11px', background: isSelected ? accentColor : undefined }}
+                          >
+                            {loading && isSelected ? <RefreshCw style={{ width: 13, height: 13, animation: 'spin 0.8s linear infinite' }} /> : null}
+                            {isSelected ? `Continue with ${pkg.name}` : `Select ${pkg.name}`}
+                          </button>
+                        ) : (
+                          <button type="button" disabled style={{ width: '100%', justifyContent: 'center', padding: '11px', background: '#E2E8F0', color: '#94A3B8', border: 'none', borderRadius: 10, cursor: 'not-allowed', fontWeight: 700, fontSize: 12 }}>
+                            Plan Currently Unavailable
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
-              </div>
+              )}
             </div>
           )}
 

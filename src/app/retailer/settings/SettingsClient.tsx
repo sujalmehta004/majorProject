@@ -1075,6 +1075,31 @@ export default function SettingsClient({
                 <button onClick={handleMapSearch} disabled={mapSearchLoading} style={{ ...btnStyle, background: '#3B82F6', padding: '8px 16px', fontSize: 13 }}>
                   {mapSearchLoading ? '...' : 'Search'}
                 </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (navigator.geolocation) {
+                      navigator.geolocation.getCurrentPosition(
+                        (pos) => {
+                          const lat = parseFloat(pos.coords.latitude.toFixed(6));
+                          const lng = parseFloat(pos.coords.longitude.toFixed(6));
+                          setMapPickedLat(lat);
+                          setMapPickedLng(lng);
+                          if (mapInstanceRef.current && mapMarkerRef.current) {
+                            mapInstanceRef.current.setView([lat, lng], 16);
+                            mapMarkerRef.current.setLatLng([lat, lng]);
+                          }
+                        },
+                        () => alert('Could not retrieve current location. Please ensure location permissions are allowed.')
+                      );
+                    } else {
+                      alert('Geolocation is not supported by your browser.');
+                    }
+                  }}
+                  style={{ ...btnStyle, background: 'var(--card-bg)', color: '#3B82F6', border: '1px solid var(--card-border)', padding: '8px 14px', fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}
+                >
+                  <Navigation style={{ width: 13, height: 13 }} /> My Current Location
+                </button>
               </div>
               {/* Search Results Dropdown */}
               {mapSearchResults.length > 0 && (

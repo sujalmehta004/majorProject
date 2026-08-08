@@ -334,10 +334,11 @@ export async function POST(request: Request) {
           remainingToAllocate -= allocatedFromBatch;
         }
 
-        // If inventory is insufficient, rollback transaction
+        // If inventory is insufficient, rollback transaction with user-friendly out-of-stock notification
         if (remainingToAllocate > 0) {
+          const boxesMissing = Math.ceil(remainingToAllocate / (computedItems.find(ci => ci.productId === item.productId)?.productName ? 100 : 1));
           throw new Error(
-            `Insufficient stock for Product ${item.productName}. Missing ${remainingToAllocate} base units in available batches.`
+            `OUT_OF_STOCK: Stock for "${item.productName}" is no longer available. Another order was placed simultaneously and claimed the remaining units. Please update your basket.`
           );
         }
       }

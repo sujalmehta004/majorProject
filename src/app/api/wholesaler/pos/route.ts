@@ -245,7 +245,7 @@ export async function POST(request: Request) {
 
         if (remainingToAllocate > 0) {
           throw new Error(
-            `Insufficient stock for Product "${item.productName}". Need ${remainingToAllocate} more tablets in active batches.`
+            `OUT_OF_STOCK: Stock for "${item.productName}" is no longer available. Another counter sale or B2B order was processed at the same time. Please adjust quantity.`
           );
         }
       }

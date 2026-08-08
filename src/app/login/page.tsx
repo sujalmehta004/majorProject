@@ -294,9 +294,14 @@ export default function LoginPage() {
                         onChange={(e) => setEmail(e.target.value)}
                         placeholder="name@company.com"
                         className="input-crisp"
-                        style={{ paddingLeft: 34 }}
+                        style={{ paddingLeft: 34, borderColor: email && !isValidEmail(email) ? '#EF4444' : undefined }}
                       />
                     </div>
+                    {email && !isValidEmail(email) && (
+                      <span style={{ fontSize: 11, color: '#EF4444', fontWeight: 600, display: 'block', marginTop: 4 }}>
+                        Email format is invalid. Must be valid format (e.g. name@company.com)
+                      </span>
+                    )}
                   </div>
 
                   <div>

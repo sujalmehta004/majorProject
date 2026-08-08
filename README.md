@@ -162,9 +162,18 @@ npm install
 ### 3. Environment Configuration
 Create a `.env` file in the root directory:
 ```env
-DATABASE_URL="postgresql://user:password@localhost:5432/medhub_db?schema=public"
-JWT_SECRET="your-secure-jwt-secret-key"
-NEXT_PUBLIC_APP_URL="http://localhost:3000"
+# Database Connection (PostgreSQL)
+DATABASE_URL="postgresql://sujalmehta@localhost:5432/medhub?schema=public"
+
+# JSON Web Token Secret
+JWT_SECRET="medhub_super_secret_key_12345_sprint1"
+
+# Nodemailer Configuration (OTP Verification & Emails)
+EMAIL_USER="your-email@gmail.com"
+EMAIL_PASS="your-app-password"
+
+# Timezone — Nepal Standard Time (UTC+5:45)
+TZ=Asia/Kathmandu
 ```
 
 ### 4. Database Setup & Migration

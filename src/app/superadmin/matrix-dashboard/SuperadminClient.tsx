@@ -7,7 +7,7 @@ import {
   Activity, Search, Eye, Edit3, Key,
   CheckCircle, AlertCircle, X, Check, FileText,
   Sliders, FileCheck, ClipboardList, AlertTriangle,
-  Package, ChevronRight, MoreHorizontal, Plus, ToggleLeft, ToggleRight, Sparkles,
+  Package, ChevronRight, MoreHorizontal, Plus, ToggleLeft, ToggleRight, Sparkles, Trash2,
   Filter, Calendar, ChevronDown, ArrowUpDown,
 } from 'lucide-react';
 
@@ -426,6 +426,19 @@ export default function SuperadminClient({ initialUsers, initialLogs, initialPac
     finally { setLoading(false); }
   };
 
+  const handleDeletePkg = async (pkg: SubscriptionPkg) => {
+    if (!window.confirm(`Are you sure you want to permanently delete "${pkg.name}"? This cannot be undone.`)) return;
+    setLoading(true); setError('');
+    try {
+      const res = await fetch(`/api/superadmin/packages?id=${pkg.id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to delete package');
+      setPackages(prev => prev.filter(p => p.id !== pkg.id));
+      setSuccessMsg(`Package "${pkg.name}" has been deleted.`);
+    } catch (e: any) { setError(e.message); }
+    finally { setLoading(false); }
+  };
+
   const openPlan = (u: User, e?: React.MouseEvent) => {
     e?.stopPropagation();
     setPlanModal(u);
@@ -683,7 +696,7 @@ export default function SuperadminClient({ initialUsers, initialLogs, initialPac
             <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, overflow: 'hidden' }}>
               <table className="data-table" style={{ width: '100%' }}>
                 <thead>
-                  <tr><th>Package Name</th><th>Annual Price</th><th>Description</th><th>Status</th><th style={{ textAlign: 'right' }}>Toggle</th></tr>
+                  <tr><th>Package Name</th><th>Annual Price</th><th>Description</th><th>Status</th><th style={{ textAlign: 'right' }}>Toggle</th><th style={{ textAlign: 'right' }}>Delete</th></tr>
                 </thead>
                 <tbody>
                   {packages.map(pkg => (
@@ -701,6 +714,12 @@ export default function SuperadminClient({ initialUsers, initialLogs, initialPac
                         <Btn small variant={pkg.isActive ? 'danger' : 'success'} onClick={() => handleTogglePkg(pkg)} disabled={loading}>
                           {pkg.isActive ? <ToggleRight style={{ width: 14, height: 14 }} /> : <ToggleLeft style={{ width: 14, height: 14 }} />}
                           {pkg.isActive ? 'Disable' : 'Enable'}
+                        </Btn>
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        <Btn small variant="danger" onClick={() => handleDeletePkg(pkg)} disabled={loading} style={{ opacity: 0.85 }}>
+                          <Trash2 style={{ width: 13, height: 13 }} />
+                          Delete
                         </Btn>
                       </td>
                     </tr>

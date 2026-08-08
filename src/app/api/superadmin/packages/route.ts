@@ -25,7 +25,7 @@ export async function GET() {
           price: 10000,
           description: 'Priority Support & Custom Invoicing Node',
           features: 'Dashboard,Medicines,Orders,Billing,POS,Profile,Logs',
-          isActive: false, // Disabled by default for UI, only Free Plan active initially
+          isActive: false,
         },
       });
 
@@ -35,7 +35,7 @@ export async function GET() {
           price: 25000,
           description: 'Multi-Location Enterprise Chain Management',
           features: 'Dashboard,Medicines,Orders,Billing,POS,Profile,Logs',
-          isActive: false, // Disabled by default
+          isActive: false,
         },
       });
 
@@ -71,5 +71,19 @@ export async function POST(request: Request) {
   } catch (error: any) {
     console.error('Create package error:', error);
     return NextResponse.json({ error: error.message || 'Failed to create package' }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+    if (!id) return NextResponse.json({ error: 'Package ID is required.' }, { status: 400 });
+
+    await db.subscriptionPackage.delete({ where: { id } });
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    console.error('Delete package error:', error);
+    return NextResponse.json({ error: error.message || 'Failed to delete package' }, { status: 500 });
   }
 }

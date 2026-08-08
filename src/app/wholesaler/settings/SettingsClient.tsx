@@ -1156,6 +1156,31 @@ export default function SettingsClient({
                 <button onClick={handleMapSearch} disabled={mapSearchLoading} style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: '#0EA5E9', color: 'white', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
                   {mapSearchLoading ? '...' : 'Search'}
                 </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (navigator.geolocation) {
+                      navigator.geolocation.getCurrentPosition(
+                        (pos) => {
+                          const lat = parseFloat(pos.coords.latitude.toFixed(6));
+                          const lng = parseFloat(pos.coords.longitude.toFixed(6));
+                          setMapPickedLat(lat);
+                          setMapPickedLng(lng);
+                          if (mapInstanceRef.current && mapMarkerRef.current) {
+                            mapInstanceRef.current.setView([lat, lng], 16);
+                            mapMarkerRef.current.setLatLng([lat, lng]);
+                          }
+                        },
+                        () => alert('Could not retrieve current location. Please ensure location permissions are allowed.')
+                      );
+                    } else {
+                      alert('Geolocation is not supported by your browser.');
+                    }
+                  }}
+                  style={{ padding: '8px 14px', borderRadius: 8, border: '1px solid var(--card-border)', background: 'var(--card-bg)', color: '#0EA5E9', fontWeight: 700, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}
+                >
+                  <Navigation style={{ width: 13, height: 13 }} /> My Current Location
+                </button>
               </div>
               {mapSearchResults.length > 0 && (
                 <div style={{ marginTop: 6, background: 'var(--card-bg)', border: '1px solid var(--card-border)', borderRadius: 8, overflow: 'hidden', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
