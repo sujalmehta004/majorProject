@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Shield, Check, Sparkles, Building, AlertCircle, RefreshCw, Key, Building2, Hospital, Pill, ArrowRight, Mail, Lock, MapPin, Phone } from 'lucide-react';
+import { Shield, Check, Sparkles, Building, AlertCircle, RefreshCw, Key, Building2, Hospital, Pill, ArrowRight, Mail, Lock, MapPin, Phone, Eye, EyeOff, FileText, X, ShieldCheck } from 'lucide-react';
 import { isValidEmail, isValidPhone } from '@/lib/validation';
 
 export default function RegisterPage() {
@@ -13,6 +13,7 @@ export default function RegisterPage() {
   const [role, setRole] = useState<'WHOLESALER' | 'RETAILER' | 'CLINIC'>('WHOLESALER');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   const [companyName, setCompanyName] = useState('');
   const [taxId, setTaxId] = useState('');
@@ -33,6 +34,8 @@ export default function RegisterPage() {
 
   const [registrationImages, setRegistrationImages] = useState<string[]>([]);
   const [uploadingImages, setUploadingImages] = useState(false);
+  const [agreedTerms, setAgreedTerms] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
 
   const [packages, setPackages] = useState<any[]>([]);
   const [loadingPackages, setLoadingPackages] = useState(false);
@@ -80,6 +83,11 @@ export default function RegisterPage() {
     } else if (role === 'CLINIC') {
       if (!clinicName || !licenseNumber || !clinicAddress || !clinicPhone) { setError('Please fill in all Clinic details.'); return; }
       if (!isValidPhone(clinicPhone)) { setError('Clinic phone number must be exactly 10 digits.'); return; }
+    }
+
+    if (!agreedTerms) {
+      setError('You must accept the Terms & Conditions to proceed with registration.');
+      return;
     }
     setStep('pricing');
   };
@@ -318,7 +326,12 @@ export default function RegisterPage() {
                     <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Password</label>
                     <div style={{ position: 'relative' }}>
                       <Lock style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', width: 13, height: 13, color: '#94A3B8' }} />
-                      <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Create passcode" className="input-crisp" style={{ paddingLeft: 32 }} />
+                      <input type={showPassword ? 'text' : 'password'} required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Create passcode" className="input-crisp" style={{ paddingLeft: 32, paddingRight: 36 }} />
+                      <button type="button" onClick={() => setShowPassword(v => !v)}
+                        style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8', display: 'flex', alignItems: 'center', padding: 0 }}
+                        tabIndex={-1} aria-label={showPassword ? 'Hide password' : 'Show password'}>
+                        {showPassword ? <EyeOff style={{ width: 14, height: 14 }} /> : <Eye style={{ width: 14, height: 14 }} />}
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -522,6 +535,35 @@ export default function RegisterPage() {
                   </div>
                 </div>
 
+                {/* Terms and Conditions Acceptance Box */}
+                <div style={{ background: '#F8FAFC', border: '1.5px solid #CBD5E1', borderRadius: 10, padding: 14, marginTop: 16, marginBottom: 16 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 800, color: '#1E293B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      <FileText style={{ width: 14, height: 14, color: '#0EA5E9' }} />
+                      <span>Terms & Conditions & Compliance</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowTermsModal(true)}
+                      style={{ background: 'none', border: 'none', color: '#0EA5E9', fontSize: 11, fontWeight: 800, cursor: 'pointer', textDecoration: 'underline', fontFamily: 'inherit' }}
+                    >
+                      Read Full Terms & Policy
+                    </button>
+                  </div>
+                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', fontSize: 11, color: '#475569', lineHeight: 1.5 }}>
+                    <input
+                      type="checkbox"
+                      required
+                      checked={agreedTerms}
+                      onChange={(e) => setAgreedTerms(e.target.checked)}
+                      style={{ marginTop: 2, accentColor: '#0EA5E9', width: 16, height: 16, cursor: 'pointer' }}
+                    />
+                    <span>
+                      I agree to MedHub's <strong>Terms of Service</strong> & <strong>Privacy Policy</strong>. I understand and acknowledge that <strong>Superadmin</strong> has administrative oversight to review my registered profile, PAN/VAT ID, uploaded documents, and transaction logs for verification and compliance.
+                    </span>
+                  </label>
+                </div>
+
                 <button type="submit" className="btn-primary" style={{ justifyContent: 'center', padding: '13px', width: '100%', fontSize: 12 }}>
                   Continue to Plan Selection <ArrowRight style={{ width: 14, height: 14 }} />
                 </button>
@@ -673,6 +715,94 @@ export default function RegisterPage() {
       </div>
 
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+
+      {/* Terms and Conditions Modal */}
+      {showTermsModal && (
+        <div
+          style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(15,23,42,0.5)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+          onClick={() => setShowTermsModal(false)}
+        >
+          <div
+            style={{ background: '#FFFFFF', borderRadius: 16, maxWidth: 620, width: '100%', maxHeight: '85vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)', overflow: 'hidden' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div style={{ padding: '18px 24px', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#F8FAFC' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ background: '#E0F2FE', padding: 8, borderRadius: 10, display: 'flex' }}>
+                  <ShieldCheck style={{ width: 20, height: 20, color: '#0284C7' }} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: 16, fontWeight: 800, color: '#0F172A', margin: 0 }}>Terms of Service & Regulatory Policy</h3>
+                  <p style={{ fontSize: 11, color: '#64748B', margin: 0 }}>MedHub Pharmaceutical Supply Chain Platform</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowTermsModal(false)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748B', padding: 4, borderRadius: 6, display: 'flex', alignItems: 'center' }}
+              >
+                <X style={{ width: 20, height: 20 }} />
+              </button>
+            </div>
+
+            {/* Content Body */}
+            <div style={{ padding: '20px 24px', overflowY: 'auto', fontSize: 12, color: '#334155', lineHeight: 1.6, display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', padding: 12, borderRadius: 8, color: '#92400E', fontSize: 11, fontWeight: 600 }}>
+                <strong>Notice:</strong> By registering on MedHub, you agree to comply with Nepal Department of Drug Administration guidelines and platform verification protocols.
+              </div>
+
+              <div>
+                <h4 style={{ fontSize: 13, fontWeight: 800, color: '#0F172A', marginBottom: 4 }}>1. Superadmin Oversight & Administrative Access</h4>
+                <p style={{ margin: 0 }}>
+                  You explicitly acknowledge and consent that authorized <strong>Superadmin</strong> accounts have full administrative privileges to view, verify, audit, approve, or reject your organization's registered details, PAN/VAT identifiers, uploaded license documents, and system activity logs.
+                </p>
+              </div>
+
+              <div>
+                <h4 style={{ fontSize: 13, fontWeight: 800, color: '#0F172A', marginBottom: 4 }}>2. Document & PAN Verification Standards</h4>
+                <p style={{ margin: 0 }}>
+                  All registered partners must provide valid, non-duplicate PAN/VAT ID credentials and legible supporting registration documents (maximum 10 images, max 500 KB per image). Registration attempts with duplicate PAN IDs will be flagged for Superadmin review.
+                </p>
+              </div>
+
+              <div>
+                <h4 style={{ fontSize: 13, fontWeight: 800, color: '#0F172A', marginBottom: 4 }}>3. Pharmaceutical Stock & FEFO Inventory Protocol</h4>
+                <p style={{ margin: 0 }}>
+                  Wholesalers and Retailers agree to adhere strictly to First-Expiry, First-Out (FEFO) inventory management standards. Batch pricing, manufacturing details, and expiration dates must reflect genuine stock records.
+                </p>
+              </div>
+
+              <div>
+                <h4 style={{ fontSize: 13, fontWeight: 800, color: '#0F172A', marginBottom: 4 }}>4. Data Protection & Security Controls</h4>
+                <p style={{ margin: 0 }}>
+                  Passwords are encrypted using industry-standard bcrypt hashing (12 salt rounds). Session credentials are encapsulated in secure HTTP-Only cookies. Sensitive business data is isolated via multi-tenant database scoping.
+                </p>
+              </div>
+
+              <div>
+                <h4 style={{ fontSize: 13, fontWeight: 800, color: '#0F172A', marginBottom: 4 }}>5. Account Lock & Suspension Policy</h4>
+                <p style={{ margin: 0 }}>
+                  MedHub reserves the right to suspend or lock accounts that submit fraudulent licensing documents, invalid PAN details, or engage in unauthorized pharmaceutical distribution.
+                </p>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div style={{ padding: '14px 24px', borderTop: '1px solid #E2E8F0', background: '#F8FAFC', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 11, color: '#64748B' }}>MedHub Compliance & Governance</span>
+              <button
+                type="button"
+                onClick={() => { setAgreedTerms(true); setShowTermsModal(false); }}
+                className="btn-primary"
+                style={{ padding: '8px 18px', fontSize: 12 }}
+              >
+                Accept & Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

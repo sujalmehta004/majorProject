@@ -131,23 +131,38 @@ export async function searchMedicinesExpandedAction(query: string, buyerLat: num
       results = await searchInRetailers(allOtherIds);
     }
 
-    // Map distances and delivery fees back to results
-    const resultsWithDistance = results.map(item => {
+    // Consolidate multi-batch inventory per (retailerId, productId) for FEFO multi-batch fulfillment
+    const grouped = new Map<string, any>();
+    for (const item of results) {
+      const key = `${item.retailerId}-${item.productId}`;
       const retailer = retailers.find(r => r.id === item.retailerId);
       const distance = retailer?.distance || 0;
       const deliveryFee = retailer?.deliveryFee || 0;
       const deliveryFeesJson = retailer?.deliveryFeesJson || '[]';
-      return {
-        ...item,
-        distance,
-        deliveryFee,
-        deliveryFeesJson,
-      };
-    });
 
-    resultsWithDistance.sort((a, b) => a.distance - b.distance);
+      if (!grouped.has(key)) {
+        grouped.set(key, {
+          ...item,
+          distance,
+          deliveryFee,
+          deliveryFeesJson,
+        });
+      } else {
+        const existing = grouped.get(key);
+        existing.quantity += item.quantity;
+        // Retain earliest expiry batch info as recommended primary
+        if (new Date(item.expiryDate) < new Date(existing.expiryDate)) {
+          existing.expiryDate = item.expiryDate;
+          existing.batchNumber = item.batchNumber;
+          if (item.sellingPrice) existing.sellingPrice = item.sellingPrice;
+        }
+      }
+    }
 
-    return { success: true, results: resultsWithDistance };
+    const consolidatedResults = Array.from(grouped.values());
+    consolidatedResults.sort((a, b) => a.distance - b.distance);
+
+    return { success: true, results: consolidatedResults };
   } catch (error: any) {
     return { success: false, error: error.message };
   }
@@ -183,22 +198,23 @@ export async function placeConsumerOrderAction(data: {
     // Using a serializable transaction: if two simultaneous orders hit at the same
     // millisecond, the DB serializes them. The second will see 0 stock and fail.
     const order = await db.$transaction(async (tx) => {
-      // Re-check inventory inside the transaction
+      // Re-check inventory with FOR UPDATE row locking inside transaction
       for (const item of data.items) {
-        const inventoryItems = await tx.retailerInventory.findMany({
-          where: {
-            retailerId: data.retailerId,
-            productId: item.productId,
-            quantity: { gt: 0 },
-            expiryDate: { gt: new Date() },
-          },
-          include: { product: true },
-        });
-        const totalAvailable = inventoryItems.reduce((sum: number, i: any) => sum + i.quantity, 0);
+        const inventoryItems = await tx.$queryRaw<any[]>`
+          SELECT ri.*, p.name as "productName"
+          FROM "RetailerInventory" ri
+          JOIN "Product" p ON p.id = ri."productId"
+          WHERE ri."retailerId" = ${data.retailerId}
+            AND ri."productId" = ${item.productId}
+            AND ri.quantity > 0
+            AND ri."expiryDate" > NOW()
+          FOR UPDATE
+        `;
+        const totalAvailable = inventoryItems.reduce((sum: number, i: any) => sum + Number(i.quantity), 0);
         if (totalAvailable < item.quantity) {
-          const productName = (inventoryItems[0] as any)?.product?.name || 'A medicine';
+          const productName = (inventoryItems[0] as any)?.productName || 'A medicine';
           throw new Error(
-            `${productName} is sold out — another customer just ordered the last unit(s). Please refresh and try a different quantity.`
+            `Out of stock: ${productName} is no longer available — another customer just placed an order claiming the remaining units.`
           );
         }
       }

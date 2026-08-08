@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Shield, Key, RefreshCw, CheckCircle, AlertCircle, LogIn, HelpCircle, Users, Lock, Mail, ArrowRight, Activity } from 'lucide-react';
+import { Shield, Key, RefreshCw, CheckCircle, AlertCircle, LogIn, HelpCircle, Users, Lock, Mail, ArrowRight, Activity, Eye, EyeOff } from 'lucide-react';
 import { isValidEmail } from '@/lib/validation';
 
 export default function LoginPage() {
@@ -22,6 +22,9 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   useEffect(() => {
     const clearSession = async () => {
@@ -311,12 +314,17 @@ export default function LoginPage() {
                     <div style={{ position: 'relative' }}>
                       <Lock style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', width: 14, height: 14, color: '#94A3B8' }} />
                       <input
-                        type="password" required value={password}
+                        type={showPassword ? 'text' : 'password'} required value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         placeholder="Enter your password"
                         className="input-crisp"
-                        style={{ paddingLeft: 34 }}
+                        style={{ paddingLeft: 34, paddingRight: 36 }}
                       />
+                      <button type="button" onClick={() => setShowPassword(v => !v)}
+                        style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8', display: 'flex', alignItems: 'center', padding: 0 }}
+                        tabIndex={-1} aria-label={showPassword ? 'Hide password' : 'Show password'}>
+                        {showPassword ? <EyeOff style={{ width: 14, height: 14 }} /> : <Eye style={{ width: 14, height: 14 }} />}
+                      </button>
                     </div>
                   </div>
 
@@ -375,15 +383,29 @@ export default function LoginPage() {
                 <form onSubmit={handleForceReset} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                   <div>
                     <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>New Password</label>
-                    <input type="password" required placeholder="At least 6 characters"
-                      value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
-                      className="input-crisp" />
+                    <div style={{ position: 'relative' }}>
+                      <input type={showNewPassword ? 'text' : 'password'} required placeholder="At least 6 characters"
+                        value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
+                        className="input-crisp" style={{ paddingRight: 36 }} />
+                      <button type="button" onClick={() => setShowNewPassword(v => !v)}
+                        style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8', display: 'flex', alignItems: 'center', padding: 0 }}
+                        tabIndex={-1} aria-label={showNewPassword ? 'Hide password' : 'Show password'}>
+                        {showNewPassword ? <EyeOff style={{ width: 14, height: 14 }} /> : <Eye style={{ width: 14, height: 14 }} />}
+                      </button>
+                    </div>
                   </div>
                   <div>
                     <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Confirm New Password</label>
-                    <input type="password" required placeholder="Confirm new password"
-                      value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
-                      className="input-crisp" />
+                    <div style={{ position: 'relative' }}>
+                      <input type={showConfirmPassword ? 'text' : 'password'} required placeholder="Confirm new password"
+                        value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
+                        className="input-crisp" style={{ paddingRight: 36 }} />
+                      <button type="button" onClick={() => setShowConfirmPassword(v => !v)}
+                        style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8', display: 'flex', alignItems: 'center', padding: 0 }}
+                        tabIndex={-1} aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}>
+                        {showConfirmPassword ? <EyeOff style={{ width: 14, height: 14 }} /> : <Eye style={{ width: 14, height: 14 }} />}
+                      </button>
+                    </div>
                   </div>
                   <button type="submit" disabled={loading} className="btn-primary" style={{ justifyContent: 'center', padding: '12px', width: '100%' }}>
                     {loading ? <RefreshCw style={{ width: 14, height: 14, animation: 'spin 0.8s linear infinite' }} /> : 'Confirm New Password'}

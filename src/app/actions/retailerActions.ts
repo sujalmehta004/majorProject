@@ -400,7 +400,7 @@ export async function createPOSSaleAction(data: {
       },
     });
 
-    // 2. Decrement RetailerInventory and create items
+    // 2. Decrement RetailerInventory using FOR UPDATE row locking for concurrency protection
     for (const item of computedItems) {
       await tx.orderItem.create({
         data: {
@@ -411,10 +411,25 @@ export async function createPOSSaleAction(data: {
         },
       });
 
+      const lockedStocks = await tx.$queryRaw<any[]>`
+        SELECT * FROM "RetailerInventory"
+        WHERE "retailerId" = ${retailer.id}
+          AND "productId" = ${item.productId}
+          AND "quantity" > 0
+          AND "expiryDate" > NOW()
+        ORDER BY "expiryDate" ASC
+        FOR UPDATE
+      `;
+
+      const currentAvailable = lockedStocks.reduce((sum, s) => sum + Number(s.quantity), 0);
+      if (currentAvailable < item.quantity) {
+        throw new Error(`Out of stock: Stock for "${item.productName}" was claimed by a concurrent order. Available: ${currentAvailable} units, Requested: ${item.quantity} units.`);
+      }
+
       let remaining = item.quantity;
-      for (const stock of item.retailStocks) {
+      for (const stock of lockedStocks) {
         if (remaining <= 0) break;
-        const toTake = Math.min(stock.quantity, remaining);
+        const toTake = Math.min(Number(stock.quantity), remaining);
 
         await tx.retailerInventory.update({
           where: { id: stock.id },

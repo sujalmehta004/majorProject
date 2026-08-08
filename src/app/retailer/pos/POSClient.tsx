@@ -192,18 +192,69 @@ export default function POSClient({ products }: POSClientProps) {
     const tabletsPerStrip = selectedProduct.tabletsPerStrip || 10;
     const stripsPerBox = selectedProduct.stripsPerBox || 10;
     const tabletsPerBox = tabletsPerStrip * stripsPerBox;
-    let baseUnits = posUomType === 'box' ? qty * tabletsPerBox : posUomType === 'strip' ? qty * tabletsPerStrip : qty;
-    if (baseUnits > selectedBatch.availableBaseUnits) { alert(`Insufficient stock. Only ${selectedBatch.availableBaseUnits} units available.`); return; }
-    const pricePerBox = getProductPricePerBox(selectedProduct, selectedBatch.id);
-    const totalAmount = baseUnits * (pricePerBox / tabletsPerBox);
-    const key = `${selectedProduct.id}-${selectedBatch.batchNumber}`;
+    let totalBaseUnitsNeeded = posUomType === 'box' ? qty * tabletsPerBox : posUomType === 'strip' ? qty * tabletsPerStrip : qty;
+
+    const sortedBatches = [...selectedProduct.batches].sort((a, b) => new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime());
+    const totalAvailableStock = sortedBatches.reduce((acc, b) => acc + (b.availableBaseUnits || 0), 0);
+
+    if (totalBaseUnitsNeeded > totalAvailableStock) {
+      alert(`Insufficient total stock. Only ${totalAvailableStock} units available across all batches for ${selectedProduct.name}.`);
+      return;
+    }
+
+    // Auto-allocate: start with selected batch, then remaining batches by earliest expiry
+    const batchSequence = [
+      selectedBatch,
+      ...sortedBatches.filter(b => b.id !== selectedBatch.id && b.availableBaseUnits > 0)
+    ];
+
+    let remainingNeeded = totalBaseUnitsNeeded;
+    const additions: Array<{ batch: typeof selectedBatch; baseUnits: number }> = [];
+
+    for (const b of batchSequence) {
+      if (remainingNeeded <= 0) break;
+      if (b.availableBaseUnits <= 0) continue;
+      const takeUnits = Math.min(b.availableBaseUnits, remainingNeeded);
+      additions.push({ batch: b, baseUnits: takeUnits });
+      remainingNeeded -= takeUnits;
+    }
+
     setCart((prev) => {
-      const existingIndex = prev.findIndex((item) => `${item.productId}-${item.batchNumber}` === key && item.packaging === posUomType);
-      if (existingIndex > -1) {
-        return prev.map((item, idx) => idx === existingIndex ? { ...item, qty: item.qty + qty, qtyBoxes: item.qtyBoxes + (baseUnits / tabletsPerBox), totalAmount: item.totalAmount + totalAmount } : item);
+      let updatedCart = [...prev];
+      for (const { batch, baseUnits } of additions) {
+        const itemQtyBoxes = baseUnits / tabletsPerBox;
+        const pricePerBox = getProductPricePerBox(selectedProduct, batch.id);
+        const itemTotalAmount = baseUnits * (pricePerBox / tabletsPerBox);
+        const key = `${selectedProduct.id}-${batch.batchNumber}`;
+
+        const existingIndex = updatedCart.findIndex(
+          (item) => `${item.productId}-${item.batchNumber}` === key && item.packaging === posUomType
+        );
+        if (existingIndex > -1) {
+          updatedCart[existingIndex] = {
+            ...updatedCart[existingIndex],
+            qty: updatedCart[existingIndex].qty + (posUomType === 'box' ? itemQtyBoxes : posUomType === 'strip' ? baseUnits / tabletsPerStrip : baseUnits),
+            qtyBoxes: updatedCart[existingIndex].qtyBoxes + itemQtyBoxes,
+            totalAmount: updatedCart[existingIndex].totalAmount + itemTotalAmount,
+          };
+        } else {
+          updatedCart.push({
+            productId: selectedProduct.id,
+            name: selectedProduct.name,
+            sku: selectedProduct.sku,
+            batchNumber: batch.batchNumber,
+            qty: posUomType === 'box' ? itemQtyBoxes : posUomType === 'strip' ? baseUnits / tabletsPerStrip : baseUnits,
+            packaging: posUomType,
+            pricePerBox,
+            qtyBoxes: itemQtyBoxes,
+            totalAmount: itemTotalAmount,
+            rack: batch.rack,
+          });
+        }
       }
-      return [...prev, { productId: selectedProduct.id, name: selectedProduct.name, sku: selectedProduct.sku, batchNumber: selectedBatch.batchNumber, qty, packaging: posUomType, pricePerBox, qtyBoxes: baseUnits / tabletsPerBox, totalAmount, rack: selectedBatch.rack }];
+      return updatedCart;
     });
+
     setSelectedProductId(''); setSelectedBatchId(''); setPosQtyInput(1); setSearchQuery('');
   };
 
@@ -337,13 +388,19 @@ export default function POSClient({ products }: POSClientProps) {
                 style={{ ...inputStyle, padding: '10px 14px', fontSize: 14 }}
               >
                 <option value="">-- Choose batch --</option>
-                {selectedProduct?.batches.map((b, idx) => {
-                  return (
-                    <option key={b.id} value={b.id}>
-                      {b.batchNumber} (Exp: {formatDateNPT(b.expiryDate)}) - {b.availableBaseUnits} units {idx === 0 ? '⭐ Recommended' : ''}
-                    </option>
-                  );
-                })}
+                {(() => {
+                  if (!selectedProduct) return null;
+                  const sortedBatches = [...selectedProduct.batches].sort((a, b) => new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime());
+                  const recId = sortedBatches.find(b => b.availableBaseUnits > 0)?.id || sortedBatches[0]?.id;
+                  return sortedBatches.map((b) => {
+                    const isRec = b.id === recId;
+                    return (
+                      <option key={b.id} value={b.id}>
+                        {b.batchNumber} (Exp: {formatDateNPT(b.expiryDate)}) - {b.availableBaseUnits} units {isRec ? '⭐ Recommended' : ''}
+                      </option>
+                    );
+                  });
+                })()}
               </select>
             </div>
           </div>
