@@ -143,6 +143,18 @@ const thStyle: React.CSSProperties = {
   letterSpacing: '0.04em',
 };
 
+const Modal = ({ children, onClose, title }: { children: React.ReactNode; onClose: () => void; title: string }) => (
+  <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(15,23,42,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+    <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 580, background: 'var(--card-bg)', borderRadius: 12, border: '1px solid var(--card-border)', display: 'flex', flexDirection: 'column', maxHeight: '90vh', overflow: 'hidden' }}>
+      <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--card-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ fontSize: 14, fontWeight: 700 }}>{title}</span>
+        <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4 }}><X style={{ width: 16, height: 16 }} /></button>
+      </div>
+      <div style={{ padding: '18px', overflowY: 'auto', flex: 1 }}>{children}</div>
+    </div>
+  </div>
+);
+
 export default function BillingClient({
   initialSales,
   initialPurchases,
@@ -308,13 +320,93 @@ export default function BillingClient({
   };
 
   const printInvoice = (order: Order, isSale: boolean) => {
+    if (!order) return;
     const d = isSale ? getB2CDetails(order.overrideJustification) : null;
-    const win = window.open('', '_blank', 'width=700,height=900');
-    if (!win) return;
-    const rows = order.items.map(i =>
-      `<tr><td>${i.product.name}</td><td>${i.product.sku}</td><td style="text-align:right">${i.quantity}</td><td style="text-align:right">Rs. ${i.pricePerUnit.toLocaleString()}</td><td style="text-align:right">Rs. ${(i.quantity * i.pricePerUnit).toLocaleString()}</td></tr>`
+    const win = window.open('', '_blank', 'width=750,height=900');
+    if (!win) {
+      alert('Please allow popups to print invoices.');
+      return;
+    }
+    const partyName = isSale ? (d?.name || 'Walk-in Customer') : (order.wholesaler?.companyName || 'Wholesale Supplier');
+    const items = order.items || [];
+    const rows = items.map(i =>
+      `<tr>
+        <td style="padding:8px;border-bottom:1px solid #E2E8F0">${i.product?.name || 'Medicine'}</td>
+        <td style="padding:8px;border-bottom:1px solid #E2E8F0;font-family:monospace">${i.product?.sku || '—'}</td>
+        <td style="padding:8px;border-bottom:1px solid #E2E8F0;text-align:right">${i.quantity}</td>
+        <td style="padding:8px;border-bottom:1px solid #E2E8F0;text-align:right;font-family:monospace">Rs. ${(i.pricePerUnit || 0).toLocaleString()}</td>
+        <td style="padding:8px;border-bottom:1px solid #E2E8F0;text-align:right;font-family:monospace;font-weight:bold">Rs. ${((i.quantity || 0) * (i.pricePerUnit || 0)).toLocaleString()}</td>
+      </tr>`
     ).join('');
-    win.document.write(`<!DOCTYPE html><html><head><title>Invoice</title><style>body{font-family:monospace;padding:30px}table{width:100%;border-collapse:collapse}th,td{padding:6px;border-bottom:1px solid #ddd;font-size:12px;text-align:left}.right{text-align:right}</style></head><body><h2>MEDHUB PHARMACY STATEMENT</h2><div>Invoice: ${order.id}</div><div>Date: ${formatDateTimeNPT(order.createdAt)}</div><table><thead><tr><th>Medicine</th><th>SKU</th><th class="right">Qty</th><th class="right">Rate</th><th class="right">Total</th></tr></thead><tbody>${rows}</tbody></table><h4>Total Amount: Rs. ${order.netAmount.toLocaleString()}</h4><script>window.onload=function(){window.print();window.close();}</script></body></html>`);
+
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <title>MedHub Invoice #${order.id.slice(0, 8)}</title>
+  <style>
+    body { font-family: system-ui, -apple-system, sans-serif; padding: 30px; color: #1E293B; background: #FFF; }
+    .header { border-bottom: 2px solid #0EA5E9; padding-bottom: 12px; margin-bottom: 20px; display: flex; justify-content: space-between; }
+    .title { font-size: 20px; font-weight: 800; color: #0EA5E9; letter-spacing: -0.02em; }
+    .meta { font-size: 12px; color: #64748B; margin-top: 4px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+    th { background: #F8FAFC; text-align: left; padding: 8px; font-size: 11px; text-transform: uppercase; color: #64748B; border-bottom: 2px solid #CBD5E1; }
+    th.right { text-align: right; }
+    .totals { margin-top: 20px; text-align: right; border-top: 2px solid #E2E8F0; padding-top: 12px; }
+    .net { font-size: 18px; font-weight: 900; color: #0F172A; }
+    @media print {
+      body { padding: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <div class="title">MEDHUB PHARMACY INVOICE</div>
+      <div class="meta">Statement Type: ${isSale ? 'B2C Retail Sale' : 'B2B Wholesale Procurement'}</div>
+    </div>
+    <div style="text-align:right">
+      <div style="font-size:12px;font-weight:700;font-family:monospace">Invoice ID: ${order.id}</div>
+      <div class="meta">Date: ${formatDateTimeNPT(order.createdAt)}</div>
+    </div>
+  </div>
+
+  <div style="margin-bottom:15px;font-size:13px">
+    <strong>Party / Customer:</strong> ${partyName}
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Item Description</th>
+        <th>SKU</th>
+        <th class="right">Qty</th>
+        <th class="right">Rate</th>
+        <th class="right">Total</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${rows || '<tr><td colspan="5" style="text-align:center;padding:12px;color:#94A3B8">No item details available</td></tr>'}
+    </tbody>
+  </table>
+
+  <div class="totals">
+    <div>Discount: Rs. ${(order.discountAmount || 0).toLocaleString()}</div>
+    <div class="net" style="margin-top:6px">Total Payable: Rs. ${(order.netAmount || 0).toLocaleString()}</div>
+  </div>
+
+  <script>
+    window.onload = function() {
+      setTimeout(function() {
+        window.focus();
+        window.print();
+      }, 250);
+    };
+  </script>
+</body>
+</html>`;
+
+    win.document.open();
+    win.document.write(html);
     win.document.close();
   };
 
@@ -395,18 +487,6 @@ export default function BillingClient({
     const matchesSearch = !q || t.id.toLowerCase().includes(q) || t.party.toLowerCase().includes(q) || t.itemsText.toLowerCase().includes(q);
     return matchesType && matchesSettle && matchesFY && matchesSearch;
   });
-
-  const Modal = ({ children, onClose, title }: { children: React.ReactNode; onClose: () => void; title: string }) => (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(15,23,42,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 580, background: 'var(--card-bg)', borderRadius: 12, border: '1px solid var(--card-border)', display: 'flex', flexDirection: 'column', maxHeight: '90vh', overflow: 'hidden' }}>
-        <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--card-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ fontSize: 14, fontWeight: 700 }}>{title}</span>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4 }}><X style={{ width: 16, height: 16 }} /></button>
-        </div>
-        <div style={{ padding: '18px', overflowY: 'auto', flex: 1 }}>{children}</div>
-      </div>
-    </div>
-  );
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20, minHeight: '100vh' }}>

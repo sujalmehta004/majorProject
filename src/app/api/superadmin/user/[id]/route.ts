@@ -72,6 +72,51 @@ export async function POST(
     }
 
     if (action === 'verify') {
+      const { forceApprove } = await request.json().catch(() => ({}));
+
+      if (!forceApprove) {
+        const targetUser = await db.user.findUnique({
+          where: { id },
+          include: { wholesalerProfile: true, retailerProfile: true }
+        });
+
+        if (targetUser?.wholesalerProfile?.taxId) {
+          const pan = targetUser.wholesalerProfile.taxId.trim();
+          const dupWholesaler = await db.wholesalerProfile.findFirst({
+            where: {
+              taxId: { equals: pan, mode: 'insensitive' },
+              userId: { not: id },
+              user: { isVerified: true }
+            },
+            include: { user: true }
+          });
+          if (dupWholesaler) {
+            return NextResponse.json({
+              duplicatePan: true,
+              message: `PAN / Tax ID "${pan}" is already verified under another Wholesale Distributor ("${dupWholesaler.companyName}" - ${dupWholesaler.user.email}).`
+            }, { status: 400 });
+          }
+        }
+
+        if (targetUser?.retailerProfile?.registrationNumber) {
+          const reg = targetUser.retailerProfile.registrationNumber.trim();
+          const dupRetailer = await db.retailerProfile.findFirst({
+            where: {
+              registrationNumber: { equals: reg, mode: 'insensitive' },
+              userId: { not: id },
+              user: { isVerified: true }
+            },
+            include: { user: true }
+          });
+          if (dupRetailer) {
+            return NextResponse.json({
+              duplicatePan: true,
+              message: `PAN / Reg Number "${reg}" is already verified under another Retail Pharmacy ("${dupRetailer.pharmacyName}" - ${dupRetailer.user.email}).`
+            }, { status: 400 });
+          }
+        }
+      }
+
       const updatedUser = await db.user.update({
         where: { id },
         data: {
@@ -85,7 +130,7 @@ export async function POST(
         data: {
           action: 'SUPERADMIN_VERIFY_USER',
           userId: id,
-          details: `Superadmin approved & verified partner account for user ID: ${id} (${updatedUser.email}).`,
+          details: `Superadmin approved & verified partner account for user ID: ${id} (${updatedUser.email}). ${forceApprove ? '[FORCE APPROVED BYPASSING DUPLICATE PAN]' : ''}`,
         },
       });
 

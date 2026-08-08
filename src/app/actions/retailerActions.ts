@@ -56,6 +56,8 @@ export async function ingestInventoryBatchAction(data: {
   quantity: number;
   expiryDate: string;
   rack?: string;
+  buyingPrice?: number;
+  sellingPrice?: number;
 }) {
   const { user, retailer } = await assertRetailer();
 
@@ -95,6 +97,8 @@ export async function ingestInventoryBatchAction(data: {
 
   const qty = parseInt(String(data.quantity));
   const expDate = new Date(data.expiryDate);
+  const bPrice = data.buyingPrice !== undefined ? parseFloat(String(data.buyingPrice)) || 0 : 0;
+  const sPrice = data.sellingPrice !== undefined ? parseFloat(String(data.sellingPrice)) || 0 : 0;
 
   const inventoryItem = await db.retailerInventory.upsert({
     where: {
@@ -110,6 +114,8 @@ export async function ingestInventoryBatchAction(data: {
       },
       expiryDate: expDate,
       rack: data.rack || undefined,
+      buyingPrice: bPrice,
+      sellingPrice: sPrice,
     },
     create: {
       retailerId: retailer.id,
@@ -118,6 +124,8 @@ export async function ingestInventoryBatchAction(data: {
       quantity: qty,
       expiryDate: expDate,
       rack: data.rack || null,
+      buyingPrice: bPrice,
+      sellingPrice: sPrice,
     },
     include: {
       product: true,

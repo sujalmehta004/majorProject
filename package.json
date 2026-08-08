@@ -2,6 +2,9 @@
   "name": "medhub",
   "version": "0.1.0",
   "private": true,
+  "prisma": {
+    "seed": "node prisma/seed.js"
+  },
   "scripts": {
     "dev": "node server.js",
     "build": "next build",

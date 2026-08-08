@@ -84,6 +84,14 @@ const Field = ({ label, children }: { label: string; children: React.ReactNode }
   </div>
 );
 
+const Modal = ({ children, onClose, maxWidth = 580 }: { children: React.ReactNode; onClose: () => void; maxWidth?: number }) => (
+  <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(15,23,42,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+    <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth, background: 'var(--card-bg)', borderRadius: 14, border: '1px solid var(--card-border)', display: 'flex', flexDirection: 'column', maxHeight: '90vh', overflow: 'hidden' }}>
+      {children}
+    </div>
+  </div>
+);
+
 export default function InventoryClient({ profileId, allProducts: initialProducts }: InventoryClientProps) {
   const [inventory, setInventory] = useState<RetailerInventory[]>([]);
   const [products, setProducts] = useState<Product[]>(initialProducts);
@@ -320,14 +328,6 @@ export default function InventoryClient({ profileId, allProducts: initialProduct
   );
 
   const thStyle: React.CSSProperties = { padding: '11px 16px', color: 'var(--text-muted)', fontWeight: 600, fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap' };
-
-  const Modal = ({ children, onClose, maxWidth = 580 }: { children: React.ReactNode; onClose: () => void; maxWidth?: number }) => (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(15,23,42,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth, background: 'var(--card-bg)', borderRadius: 14, border: '1px solid var(--card-border)', display: 'flex', flexDirection: 'column', maxHeight: '90vh', overflow: 'hidden' }}>
-        {children}
-      </div>
-    </div>
-  );
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20, minHeight: '100vh' }}>

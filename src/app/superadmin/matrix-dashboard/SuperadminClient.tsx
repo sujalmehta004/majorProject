@@ -175,6 +175,7 @@ export default function SuperadminClient({ initialUsers, initialLogs, initialPac
   const [tempPass, setTempPass] = useState<{ email: string; pass: string } | null>(null);
   const [docViewer, setDocViewer] = useState<{ images: string[]; index: number } | null>(null);
   const [rejectReason, setRejectReason] = useState('');
+  const [duplicatePanWarning, setDuplicatePanWarning] = useState('');
 
   // Plan edit form
   const [selectedPkgName, setSelectedPkgName] = useState('');
@@ -358,10 +359,22 @@ export default function SuperadminClient({ initialUsers, initialLogs, initialPac
     return data;
   };
 
-  const handleVerify = async (userId: string) => {
-    setLoading(true); setError(''); setSuccessMsg('');
+  const handleVerify = async (userId: string, forceApprove: boolean = false) => {
+    setLoading(true); setError(''); setSuccessMsg(''); setDuplicatePanWarning('');
     try {
-      await apiCall(`/api/superadmin/user/${userId}`, 'POST', { action: 'verify' });
+      const res = await fetch(`/api/superadmin/user/${userId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'verify', forceApprove })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        if (data.duplicatePan) {
+          setDuplicatePanWarning(data.message);
+          return;
+        }
+        throw new Error(data.error || data.message || 'Request failed.');
+      }
       setUsers(prev => prev.map(u => u.id === userId ? { ...u, isVerified: true, verificationStatus: 'VERIFIED', verificationRejectReason: null } : u));
       setSuccessMsg('Partner account verified successfully.');
       setVerifyModal(null);
@@ -1002,6 +1015,23 @@ export default function SuperadminClient({ initialUsers, initialLogs, initialPac
                     <strong>Previous rejection:</strong> {u.verificationRejectReason}
                   </div>
                 )}
+                {duplicatePanWarning && (
+                  <div style={{ padding: 14, background: '#FEF2F2', border: '1.5px solid #FCA5A5', borderRadius: 10, color: '#991B1B', fontSize: 13, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <div style={{ fontWeight: 800, display: 'flex', alignItems: 'center', gap: 8, color: '#DC2626' }}>
+                      <AlertTriangle style={{ width: 18, height: 18, flexShrink: 0 }} />
+                      Duplicate PAN / Reg ID Warning
+                    </div>
+                    <div>{duplicatePanWarning}</div>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                      <Btn variant="danger" onClick={() => handleVerify(u.id, true)} disabled={loading} style={{ flex: 2, justifyContent: 'center' }}>
+                        <CheckCircle style={{ width: 14, height: 14 }} /> {loading ? 'Approving…' : 'Force Approve Anyway'}
+                      </Btn>
+                      <Btn variant="ghost" onClick={() => setDuplicatePanWarning('')} style={{ flex: 1, justifyContent: 'center' }}>
+                        Cancel
+                      </Btn>
+                    </div>
+                  </div>
+                )}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 12, borderTop: `1px solid ${C.border}` }}>
                   {/* External Government Verification Quick Links */}
                   <div style={{ display: 'flex', gap: 8 }}>
@@ -1018,7 +1048,7 @@ export default function SuperadminClient({ initialUsers, initialLogs, initialPac
                     <Btn variant="danger" onClick={() => { setRejectCommentModal(u); setVerifyModal(null); }} style={{ flex: 1 }}>
                       <X style={{ width: 14, height: 14 }} /> Reject
                     </Btn>
-                    <Btn variant="success" onClick={() => handleVerify(u.id)} disabled={loading} style={{ flex: 2 }}>
+                    <Btn variant="success" onClick={() => handleVerify(u.id, false)} disabled={loading} style={{ flex: 2 }}>
                       <Check style={{ width: 14, height: 14 }} /> {loading ? 'Approving…' : 'Approve & Verify'}
                     </Btn>
                   </div>

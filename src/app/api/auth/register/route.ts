@@ -89,11 +89,18 @@ export async function POST(request: Request) {
         if (!companyName || !taxId || !address || !phone) {
           throw new Error('Wholesaler profiles require company name, Tax/VAT ID, address, and phone number.');
         }
+        const cleanTaxId = taxId.trim();
+        const existingTax = await tx.wholesalerProfile.findFirst({
+          where: { taxId: { equals: cleanTaxId, mode: 'insensitive' } }
+        });
+        if (existingTax) {
+          throw new Error(`PAN / Tax ID "${cleanTaxId}" is already registered by another distributor (${existingTax.companyName}).`);
+        }
         await tx.wholesalerProfile.create({
           data: {
             userId: updatedUser.id,
             companyName,
-            taxId,
+            taxId: cleanTaxId,
             address,
             phone,
           },
@@ -102,11 +109,18 @@ export async function POST(request: Request) {
         if (!pharmacyName || !registrationNumber || !address || !phone) {
           throw new Error('Retailer profiles require pharmacy name, registration number, address, and phone.');
         }
+        const cleanReg = registrationNumber.trim();
+        const existingReg = await tx.retailerProfile.findFirst({
+          where: { registrationNumber: { equals: cleanReg, mode: 'insensitive' } }
+        });
+        if (existingReg) {
+          throw new Error(`Registration / PAN Number "${cleanReg}" is already registered by another pharmacy (${existingReg.pharmacyName}).`);
+        }
         await tx.retailerProfile.create({
           data: {
             userId: updatedUser.id,
             pharmacyName,
-            registrationNumber,
+            registrationNumber: cleanReg,
             address,
             phone,
             latitude: latitude ? parseFloat(latitude) : 27.7172,
