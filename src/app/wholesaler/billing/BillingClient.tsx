@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { formatDateNPT, formatTimeNPT, formatDateTimeNPT } from '@/lib/timezone';
+import { formatDateNPT, formatTimeNPT, formatDateTimeNPT, nowNPTISOString } from '@/lib/timezone';
 import {
   Receipt, DollarSign, Clock, ArrowUpRight,
   Printer, Send, Bell, Check, AlertCircle, CheckCircle, TrendingUp,
@@ -493,7 +493,7 @@ export default function BillingClient({ profileId, initialOrders, initialSupplie
             amount: inputPaid,
             method: 'CASH',
             status: 'VERIFIED',
-            createdAt: new Date().toISOString()
+            createdAt: nowNPTISOString()
           });
           return {
             ...o,
@@ -516,7 +516,7 @@ export default function BillingClient({ profileId, initialOrders, initialSupplie
             amount: inputPaid,
             method: 'CASH',
             status: 'VERIFIED',
-            createdAt: new Date().toISOString()
+            createdAt: nowNPTISOString()
           });
           return {
             ...prev,

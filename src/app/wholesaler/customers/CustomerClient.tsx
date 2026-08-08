@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { formatDateNPT, formatTimeNPT, formatDateTimeNPT } from '@/lib/timezone';
+import { formatDateNPT, formatTimeNPT, formatDateTimeNPT, nowNPTISOString } from '@/lib/timezone';
 import { 
   Users, Search, ChevronRight, ShoppingBag, CreditCard, Mail, Phone, 
   MapPin, Calendar, Receipt, TrendingUp, Info, Plus, X, UserPlus, CheckCircle, AlertCircle, FileText, Filter, SlidersHorizontal
@@ -232,7 +232,7 @@ export default function CustomerClient({ customers: initialCustomers, wholesaler
             amount: inputPaid,
             method: 'CASH',
             status: 'VERIFIED',
-            createdAt: new Date().toISOString()
+            createdAt: nowNPTISOString()
           };
           return {
             ...o,

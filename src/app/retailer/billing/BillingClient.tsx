@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { formatDateNPT, formatTimeNPT, formatDateTimeNPT } from '@/lib/timezone';
+import { formatDateNPT, formatTimeNPT, formatDateTimeNPT, nowNPTISOString } from '@/lib/timezone';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
   Receipt, Search, Printer, Eye, TrendingUp, TrendingDown,
@@ -305,7 +305,7 @@ export default function BillingClient({
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Failed to submit settlement');
-        const newSettleEntry = { id: data.settlementId || `tmp-${Date.now()}`, amount: amt, method: settleMethod, status: 'PENDING', createdAt: new Date().toISOString() };
+        const newSettleEntry = { id: data.settlementId || `tmp-${Date.now()}`, amount: amt, method: settleMethod, status: 'PENDING', createdAt: nowNPTISOString() };
         setPurchases(prev => prev.map(p => p.id === settleOrder.id
           ? { ...p, settleStatus: 'PENDING_VERIFICATION', settleAmount: amt, settleMethod, b2bSettlements: [...(p.b2bSettlements || []), newSettleEntry] }
           : p

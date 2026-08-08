@@ -395,8 +395,8 @@ export default function BuyMedicinePage() {
         alert('You can upload up to 5 prescription images maximum.');
         break;
       }
-      if (file.size > 500 * 1024 * 1024) {
-        alert(`File "${file.name}" exceeds the 500MB size limit.`);
+      if (file.size > 500 * 1024) {
+        alert(`File "${file.name}" exceeds the 500 KB size limit. Please choose a smaller image.`);
         continue;
       }
 
@@ -1381,8 +1381,8 @@ Thank you for ordering with MedHub!
                                 const maxAllowed = 5;
                                 for (let i = 0; i < files.length; i++) {
                                   const file = files[i];
-                                  if (file.size > 500 * 1024 * 1024) {
-                                    alert(`File "${file.name}" exceeds the 500MB size limit.`);
+                                  if (file.size > 500 * 1024) {
+                                    alert(`File "${file.name}" exceeds the 500 KB size limit. Please choose a smaller image.`);
                                     continue;
                                   }
                                   try {

@@ -771,6 +771,11 @@ export default function SettingsClient({
                   const { compressImageToBase64 } = await import('@/lib/imageCompressor');
                   for (let i = 0; i < files.length; i++) {
                     if (registrationImages.length >= 10) { alert('Maximum 10 images allowed.'); break; }
+                    const file = files[i];
+                    if (file.size > 500 * 1024) {
+                      alert(`File "${file.name}" exceeds the 500 KB size limit. Please choose a smaller image.`);
+                      continue;
+                    }
                     try {
                       const compressed = await compressImageToBase64(files[i]);
                       setRegistrationImages(prev => [...prev, compressed]);
