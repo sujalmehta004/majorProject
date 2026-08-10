@@ -87,6 +87,7 @@ interface BillingClientProps {
   initialRelations: WholesalerRelation[];
   initialLedgers: LedgerEntry[];
   initialReturnRequests: ReturnRequest[];
+  initialTotalProfit: number;
   profileId: string;
 }
 
@@ -161,6 +162,7 @@ export default function BillingClient({
   initialRelations,
   initialLedgers,
   initialReturnRequests,
+  initialTotalProfit,
 }: BillingClientProps) {
   const [sales, setSales]               = useState<Order[]>(initialSales);
   const [purchases, setPurchases]       = useState<Order[]>(initialPurchases);
@@ -276,6 +278,8 @@ export default function BillingClient({
   const totalPendingVerification = purchases.reduce((s, p) => s + getOrderPendingSettle(p), 0);
   const totalSalesRevenue = sales.reduce((s, o) => s + o.netAmount, 0);
   const totalPurchaseCost = purchases.reduce((s, o) => s + o.netAmount, 0);
+  // Profit = (selling price - buying price) × qty per item, computed server-side
+  const totalProfit = initialTotalProfit;
 
   const handleOpenSettle = (order: Order, isB2C: boolean) => {
     const d = isB2C ? getB2CDetails(order.overrideJustification) : null;
@@ -568,6 +572,7 @@ export default function BillingClient({
             {[
               { label: 'Sales Revenue', val: totalSalesRevenue, color: '#10B981' },
               { label: 'B2B Purchases', val: totalPurchaseCost, color: '#F59E0B' },
+              { label: 'Total Profit', val: totalProfit, color: totalProfit >= 0 ? '#10B981' : '#EF4444' },
               { label: 'B2B Outstanding Due', val: totalOutstandingDue, color: '#EF4444' },
               { label: 'B2B Verified Payments', val: totalVerifiedPayments, color: '#3B82F6' },
             ].map((s, i) => (

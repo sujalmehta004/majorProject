@@ -114,6 +114,57 @@ export default async function RetailerBillingPage() {
     ...mappedConsumerSales,
   ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
+  // Compute per-item profit using inventory buyingPrice
+  // NOTE: buyingPrice on RetailerInventory is per BOX, but OrderItem.pricePerUnit is per BASE UNIT (tablet).
+  // Must divide buyingPrice by (tabletsPerStrip × stripsPerBox) for correct per-unit comparison.
+  const inventoryPrices = await db.retailerInventory.findMany({
+    where: { retailerId: profile.id },
+    select: { productId: true, buyingPrice: true, quantity: true },
+  });
+
+  // Collect product dims for unit conversion
+  const invProductIds = [...new Set(inventoryPrices.map((i) => i.productId))];
+  const invProducts = await db.product.findMany({
+    where: { id: { in: invProductIds } },
+    select: { id: true, tabletsPerStrip: true, stripsPerBox: true },
+  });
+  const tabletsPerBoxMap: Record<string, number> = {};
+  for (const p of invProducts) {
+    tabletsPerBoxMap[p.id] = (p.tabletsPerStrip || 1) * (p.stripsPerBox || 1);
+  }
+
+  // Build weighted-average buying price per BASE UNIT per product
+  const buyingPricePerUnitMap: Record<string, number> = {};
+  const buyingPriceTotalMap: Record<string, { totalCost: number; totalQty: number }> = {};
+  for (const inv of inventoryPrices) {
+    if (!buyingPriceTotalMap[inv.productId]) {
+      buyingPriceTotalMap[inv.productId] = { totalCost: 0, totalQty: 0 };
+    }
+    buyingPriceTotalMap[inv.productId].totalCost += inv.buyingPrice * inv.quantity;
+    buyingPriceTotalMap[inv.productId].totalQty  += inv.quantity;
+  }
+  for (const [pid, val] of Object.entries(buyingPriceTotalMap)) {
+    const tpb = tabletsPerBoxMap[pid] || 1;
+    // weighted avg buying price per box ÷ tabletsPerBox = buying price per base unit
+    buyingPricePerUnitMap[pid] = val.totalQty > 0 ? (val.totalCost / val.totalQty) / tpb : 0;
+  }
+
+  // Sum profit across all B2C sale items
+  let totalProfit = 0;
+  for (const sale of salesRaw) {
+    for (const item of sale.items) {
+      const bppu = buyingPricePerUnitMap[item.productId] || 0;
+      totalProfit += (item.pricePerUnit - bppu) * item.quantity;
+    }
+  }
+  // Add consumer order profit (selling price - buying price per unit)
+  for (const c of consumerSales) {
+    for (const item of c.items) {
+      const bppu = buyingPricePerUnitMap[item.productId] || 0;
+      totalProfit += (item.pricePerUnit - bppu) * item.quantity;
+    }
+  }
+
   // Load B2B purchases only — orders where overrideJustification is NULL (pure B2B)
   const purchases = await db.order.findMany({
     where: {
@@ -186,6 +237,7 @@ export default async function RetailerBillingPage() {
           initialRelations={JSON.parse(JSON.stringify(relations))}
           initialLedgers={JSON.parse(JSON.stringify(ledgers))}
           initialReturnRequests={JSON.parse(JSON.stringify(returnRequests))}
+          initialTotalProfit={totalProfit}
           profileId={profile.id}
         />
       </Suspense>

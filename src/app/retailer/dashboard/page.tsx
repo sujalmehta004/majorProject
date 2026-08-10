@@ -78,12 +78,13 @@ export default async function RetailerDashboard() {
     },
   });
 
-  // Load B2C sales (POS)
+  // Load B2C sales (POS) with items
   const sales = await db.order.findMany({
     where: {
       retailerId: profile.id,
       overrideJustification: { contains: 'B2C POS' },
     },
+    include: { items: true },
   });
 
   // Load B2C online (consumer) orders
@@ -100,10 +101,59 @@ export default async function RetailerDashboard() {
     where: { retailerId: profile.id, status: 'DELIVERED' },
     _sum: { totalAmount: true },
   });
+  const consumerSalesItems = await db.consumerOrderItem.findMany({
+    where: { consumerOrder: { retailerId: profile.id } },
+    select: { productId: true, pricePerUnit: true, quantity: true },
+  });
 
   const totalSalesRevenue =
     sales.reduce((sum, s) => sum + s.netAmount, 0) +
     (consumerDeliveredRevenue._sum.totalAmount || 0);
+
+  // Compute item-level profit using inventory buyingPrice (weighted avg per product)
+  // NOTE: buyingPrice on RetailerInventory is per BOX, OrderItem.pricePerUnit is per BASE UNIT (tablet).
+  // We must convert buyingPrice → per-base-unit by dividing by (tabletsPerStrip × stripsPerBox).
+  const inventoryPrices = await db.retailerInventory.findMany({
+    where: { retailerId: profile.id },
+    select: { productId: true, buyingPrice: true, quantity: true },
+  });
+
+  // Collect product dims for unit conversion
+  const productIds = [...new Set(inventoryPrices.map((i) => i.productId))];
+  const products = await db.product.findMany({
+    where: { id: { in: productIds } },
+    select: { id: true, tabletsPerStrip: true, stripsPerBox: true },
+  });
+  const tabletsPerBoxMap: Record<string, number> = {};
+  for (const p of products) {
+    tabletsPerBoxMap[p.id] = (p.tabletsPerStrip || 1) * (p.stripsPerBox || 1);
+  }
+
+  // Build weighted-average buying price per BASE UNIT per product
+  const buyingPricePerUnitMap: Record<string, number> = {};
+  const bptMap: Record<string, { tc: number; tq: number }> = {};
+  for (const inv of inventoryPrices) {
+    if (!bptMap[inv.productId]) bptMap[inv.productId] = { tc: 0, tq: 0 };
+    bptMap[inv.productId].tc += inv.buyingPrice * inv.quantity; // buyingPrice is per-box, qty is base units
+    bptMap[inv.productId].tq += inv.quantity;
+  }
+  for (const [pid, val] of Object.entries(bptMap)) {
+    const tpb = tabletsPerBoxMap[pid] || 1;
+    // weighted avg buying price per box ÷ tabletsPerBox = buying price per base unit
+    buyingPricePerUnitMap[pid] = val.tq > 0 ? (val.tc / val.tq) / tpb : 0;
+  }
+
+  let totalProfit = 0;
+  for (const sale of sales) {
+    for (const item of sale.items) {
+      const bppu = buyingPricePerUnitMap[item.productId] || 0;
+      totalProfit += (item.pricePerUnit - bppu) * item.quantity;
+    }
+  }
+  for (const item of consumerSalesItems) {
+    const bppu = buyingPricePerUnitMap[item.productId] || 0;
+    totalProfit += (item.pricePerUnit - bppu) * item.quantity;
+  }
 
   const auditLogs = await db.systemAuditLog.findMany({
     take: 6,
@@ -163,6 +213,7 @@ export default async function RetailerDashboard() {
           pendingPurchases,
           nearExpiryCount,
           totalSalesRevenue,
+          totalProfit,
           creditLimit: profile.creditLimit,
           lifetimeSpend: profile.lifetimeSpend,
           pharmacyName: profile.pharmacyName,

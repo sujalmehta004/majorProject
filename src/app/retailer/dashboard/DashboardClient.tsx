@@ -31,6 +31,7 @@ interface DashboardClientProps {
     pendingPurchases: number;
     nearExpiryCount: number;
     totalSalesRevenue: number;
+    totalProfit: number;
     creditLimit: number;
     lifetimeSpend: number;
     pharmacyName: string;
@@ -142,13 +143,13 @@ export default function DashboardClient({ profileId, metrics, auditLogs, rejecte
   useWebSocketEvent('ORDER_UPDATE', fetchAnalytics);
   useWebSocketEvent('BILLING_UPDATE', fetchAnalytics);
 
-  const margin = metrics.totalSalesRevenue - metrics.lifetimeSpend;
-  const marginPct = metrics.lifetimeSpend > 0 ? ((margin / metrics.lifetimeSpend) * 100).toFixed(1) : '0.0';
+  const profit = metrics.totalProfit;
+  const profitPct = metrics.totalSalesRevenue > 0 ? ((profit / metrics.totalSalesRevenue) * 100).toFixed(1) : '0.0';
 
   const kpiCards = [
     { title: 'Medicine Catalog', value: metrics.productCount.toLocaleString(), unit: 'SKUs', sub: `${metrics.totalStockQty.toLocaleString()} base units`, icon: Package, color: '#3B82F6', link: '/retailer/inventory' },
     { title: 'Pending B2B Orders', value: metrics.pendingPurchases.toLocaleString(), unit: 'Orders', sub: 'Transit & awaiting delivery', icon: Clock, color: '#F59E0B', link: '/retailer/orders' },
-    { title: 'B2C Sales Revenue', value: `Rs. ${metrics.totalSalesRevenue.toLocaleString()}`, unit: '', sub: `Margin ~ ${marginPct}%`, icon: TrendingUp, color: '#10B981', link: '/retailer/billing' },
+    { title: 'B2C Sales Revenue', value: `Rs. ${metrics.totalSalesRevenue.toLocaleString()}`, unit: '', sub: `Profit: Rs. ${profit.toLocaleString()}`, icon: TrendingUp, color: '#10B981', link: '/retailer/billing' },
     { title: 'B2C Online Orders', value: ((metrics.consumerOrderPending || 0) + (metrics.consumerOrderShipped || 0)).toLocaleString(), unit: 'Active', sub: `${metrics.consumerOrderDelivered || 0} delivered`, icon: ShoppingBag, color: '#EC4899', link: '/retailer/orders' },
     { title: 'Near Expiry Batches', value: metrics.nearExpiryCount.toLocaleString(), unit: 'Batches', sub: 'Expiring within 30 days', icon: ShieldAlert, color: '#EF4444', link: '/retailer/inventory' },
   ];
@@ -400,7 +401,7 @@ export default function DashboardClient({ profileId, metrics, auditLogs, rejecte
           <div style={{ display: 'flex', gap: 10, paddingTop: 14, borderTop: '1px solid var(--card-border)', marginTop: 14, flexWrap: 'wrap' as const }}>
             {[
               { label: 'Total Revenue', val: `Rs. ${metrics.totalSalesRevenue.toLocaleString()}`, color: '#F59E0B' },
-              { label: 'Net Margin', val: `Rs. ${margin.toLocaleString()} (${marginPct}%)`, color: margin >= 0 ? '#10B981' : '#EF4444' },
+              { label: 'Total Profit', val: `Rs. ${profit.toLocaleString()} (${profitPct}%)`, color: profit >= 0 ? '#10B981' : '#EF4444' },
             ].map((s) => (
               <div key={s.label} style={{ flex: 1, minWidth: 110, background: 'var(--table-header-bg)', padding: '10px 14px', borderRadius: 8 }}>
                 <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' as const, marginBottom: 3 }}>{s.label}</div>
